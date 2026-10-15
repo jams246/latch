@@ -1,3 +1,5 @@
+#[cfg(test)]
+mod lifecycle_tests;
 mod state;
 mod view;
 
