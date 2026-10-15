@@ -37,6 +37,10 @@ pub(crate) struct Fixture {
 pub(super) type Subsystem = fn(russh::ChannelStream<server::Msg>);
 
 impl Fixture {
+    pub fn disconnect_clients(&self) {
+        self.shutdown.shutdown("Synthetic transport failure".into());
+    }
+
     pub async fn start(reject_shell: bool) -> Self {
         Self::start_with(reject_shell, None).await
     }

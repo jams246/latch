@@ -37,14 +37,19 @@ async fn key_files_authenticate_with_only_required_passphrase_prompts() {
         let (_control, mut prompts, mut events) = start(config);
         trust(&mut prompts).await;
         if encrypted {
+            let Prompt::Secret { reply, .. } = next_prompt(&mut prompts).await else {
+                panic!("Expected key passphrase");
+            };
+            assert!(reply.send(Some(Secret::new("wrong".into()))).is_ok());
             let Prompt::Secret {
                 kind: SecretKind::KeyPassphrase { .. },
                 reply,
-                ..
+                error,
             } = next_prompt(&mut prompts).await
             else {
                 panic!("Expected key passphrase");
             };
+            assert!(error.is_some());
             assert!(
                 reply
                     .send(Some(Secret::new("test-only-passphrase".into())))

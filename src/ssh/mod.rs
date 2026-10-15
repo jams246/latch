@@ -147,4 +147,10 @@ mod tests;
 #[cfg(test)]
 mod fixture_handler;
 #[cfg(test)]
+mod gui_fixture;
+#[cfg(test)]
 mod tests_auth;
+#[cfg(test)]
+mod tests_lifecycle;
+#[cfg(test)]
+mod tests_timeouts;

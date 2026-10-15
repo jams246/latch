@@ -13,6 +13,13 @@ pub(super) struct Client {
     pub path: std::path::PathBuf,
     pub prompts: mpsc::Sender<Prompt>,
     pub cancel: watch::Receiver<bool>,
+    pub closed: watch::Sender<bool>,
+}
+
+impl Drop for Client {
+    fn drop(&mut self) {
+        let _ = self.closed.send(true);
+    }
 }
 
 pub(super) struct CancelOnDrop(pub watch::Sender<bool>);
