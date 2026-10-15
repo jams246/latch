@@ -5,3 +5,13 @@ edition = "2024"
 
 [dependencies]
 gpui = "0.2.2"
+alacritty_terminal = "0.26.0"
+anyhow = "1"
+russh = { version = "0.64.1", default-features = false, features = ["ring", "rsa"] }
+russh-sftp = "3.0.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+zeroize = "1"
