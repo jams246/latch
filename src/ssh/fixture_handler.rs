@@ -1,0 +1,160 @@
+use super::fixture::{Counts, Subsystem, key};
+use russh::{Channel, ChannelId, Pty, keys::PublicKey, server};
+use std::{
+    borrow::Cow,
+    collections::HashMap,
+    sync::{Arc, atomic::Ordering},
+};
+
+pub(super) struct Handler {
+    pub(super) counts: Arc<Counts>,
+    pub(super) reject_shell: bool,
+    pub(super) channels: HashMap<ChannelId, Channel<server::Msg>>,
+    pub(super) subsystem: Option<Subsystem>,
+}
+
+impl Drop for Handler {
+    fn drop(&mut self) {
+        self.counts.active.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+impl server::Handler for Handler {
+    type Error = russh::Error;
+
+    async fn auth_password(
+        &mut self,
+        user: &str,
+        password: &str,
+    ) -> Result<server::Auth, Self::Error> {
+        self.counts.passwords.fetch_add(1, Ordering::SeqCst);
+        Ok(if user == "synthetic" && password == "test-only-password" {
+            server::Auth::Accept
+        } else {
+            server::Auth::reject()
+        })
+    }
+
+    async fn auth_publickey(
+        &mut self,
+        user: &str,
+        public: &PublicKey,
+    ) -> Result<server::Auth, Self::Error> {
+        Ok(
+            if user == "synthetic" && public.key_data() == key(2).public_key().key_data() {
+                server::Auth::Accept
+            } else {
+                server::Auth::reject()
+            },
+        )
+    }
+
+    async fn auth_keyboard_interactive<'a>(
+        &'a mut self,
+        _: &str,
+        _: &str,
+        response: Option<server::Response<'a>>,
+    ) -> Result<server::Auth, Self::Error> {
+        if let Some(mut response) = response {
+            return Ok(
+                if response.next().is_some_and(|value| value == b"123456"[..]) {
+                    server::Auth::Accept
+                } else {
+                    server::Auth::reject()
+                },
+            );
+        }
+        Ok(server::Auth::Partial {
+            name: Cow::Borrowed("Synthetic verification"),
+            instructions: Cow::Borrowed("Enter the synthetic code"),
+            prompts: Cow::Owned(vec![(Cow::Borrowed("Code"), false)]),
+        })
+    }
+
+    async fn channel_open_session(
+        &mut self,
+        channel: Channel<server::Msg>,
+        reply: server::ChannelOpenHandle,
+        _: &mut server::Session,
+    ) -> Result<(), Self::Error> {
+        self.channels.insert(channel.id(), channel);
+        reply.accept().await;
+        Ok(())
+    }
+
+    async fn subsystem_request(
+        &mut self,
+        channel: ChannelId,
+        name: &str,
+        session: &mut server::Session,
+    ) -> Result<(), Self::Error> {
+        if name == "sftp"
+            && let Some(subsystem) = self.subsystem
+            && let Some(channel_stream) = self.channels.remove(&channel)
+        {
+            session.channel_success(channel)?;
+            subsystem(channel_stream.into_stream());
+            return Ok(());
+        }
+        session.channel_failure(channel)?;
+        Ok(())
+    }
+
+    async fn pty_request(
+        &mut self,
+        channel: ChannelId,
+        _: &str,
+        cols: u32,
+        rows: u32,
+        _: u32,
+        _: u32,
+        _: &[(Pty, u32)],
+        session: &mut server::Session,
+    ) -> Result<(), Self::Error> {
+        if cols > 0 && rows > 0 {
+            self.counts.ptys.fetch_add(1, Ordering::SeqCst);
+        }
+        session.channel_success(channel)?;
+        Ok(())
+    }
+
+    async fn shell_request(
+        &mut self,
+        channel: ChannelId,
+        session: &mut server::Session,
+    ) -> Result<(), Self::Error> {
+        if self.reject_shell {
+            session.channel_failure(channel)?;
+        } else {
+            session.channel_success(channel)?;
+            session.data(channel, b"\x1b[32mSynthetic SSH shell\x1b[0m\r\n".to_vec())?;
+        }
+        Ok(())
+    }
+
+    async fn data(
+        &mut self,
+        channel: ChannelId,
+        data: &[u8],
+        session: &mut server::Session,
+    ) -> Result<(), Self::Error> {
+        if self.channels.contains_key(&channel) {
+            session.data(channel, data.to_vec())?;
+        }
+        Ok(())
+    }
+
+    async fn window_change_request(
+        &mut self,
+        channel: ChannelId,
+        _: u32,
+        _: u32,
+        _: u32,
+        _: u32,
+        session: &mut server::Session,
+    ) -> Result<(), Self::Error> {
+        self.counts.resizes.fetch_add(1, Ordering::SeqCst);
+        session.data(channel, b"resized".to_vec())?;
+        Ok(())
+    }
+}
