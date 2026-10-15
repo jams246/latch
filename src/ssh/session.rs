@@ -5,7 +5,9 @@ use tokio::sync::mpsc;
 
 use super::{Command, ConnectionConfig, Error, Event, Prompt, SftpStream, State, host::Client};
 
+/// Owns one tab's transport task; dropping it aborts pending work and closes its socket.
 pub struct SessionControl {
+    /// Commands for this session; input is never shared with another tab.
     pub commands: mpsc::Sender<Command>,
     task: tokio::task::JoinHandle<()>,
 }
@@ -25,6 +27,8 @@ impl Drop for SessionControl {
     }
 }
 
+/// Starts an independent session on the currently entered Tokio runtime.
+/// Retain the returned owner for the tab's lifetime and consume both UI channels.
 pub fn spawn(
     config: ConnectionConfig,
     prompts: mpsc::Sender<Prompt>,
@@ -35,6 +39,8 @@ pub fn spawn(
     SessionControl { commands, task }
 }
 
+/// Drives a session on a caller-owned Tokio task, emitting its final lifecycle state.
+/// Closing the command channel cancels the attempt; callers must abort the task on drop.
 pub async fn run(
     config: ConnectionConfig,
     mut commands: mpsc::Receiver<Command>,

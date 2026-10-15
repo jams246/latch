@@ -7,11 +7,22 @@ pub(super) async fn authenticate(
     username: &str,
 ) -> Result<(), Error> {
     #[cfg(windows)]
-    let mut agent = AgentClient::connect_named_pipe(r"\\.\pipe\openssh-ssh-agent")
+    let agent = AgentClient::connect_named_pipe(r"\\.\pipe\openssh-ssh-agent")
         .await
         .map_err(|_| Error::Agent)?;
     #[cfg(unix)]
-    let mut agent = AgentClient::connect_env().await.map_err(|_| Error::Agent)?;
+    let agent = AgentClient::connect_env().await.map_err(|_| Error::Agent)?;
+    authenticate_with(handle, username, agent).await
+}
+
+pub(super) async fn authenticate_with<S>(
+    handle: &mut client::Handle<Client>,
+    username: &str,
+    mut agent: AgentClient<S>,
+) -> Result<(), Error>
+where
+    S: russh::keys::agent::client::AgentStream + Send + Unpin,
+{
     let identities = agent.request_identities().await.map_err(|_| Error::Agent)?;
     for identity in identities {
         let russh::keys::agent::AgentIdentity::PublicKey { key, .. } = identity else {

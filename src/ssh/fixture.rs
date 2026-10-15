@@ -20,6 +20,7 @@ pub(crate) struct Counts {
     pub active: AtomicUsize,
     pub ptys: AtomicUsize,
     pub resizes: AtomicUsize,
+    pub agent_forwarding: AtomicUsize,
 }
 
 pub(crate) fn key(seed: u8) -> PrivateKey {

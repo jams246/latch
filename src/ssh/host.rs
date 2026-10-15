@@ -94,12 +94,63 @@ impl russh::client::Handler for Client {
         tokio::task::spawn_blocking(move || {
             let _guard = HOSTS_LOCK.lock().map_err(|_| Error::KnownHosts)?;
             if !check(&host, port, &key, &path)? {
-                known_hosts::learn_known_hosts_path(&host, port, &key, path)
+                known_hosts::learn_known_hosts_path(&host, port, &key, &path)
                     .map_err(|_| Error::KnownHosts)?;
+                // russh's writer flushes on drop; verify the record before sending credentials.
+                if !check(&host, port, &key, &path)? {
+                    return Err(Error::KnownHosts);
+                }
             }
             Ok::<_, Error>(true)
         })
         .await
         .map_err(|_| Error::KnownHosts)?
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn path() -> std::path::PathBuf {
+        let directory = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join(".verification/latch-plan/ssh-host-tests")
+            .join(uuid::Uuid::new_v4().to_string());
+        std::fs::create_dir_all(&directory).unwrap();
+        directory.join("known_hosts")
+    }
+
+    #[test]
+    fn host_identity_is_matched_by_both_host_and_port() {
+        let path = path();
+        let key = super::super::fixture::key(1);
+        let key = PublicKey::new(key.public_key().key_data().clone(), "");
+        known_hosts::learn_known_hosts_path("synthetic.example", 2222, &key, &path).unwrap();
+        assert!(check("synthetic.example", 2222, &key, &path).unwrap());
+        assert!(!check("synthetic.example", 22, &key, &path).unwrap());
+        assert!(!check("other.example", 2222, &key, &path).unwrap());
+    }
+
+    #[test]
+    fn hashed_openssh_host_keys_use_established_matching() {
+        let path = path();
+        let public = "AAAAC3NzaC1lZDI1NTE5AAAAILIG2T/B0l0gaqj3puu510tu9N1OkQ4znY3LYuEm5zCF";
+        std::fs::write(&path, format!(
+            "|1|O33ESRMWPVkMYIwJ1Uw+n877jTo=|nuuC5vEqXlEZ/8BXQR7m619W6Ak= ssh-ed25519 {public}\n"
+        )).unwrap();
+        let key = russh::keys::parse_public_key_base64(public).unwrap();
+        assert!(check("example.com", 22, &key, &path).unwrap());
+        assert!(!check("example.com", 2222, &key, &path).unwrap());
+    }
+
+    #[test]
+    fn invalid_known_hosts_storage_blocks_instead_of_becoming_unknown() {
+        let path = path();
+        std::fs::create_dir(&path).unwrap();
+        let key = super::super::fixture::key(1);
+        assert!(matches!(
+            check("synthetic.example", 22, key.public_key(), &path),
+            Err(Error::KnownHosts)
+        ));
     }
 }

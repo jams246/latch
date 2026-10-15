@@ -22,6 +22,15 @@ impl Drop for Handler {
 impl server::Handler for Handler {
     type Error = russh::Error;
 
+    async fn agent_request(
+        &mut self,
+        _: ChannelId,
+        _: &mut server::Session,
+    ) -> Result<bool, Self::Error> {
+        self.counts.agent_forwarding.fetch_add(1, Ordering::SeqCst);
+        Ok(false)
+    }
+
     async fn auth_password(
         &mut self,
         user: &str,
