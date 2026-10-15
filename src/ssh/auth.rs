@@ -58,10 +58,30 @@ async fn read_key(
     let path = path.to_owned();
     tokio::task::spawn_blocking(move || {
         let contents = Zeroizing::new(std::fs::read_to_string(path)?);
-        russh::keys::decode_secret_key(&contents, passphrase.as_deref().map(String::as_str))
+        decode_key(&contents, passphrase.as_deref().map(String::as_str))
     })
     .await
     .map_err(|_| russh::keys::Error::CouldNotReadKey)?
+}
+
+fn decode_key(
+    contents: &str,
+    passphrase: Option<&str>,
+) -> Result<russh::keys::PrivateKey, russh::keys::Error> {
+    let decoded = russh::keys::decode_secret_key(contents, passphrase);
+    let encrypted = contents
+        .trim_start()
+        .starts_with("-----BEGIN ENCRYPTED PRIVATE KEY-----")
+        || (contents.trim_start().starts_with("PuTTY-User-Key-File-")
+            && contents
+                .lines()
+                .any(|line| line.trim_end() == "Encryption: aes256-cbc"));
+    // Supported loaders do not consistently classify a missing passphrase themselves.
+    if decoded.is_err() && passphrase.is_none() && encrypted {
+        Err(russh::keys::Error::KeyIsEncrypted)
+    } else {
+        decoded
+    }
 }
 
 async fn key(

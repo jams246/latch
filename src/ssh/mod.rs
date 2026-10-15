@@ -181,6 +181,8 @@ mod tests_agent;
 #[cfg(test)]
 mod tests_auth;
 #[cfg(test)]
+mod tests_key_formats;
+#[cfg(test)]
 mod tests_lifecycle;
 #[cfg(test)]
 mod tests_timeouts;
