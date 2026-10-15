@@ -143,6 +143,7 @@ impl TerminalState {
             term.selection = Some(Selection::new(SelectionType::Simple, point, Side::Left));
         } else if let Some(selection) = &mut term.selection {
             selection.update(point, Side::Right);
+            selection.include_all();
         }
         inner.revision = inner.revision.wrapping_add(1);
     }

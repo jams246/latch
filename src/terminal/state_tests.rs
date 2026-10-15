@@ -54,6 +54,34 @@ fn selection_should_copy_remote_text() {
 }
 
 #[test]
+fn reverse_selection_should_include_both_boundary_characters() {
+    let terminal = TerminalState::new(10, 2);
+    terminal.feed(b"hello");
+    terminal.select(0, 4, true);
+    terminal.select(0, 0, false);
+    assert_eq!(terminal.selected_text().as_deref(), Some("hello"));
+}
+
+#[test]
+fn reverse_multiline_selection_should_include_both_boundary_cells() {
+    let terminal = TerminalState::new(10, 2);
+    terminal.feed(b"hello\r\nworld");
+    terminal.select(1, 4, true);
+    terminal.select(0, 0, false);
+    assert_eq!(terminal.selected_text().as_deref(), Some("hello\nworld"));
+}
+
+#[test]
+fn selection_crossing_its_anchor_should_adjust_boundary_sides() {
+    let terminal = TerminalState::new(10, 2);
+    terminal.feed(b"hello");
+    terminal.select(0, 2, true);
+    terminal.select(0, 0, false);
+    terminal.select(0, 4, false);
+    assert_eq!(terminal.selected_text().as_deref(), Some("llo"));
+}
+
+#[test]
 fn device_status_should_reply_with_cursor_position() {
     let terminal = TerminalState::new(10, 2);
     assert_eq!(terminal.feed(b"abc\x1b[6n"), b"\x1b[1;4R");
