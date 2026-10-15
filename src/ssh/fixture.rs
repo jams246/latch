@@ -17,6 +17,7 @@ use super::fixture_handler::Handler;
 #[derive(Default)]
 pub(crate) struct Counts {
     pub passwords: AtomicUsize,
+    pub challenge_responses: AtomicUsize,
     pub active: AtomicUsize,
     pub ptys: AtomicUsize,
     pub resizes: AtomicUsize,

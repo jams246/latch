@@ -67,11 +67,14 @@ impl server::Handler for Handler {
 
     async fn auth_keyboard_interactive<'a>(
         &'a mut self,
-        _: &str,
+        user: &str,
         _: &str,
         response: Option<server::Response<'a>>,
     ) -> Result<server::Auth, Self::Error> {
         if let Some(mut response) = response {
+            self.counts
+                .challenge_responses
+                .fetch_add(1, Ordering::SeqCst);
             return Ok(
                 if response.next().is_some_and(|value| value == b"123456"[..]) {
                     server::Auth::Accept
@@ -80,10 +83,15 @@ impl server::Handler for Handler {
                 },
             );
         }
+        let prompts = match user {
+            "synthetic-oversized-challenge" => vec![(Cow::Borrowed("Code"), false); 17],
+            "synthetic-long-challenge" => vec![(Cow::Owned("x".repeat(4097)), false)],
+            _ => vec![(Cow::Borrowed("Code"), false)],
+        };
         Ok(server::Auth::Partial {
             name: Cow::Borrowed("Synthetic verification"),
             instructions: Cow::Borrowed("Enter the synthetic code"),
-            prompts: Cow::Owned(vec![(Cow::Borrowed("Code"), false)]),
+            prompts: Cow::Owned(prompts),
         })
     }
 
