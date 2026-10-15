@@ -14,6 +14,7 @@ pub(super) struct Client {
     pub prompts: mpsc::Sender<Prompt>,
     pub cancel: watch::Receiver<bool>,
     pub closed: watch::Sender<bool>,
+    pub disconnected: watch::Receiver<bool>,
 }
 
 impl Drop for Client {
@@ -85,6 +86,7 @@ impl russh::client::Handler for Client {
         let trusted = tokio::select! {
             result = response => result?,
             _ = self.cancel.changed() => return Err(Error::Cancelled),
+            _ = self.disconnected.changed() => return Err(Error::Transport),
         };
         if !trusted {
             return Err(Error::Cancelled);

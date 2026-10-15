@@ -46,7 +46,7 @@ async fn handle(fixture: &Fixture) -> (client::Handle<Client>, mpsc::Receiver<Pr
     .unwrap();
     let (prompts, incoming) = mpsc::channel(1);
     let (_cancel, cancel) = watch::channel(false);
-    let (closed, _disconnected) = watch::channel(false);
+    let (closed, disconnected) = watch::channel(false);
     let handler = Client {
         host: config.host,
         port: config.port,
@@ -54,6 +54,7 @@ async fn handle(fixture: &Fixture) -> (client::Handle<Client>, mpsc::Receiver<Pr
         prompts,
         cancel,
         closed,
+        disconnected,
     };
     let handle = tokio::time::timeout(
         Duration::from_secs(5),

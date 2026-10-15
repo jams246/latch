@@ -5,6 +5,7 @@ mod auth;
 mod error;
 mod host;
 mod session;
+mod socket;
 
 use std::path::PathBuf;
 

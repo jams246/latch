@@ -73,6 +73,55 @@ async fn transport_failure_discards_pending_password_reply() {
 }
 
 #[tokio::test]
+async fn socket_eof_discards_pending_host_trust_and_releases_transport() {
+    use tokio::{net::TcpListener, sync::oneshot};
+    let fixture = Fixture::start(false).await;
+    let proxy = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+    let mut config = config(&fixture, "trust-eof");
+    config.port = proxy.local_addr().unwrap().port();
+    let port = fixture.port;
+    let (cut, mut cut_now) = oneshot::channel();
+    let proxy = tokio::spawn(async move {
+        let (mut downstream, _) = proxy.accept().await.unwrap();
+        let mut upstream = tokio::net::TcpStream::connect(("127.0.0.1", port))
+            .await
+            .unwrap();
+        tokio::select! {
+            _ = tokio::io::copy_bidirectional(&mut downstream, &mut upstream) => (),
+            _ = &mut cut_now => (),
+        }
+    });
+    let (_control, mut prompts, mut events) = start(config);
+    let Prompt::HostKey { reply, .. } = next_prompt(&mut prompts).await else {
+        panic!("Expected host trust");
+    };
+    cut.send(()).unwrap();
+    tokio::time::timeout(Duration::from_secs(5), proxy)
+        .await
+        .unwrap()
+        .unwrap();
+    let error = tokio::time::timeout(Duration::from_secs(5), async {
+        let mut error = None;
+        loop {
+            match events.recv().await.expect("Expected connection failure") {
+                Event::Error(message) => error = Some(message),
+                Event::Status(State::Failed) => break error,
+                Event::Status(State::Connected) => panic!("Untrusted session opened a shell"),
+                _ => (),
+            }
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(error, Some(Error::Transport.to_string()));
+    assert!(reply.is_closed());
+    assert!(prompts.try_recv().is_err());
+    assert_eq!(fixture.counts.passwords.load(Ordering::SeqCst), 0);
+    assert_eq!(fixture.counts.ptys.load(Ordering::SeqCst), 0);
+    inactive(&fixture).await;
+}
+
+#[tokio::test]
 async fn refused_shell_never_reports_connected() {
     let fixture = Fixture::start(true).await;
     let (_control, mut prompts, mut events) = start(config(&fixture, "refused-shell"));

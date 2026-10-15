@@ -3,22 +3,16 @@ use std::{sync::Arc, time::Duration};
 use russh::{Channel, ChannelMsg, client};
 use tokio::sync::mpsc;
 
-use super::{Command, ConnectionConfig, Error, Event, Prompt, SftpStream, State, host::Client};
+use super::{
+    Command, ConnectionConfig, Error, Event, Prompt, SftpStream, State, host::Client,
+    socket::SocketGuard,
+};
 
 /// Owns one tab's transport task; dropping it aborts pending work and closes its socket.
 pub struct SessionControl {
     /// Commands for this session; input is never shared with another tab.
     pub commands: mpsc::Sender<Command>,
     task: tokio::task::JoinHandle<()>,
-}
-
-struct SocketGuard(std::net::TcpStream);
-
-impl Drop for SocketGuard {
-    fn drop(&mut self) {
-        // russh detaches its handshake task before returning a session handle.
-        let _ = self.0.shutdown(std::net::Shutdown::Both);
-    }
 }
 
 impl Drop for SessionControl {
@@ -171,24 +165,15 @@ async fn establish(
         path: config.known_hosts.clone(),
         prompts: prompts.clone(),
         cancel: cancelled,
-        closed,
+        closed: closed.clone(),
+        disconnected: disconnected.clone(),
     };
     let settings = client::Config {
         keepalive_interval: Some(Duration::from_secs(30)),
         keepalive_max: 3,
         ..Default::default()
     };
-    let socket = tokio::time::timeout(
-        Duration::from_secs(20),
-        tokio::net::TcpStream::connect((config.host.as_str(), config.port)),
-    )
-    .await
-    .map_err(|_| Error::Timeout)?
-    .map_err(|_| Error::Transport)?;
-    socket.set_nodelay(true).map_err(|_| Error::Transport)?;
-    let socket = socket.into_std().map_err(|_| Error::Transport)?;
-    let guard = SocketGuard(socket.try_clone().map_err(|_| Error::Transport)?);
-    let socket = tokio::net::TcpStream::from_std(socket).map_err(|_| Error::Transport)?;
+    let (socket, guard) = super::socket::connect(&config.host, config.port, closed).await?;
     let mut handle = client::connect_stream(Arc::new(settings), socket, client).await?;
     events
         .send(Event::Status(State::Authenticating))
