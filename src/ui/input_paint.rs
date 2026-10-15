@@ -77,11 +77,10 @@ impl Render for Input {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let entity = cx.entity();
         let painted = entity.clone();
+        let focus = self.focus.clone().tab_index(0).tab_stop(!self.disabled);
         div()
             .id("field")
-            .track_focus(&self.focus)
-            .tab_index(0)
-            .tab_stop(!self.disabled)
+            .track_focus(&focus)
             .w_full()
             .h(px(36.))
             .px_2()

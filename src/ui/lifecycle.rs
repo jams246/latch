@@ -1,0 +1,152 @@
+use gpui::*;
+use latch::{sftp::Transfer, ssh};
+
+use super::{Latch, Tab, tabs, transport::Transport};
+
+pub(super) struct Completion {
+    id: String,
+    result: Result<(), String>,
+}
+
+fn completed_state(state: ssh::State) -> ssh::State {
+    match state {
+        ssh::State::Failed => ssh::State::Failed,
+        _ => ssh::State::Disconnected,
+    }
+}
+
+impl Tab {
+    pub(super) fn visible_focus(&self, cx: &App) -> FocusHandle {
+        if self.show_files
+            && let Some(files) = &self.files
+        {
+            return files.read(cx).path.focus_handle(cx);
+        }
+        self.terminal.focus_handle(cx)
+    }
+
+    fn detach(&mut self, cx: &mut App) -> (Option<Transport>, Option<Transfer>) {
+        self.closing = true;
+        if let Some(dialog) = self.dialog.take() {
+            let _ = dialog.update(cx, |dialog, window, _| dialog.close(window));
+        }
+        let transfer = self
+            .files
+            .take()
+            .and_then(|files| files.update(cx, |files, cx| files.prepare_close(cx)));
+        self.show_files = false;
+        let transport = self.transport.take();
+        if let Some(transport) = &transport {
+            transport.stop_input();
+        }
+        (transport, transfer)
+    }
+}
+
+impl Latch {
+    fn schedule_cleanup(
+        &mut self,
+        id: String,
+        transport: Option<Transport>,
+        transfer: Option<Transfer>,
+    ) {
+        let Some(transport) = transport else {
+            return;
+        };
+        self.pending_cleanup += 1;
+        let completion = self.cleanup_sender.clone();
+        self.runtime.spawn(async move {
+            let result = transport.shutdown(transfer).await;
+            let _ = completion.send(Completion { id, result });
+        });
+    }
+
+    pub(super) fn close_tab(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
+        if index >= self.tabs.len() {
+            return;
+        }
+        let mut tab = self.tabs.remove(index);
+        let (transport, transfer) = tab.detach(cx);
+        self.schedule_cleanup(tab.id.clone(), transport, transfer);
+        self.active = tabs::active_after_close(self.active, index, self.tabs.len());
+        if let Some(tab) = self.active.and_then(|active| self.tabs.get(active)) {
+            window.focus(&tab.visible_focus(cx));
+        }
+        cx.notify();
+    }
+
+    pub(super) fn disconnect(&mut self, index: usize, cx: &mut Context<Self>) {
+        let Some(tab) = self.tabs.get_mut(index) else {
+            return;
+        };
+        if tab.closing {
+            return;
+        }
+        let id = tab.id.clone();
+        let (transport, transfer) = tab.detach(cx);
+        self.schedule_cleanup(id, transport, transfer);
+        cx.notify();
+    }
+
+    /// Defers main-window closure until transfer cleanup and transport shutdown finish.
+    pub(crate) fn request_shutdown(&mut self, cx: &mut Context<Self>) -> bool {
+        if self.tabs.is_empty() && self.pending_cleanup == 0 {
+            return true;
+        }
+        if self.shutting_down {
+            return false;
+        }
+        self.shutting_down = true;
+        self.error = Some("Closing connections and cleaning up transfers…".into());
+        for mut tab in std::mem::take(&mut self.tabs) {
+            let (transport, transfer) = tab.detach(cx);
+            self.schedule_cleanup(tab.id.clone(), transport, transfer);
+        }
+        self.active = None;
+        cx.notify();
+        false
+    }
+
+    pub(super) fn poll_cleanup(&mut self, cx: &mut Context<Self>) {
+        while let Ok(completion) = self.cleanup_events.try_recv() {
+            self.pending_cleanup = self.pending_cleanup.saturating_sub(1);
+            if let Some(tab) = self.tabs.iter_mut().find(|tab| tab.id == completion.id) {
+                tab.closing = false;
+                tab.state = completed_state(tab.state);
+                if let Err(error) = &completion.result {
+                    tab.error = Some(error.clone());
+                }
+            }
+            if let Err(error) = completion.result {
+                self.error = Some(format!("Connection cleanup failed: {error}"));
+                self.shutting_down = false;
+            }
+            cx.notify();
+        }
+        if self.shutting_down && self.pending_cleanup == 0 {
+            cx.quit();
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{completed_state, ssh::State};
+
+    #[test]
+    fn cleanup_should_preserve_failed_connection_state() {
+        assert_eq!(completed_state(State::Failed), State::Failed);
+    }
+
+    #[test]
+    fn cleanup_should_finish_other_states_as_disconnected() {
+        for state in [
+            State::Connecting,
+            State::Authenticating,
+            State::Connected,
+            State::Disconnected,
+        ] {
+            assert_eq!(completed_state(state), State::Disconnected);
+        }
+    }
+}

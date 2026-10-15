@@ -1,38 +1,48 @@
 #![windows_subsystem = "windows"]
 
-use gpui::{
-    App, Application, Bounds, Context, Window, WindowBounds, WindowOptions, div, prelude::*, px,
-    rgb, size,
-};
+mod ui;
 
-struct HelloWorld;
-
-impl Render for HelloWorld {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        div()
-            .flex()
-            .size_full()
-            .items_center()
-            .justify_center()
-            .bg(rgb(0x202020))
-            .text_color(rgb(0xffffff))
-            .text_xl()
-            .child("Hello, world!")
-    }
-}
+use gpui::*;
+use latch::storage::Store;
+use std::{path::PathBuf, sync::Arc};
 
 fn main() {
-    Application::new().run(|cx: &mut App| {
-        cx.on_window_closed(|cx| cx.quit()).detach();
-        let options = WindowOptions {
-            window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
-                None,
-                size(px(400.0), px(240.0)),
-                cx,
-            ))),
-            ..Default::default()
-        };
-        if let Err(error) = cx.open_window(options, |_, cx| cx.new(|_| HelloWorld)) {
+    let directory = std::env::var_os("LATCH_CONFIG_DIR")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("APPDATA").map(|path| PathBuf::from(path).join("Latch")))
+        .unwrap_or_else(|| PathBuf::from(".latch"));
+    let store = match Store::load(directory.join("connections.json")) {
+        Ok(store) => store,
+        Err(error) => {
+            eprintln!("Cannot load Latch connections: {error}");
+            return;
+        }
+    };
+    let runtime = match tokio::runtime::Runtime::new() {
+        Ok(runtime) => Arc::new(runtime),
+        Err(error) => {
+            eprintln!("Cannot start network runtime: {error}");
+            return;
+        }
+    };
+    Application::new().run(move |cx: &mut App| {
+        let mut options = ui::options("Latch", 1120., 720., cx);
+        options.window_min_size = Some(size(px(720.), px(480.)));
+        if let Err(error) = cx.open_window(options, |window, cx| {
+            let owner = window.window_handle();
+            let root = cx.new(|cx| ui::Latch::new(store, directory, runtime, owner, cx));
+            let weak = root.downgrade();
+            window.on_window_should_close(cx, move |_, cx| {
+                let ready = weak
+                    .update(cx, |app, cx| app.request_shutdown(cx))
+                    .unwrap_or(true);
+                if ready {
+                    cx.quit();
+                }
+                ready
+            });
+            root
+        }) {
             eprintln!("Failed to open window: {error}");
             cx.quit();
         }
