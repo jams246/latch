@@ -33,19 +33,44 @@ pub(super) fn write(path: &Path, configuration: &Configuration) -> io::Result<()
     }
     let bytes = serde_json::to_vec_pretty(configuration).map_err(io::Error::other)?;
     let temporary = path.with_extension(format!("{}.tmp", Uuid::new_v4()));
+    replace_file(path, &temporary, &bytes)
+}
+
+fn replace_file(path: &Path, temporary: &Path, bytes: &[u8]) -> io::Result<()> {
+    let mut created = false;
     let result = (|| {
         let mut file = OpenOptions::new()
             .write(true)
             .create_new(true)
-            .open(&temporary)?;
-        file.write_all(&bytes)?;
+            .open(temporary)?;
+        created = true;
+        file.write_all(bytes)?;
         file.sync_all()?;
         drop(file);
         // A same-directory rename preserves the old configuration if replacement fails.
-        fs::rename(&temporary, path)
+        fs::rename(temporary, path)
     })();
-    if result.is_err() {
-        let _ = fs::remove_file(&temporary);
+    if result.is_err() && created {
+        let _ = fs::remove_file(temporary);
     }
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn exclusive_create_failure_preserves_unowned_temporary_and_existing_configuration() {
+        let store = crate::storage::tests_persistence::store("temporary-collision");
+        let path = store.path;
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let temporary = path.with_extension("existing.tmp");
+        fs::write(&path, b"original configuration").unwrap();
+        fs::write(&temporary, b"unrelated existing file").unwrap();
+        let error = replace_file(&path, &temporary, b"new configuration").unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
+        assert_eq!(fs::read(&temporary).unwrap(), b"unrelated existing file");
+        assert_eq!(fs::read(path).unwrap(), b"original configuration");
+    }
 }
