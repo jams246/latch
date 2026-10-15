@@ -15,6 +15,18 @@ fn completed_state(state: ssh::State) -> ssh::State {
     }
 }
 
+fn begin_disconnect(state: &mut ssh::State, closing: &mut bool, has_transport: bool) -> bool {
+    if *closing {
+        return false;
+    }
+    if !has_transport {
+        *state = completed_state(*state);
+        return false;
+    }
+    *closing = true;
+    true
+}
+
 impl Tab {
     pub(super) fn visible_focus(&self, cx: &App) -> FocusHandle {
         if self.show_files
@@ -79,7 +91,8 @@ impl Latch {
         let Some(tab) = self.tabs.get_mut(index) else {
             return;
         };
-        if tab.closing {
+        if !begin_disconnect(&mut tab.state, &mut tab.closing, tab.transport.is_some()) {
+            cx.notify();
             return;
         }
         let id = tab.id.clone();
@@ -131,7 +144,31 @@ impl Latch {
 
 #[cfg(test)]
 mod tests {
-    use super::{completed_state, ssh::State};
+    use super::{begin_disconnect, completed_state, ssh::State};
+
+    #[test]
+    fn repeated_disconnect_without_owner_requires_no_completion_and_stays_settled() {
+        for expected in [State::Disconnected, State::Failed] {
+            let mut state = expected;
+            let mut closing = false;
+            for _ in 0..3 {
+                assert!(!begin_disconnect(&mut state, &mut closing, false));
+                assert_eq!(state, expected);
+                assert!(!closing);
+            }
+        }
+    }
+
+    #[test]
+    fn disconnect_with_owner_schedules_cleanup_once_and_waits_for_completion() {
+        let mut state = State::Connected;
+        let mut closing = false;
+        assert!(begin_disconnect(&mut state, &mut closing, true));
+        assert!(closing);
+        assert!(!begin_disconnect(&mut state, &mut closing, false));
+        assert_eq!(state, State::Connected);
+        assert!(closing);
+    }
 
     #[test]
     fn cleanup_should_preserve_failed_connection_state() {
