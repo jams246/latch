@@ -1,6 +1,11 @@
 use alacritty_terminal::term::TermMode;
 use gpui::Keystroke;
 
+pub(super) fn is_clipboard_shortcut(key: &Keystroke) -> bool {
+    ((key.modifiers.control && key.modifiers.shift) || key.modifiers.platform)
+        && matches!(key.key.as_str(), "c" | "v")
+}
+
 pub(super) fn encode(key: &Keystroke, mode: TermMode) -> Option<Vec<u8>> {
     let modifiers = key.modifiers;
     let modifier = 1
@@ -110,6 +115,23 @@ mod tests {
     fn modified_arrow_should_encode_modifiers() {
         let key = Keystroke::parse("ctrl-right").unwrap();
         assert_eq!(encode(&key, TermMode::empty()), Some(b"\x1b[1;5C".to_vec()));
+    }
+
+    #[test]
+    fn clipboard_routing_should_leave_modified_terminal_keys_for_encoding() {
+        let key = Keystroke::parse("ctrl-shift-up").unwrap();
+        assert!(!is_clipboard_shortcut(&key));
+        assert_eq!(encode(&key, TermMode::empty()), Some(b"\x1b[1;6A".to_vec()));
+    }
+
+    #[test]
+    fn only_copy_and_paste_shortcuts_should_enter_clipboard_routing() {
+        for shortcut in ["ctrl-shift-c", "ctrl-shift-v", "cmd-c", "cmd-v"] {
+            assert!(is_clipboard_shortcut(&Keystroke::parse(shortcut).unwrap()));
+        }
+        for key in ["ctrl-c", "ctrl-v", "ctrl-shift-f5", "ctrl-shift-a"] {
+            assert!(!is_clipboard_shortcut(&Keystroke::parse(key).unwrap()));
+        }
     }
 
     #[test]

@@ -76,7 +76,7 @@ impl TerminalView {
     fn key_down(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
         let key = &event.keystroke;
         let modifiers = key.modifiers;
-        if (modifiers.control && modifiers.shift) || modifiers.platform {
+        if input::is_clipboard_shortcut(key) {
             match key.key.as_str() {
                 "c" => {
                     if let Some(text) = self.state.selected_text() {
