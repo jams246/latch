@@ -1,5 +1,8 @@
 use crate::ui::{Latch, SessionKind, Tab, TabContent, files::Files};
-use gpui::{AppContext, Context, Focusable, TestAppContext, WindowHandle};
+use gpui::{
+    AppContext, Context, Focusable, IntoElement, MouseButton, MouseDownEvent, MouseUpEvent,
+    TestAppContext, VisualTestContext, WindowHandle, point, px, size,
+};
 use latch::{
     ssh,
     storage::{AuthMethod, Connection, Store},
@@ -146,6 +149,42 @@ fn closing_sftp_keeps_terminal_tab_and_focuses_terminal(cx: &mut TestAppContext)
             assert!(!app.tabs[0].closing);
             assert!(matches!(app.tabs[0].content, TabContent::Terminal(_)));
             assert!(terminal_focus.is_focused(window));
+        })
+        .unwrap();
+}
+
+#[gpui::test]
+fn connection_row_opens_one_terminal_only_on_double_click(cx: &mut TestAppContext) {
+    let (handle, connection) = fixture(cx);
+    let root = handle.root(cx).unwrap();
+    let cx = VisualTestContext::from_window(*handle, cx).into_mut();
+    cx.draw(point(px(0.), px(0.)), size(px(1120.), px(720.)), |_, _| {
+        root.clone().into_any_element()
+    });
+    let position = cx.debug_bounds("all-connection").unwrap().origin + point(px(10.), px(10.));
+    cx.simulate_click(position, Default::default());
+    handle
+        .read_with(cx, |app, _| assert!(app.tabs.is_empty()))
+        .unwrap();
+
+    cx.simulate_event(MouseDownEvent {
+        position,
+        button: MouseButton::Left,
+        click_count: 2,
+        modifiers: Default::default(),
+        first_mouse: false,
+    });
+    cx.simulate_event(MouseUpEvent {
+        position,
+        button: MouseButton::Left,
+        click_count: 2,
+        modifiers: Default::default(),
+    });
+    handle
+        .read_with(cx, |app, _| {
+            assert_eq!(app.tabs.len(), 1);
+            assert!(matches!(app.tabs[0].content, TabContent::Terminal(_)));
+            assert_eq!(app.tabs[0].connection.id, connection.id);
         })
         .unwrap();
 }

@@ -25,17 +25,24 @@ impl Latch {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let connect = connection.clone();
+        let double_click = connection.clone();
         let sftp = connection.clone();
         let edit = connection.clone();
         let id = connection.id.clone();
         div()
             .id(SharedString::from(format!("{section}-{id}")))
+            .debug_selector(|| format!("{section}-connection"))
             .flex()
             .flex_col()
             .gap_1()
             .p_2()
             .rounded_md()
             .bg(rgb(0x1e2f3d))
+            .on_click(cx.listener(move |this, event: &ClickEvent, window, cx| {
+                if event.click_count() == 2 {
+                    this.connect(double_click.clone(), SessionKind::Terminal, window, cx);
+                }
+            }))
             .child(
                 div()
                     .font_weight(FontWeight::SEMIBOLD)
@@ -47,9 +54,11 @@ impl Latch {
             )))
             .child(
                 div()
+                    .id(SharedString::from(format!("actions-{section}-{id}")))
                     .flex()
                     .gap_1()
                     .mt_1()
+                    .on_click(|_, _, cx| cx.stop_propagation())
                     .child(
                         button(
                             SharedString::from(format!("connect-{section}-{id}")),
