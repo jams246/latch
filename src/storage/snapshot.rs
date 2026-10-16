@@ -11,7 +11,7 @@ use serde::{
 
 use super::{
     Configuration, Connection, SortMode, Store, TerminalTheme, WindowSize, files, locking,
-    persistence, recovery, validate,
+    persistence, portable, recovery, validate,
 };
 
 /// A validated, complete settings backup ready to replace a profile.
@@ -186,8 +186,21 @@ fn protected(root: &Path, path: &Path) -> bool {
     let Some(relative) = path.strip_prefix(&prefix) else {
         return false;
     };
-    let first = relative.split(['/', '\\']).next().unwrap_or_default();
+    let first = relative
+        .split(['/', '\\'])
+        .next()
+        .unwrap_or_default()
+        .trim_end_matches([' ', '.']);
     first.starts_with("latch-data")
+        || [
+            portable::DATABASE,
+            "key.dpapi",
+            "latch.db-journal",
+            "latch.db-wal",
+            "latch.db-shm",
+        ]
+        .into_iter()
+        .any(|name| first == name || first.starts_with(&format!("{name}.archive-")))
         || first == locking::LOCK_FILE
         || first == recovery::MARKER
         || first == "known_hosts"

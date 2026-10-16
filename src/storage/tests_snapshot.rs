@@ -141,13 +141,40 @@ fn exports_protect_internal_files_and_allow_user_backup_destination() {
     let original = Store::load_portable(&directory, None).unwrap();
     let bytes = original.export_json().unwrap();
     for name in [
+        "latch.db",
+        "key.dpapi",
+        "latch.db-journal",
+        "latch.db-wal",
+        "latch.db-shm",
+        "latch.db.archive-synthetic",
+        "key.dpapi.archive-synthetic",
+        "latch.db-journal.archive-synthetic",
+        "latch.db-wal.archive-synthetic",
+        "latch.db-shm.archive-synthetic",
         "latch-data/latch.db",
         "latch-data/key.dpapi",
+        "latch-data.stage-synthetic/latch.db",
+        "latch-data.archive-synthetic/key.dpapi",
         "latch.profile.lock",
         "latch-recovery.pending",
         "known_hosts",
     ] {
-        assert!(Store::write_export(&directory, &directory.join(name), &bytes).is_err());
+        let path = directory.join(name);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        if !path.exists() {
+            fs::write(&path, b"synthetic internal data").unwrap();
+        }
+        let previous = (name != super::locking::LOCK_FILE).then(|| fs::read(&path).unwrap());
+        let metadata = fs::metadata(&path).unwrap();
+        let error = Store::write_export(&directory, &path, &bytes).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidInput, "{name}");
+        if let Some(previous) = previous {
+            assert_eq!(fs::read(path).unwrap(), previous, "{name}");
+        } else {
+            let after = fs::metadata(path).unwrap();
+            assert_eq!(after.len(), metadata.len());
+            assert_eq!(after.modified().unwrap(), metadata.modified().unwrap());
+        }
     }
     let backup = directory.join("latch-backup.json");
     Store::write_export(&directory, &backup, &bytes).unwrap();
@@ -155,6 +182,39 @@ fn exports_protect_internal_files_and_allow_user_backup_destination() {
         .unwrap()
         .into_configuration();
     assert!(original.configuration == restored);
+}
+
+#[test]
+fn exports_reserve_missing_flat_files_and_preserve_unrelated_backup_paths() {
+    let directory = super::tests_portable::directory("missing-export-targets");
+    fs::create_dir_all(&directory).unwrap();
+    for name in [
+        "LATCH.DB",
+        "KEY.DPAPI",
+        "latch.db-wal",
+        "latch.db.archive-new",
+    ] {
+        let path = directory.join(name);
+        let error = Store::write_export(&directory, &path, b"{}").unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidInput, "{name}");
+        assert!(!path.exists(), "{name}");
+    }
+    let backup = directory.join("backups/latch.db");
+    fs::create_dir_all(backup.parent().unwrap()).unwrap();
+    Store::write_export(&directory, &backup, b"{}").unwrap();
+    assert_eq!(fs::read(backup).unwrap(), b"{}");
+}
+
+#[cfg(windows)]
+#[test]
+fn exports_reject_flat_file_names_with_windows_ignored_trailing_characters() {
+    let directory = super::tests_portable::directory("aliased-export-targets");
+    fs::create_dir_all(&directory).unwrap();
+    for name in ["latch.db.", "key.dpapi ", "latch.db-wal. "] {
+        let error = Store::write_export(&directory, &directory.join(name), b"{}").unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidInput, "{name}");
+    }
+    assert_eq!(fs::read_dir(directory).unwrap().count(), 0);
 }
 
 #[cfg(windows)]
