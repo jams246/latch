@@ -1,9 +1,14 @@
 //! Non-secret connection metadata, durable preferences, and deterministic picker sorting.
 
+mod files;
+mod local_directories;
+mod locking;
 mod model;
 mod persistence;
 mod portable;
 mod preferences;
+mod recovery;
+mod snapshot;
 mod window;
 
 #[cfg(test)]
@@ -11,17 +16,29 @@ mod tests_persistence;
 #[cfg(test)]
 mod tests_portable;
 #[cfg(test)]
+mod tests_recovery;
+#[cfg(test)]
+mod tests_snapshot;
+#[cfg(test)]
 mod tests_sorting;
 
-use std::{cmp::Ordering, collections::HashSet, io, path::PathBuf};
+use std::{
+    cmp::Ordering,
+    collections::{BTreeMap, HashSet},
+    fs::File,
+    io,
+    path::PathBuf,
+    sync::Arc,
+};
 
 use serde::{Deserialize, Serialize};
 
 pub use model::{AuthMethod, Connection, SortMode};
 pub use preferences::TerminalTheme;
+pub use snapshot::ImportSnapshot;
 pub use window::WindowSize;
 
-#[derive(Clone, Default, Deserialize, Serialize)]
+#[derive(Clone, Default, Deserialize, PartialEq, Serialize)]
 #[serde(default, deny_unknown_fields)]
 struct Configuration {
     connections: Vec<Connection>,
@@ -30,12 +47,16 @@ struct Configuration {
     terminal_theme: TerminalTheme,
     #[serde(skip_serializing_if = "Option::is_none")]
     window_size: Option<WindowSize>,
+    #[serde(default, deserialize_with = "snapshot::unique_directories")]
+    local_directories: BTreeMap<String, PathBuf>,
 }
 
-/// Connection metadata persisted as one atomically replaced JSON file.
+/// Non-secret application metadata persisted in an encrypted database.
 pub struct Store {
     path: PathBuf,
     configuration: Configuration,
+    _lock: Option<Arc<File>>,
+    warnings: Vec<String>,
 }
 
 impl Store {
@@ -50,6 +71,8 @@ impl Store {
         Ok(Self {
             path,
             configuration,
+            _lock: None,
+            warnings: Vec::new(),
         })
     }
 
@@ -58,6 +81,7 @@ impl Store {
     /// # Errors
     /// Returns filesystem and serialization failures.
     pub fn save(&self) -> io::Result<()> {
+        validate(&self.configuration)?;
         persistence::write(&self.path, &self.configuration)
     }
 
@@ -111,6 +135,7 @@ impl Store {
     pub fn delete(&mut self, id: &str) -> io::Result<()> {
         self.update(|configuration| {
             configuration.connections.retain(|item| item.id != id);
+            configuration.local_directories.remove(id);
             Ok(())
         })
     }
@@ -158,6 +183,7 @@ impl Store {
     ) -> io::Result<()> {
         let mut next = self.configuration.clone();
         change(&mut next)?;
+        validate(&next)?;
         persistence::write(&self.path, &next)?;
         self.configuration = next;
         Ok(())
@@ -191,5 +217,7 @@ fn validate(configuration: &Configuration) -> io::Result<()> {
             ));
         }
     }
+    local_directories::validate(configuration)?;
+    snapshot::validate_size(configuration)?;
     Ok(())
 }

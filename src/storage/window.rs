@@ -96,10 +96,12 @@ mod tests {
         let store = store("legacy-window-size");
         fs::create_dir_all(store.path.parent().unwrap()).unwrap();
         let original = br#"{"connections":[],"sort_mode":"most_used"}"#;
-        fs::write(&store.path, original).unwrap();
-        let restored = Store::load(&store.path).unwrap();
+        let directory = store.path.parent().unwrap();
+        let legacy = directory.join("latch.json");
+        fs::write(&legacy, original).unwrap();
+        let restored = Store::load_portable(directory, None).unwrap();
         assert_eq!(restored.window_size(), WindowSize::default());
-        assert_eq!(fs::read(&store.path).unwrap(), original);
+        assert_eq!(fs::read(legacy).unwrap(), original);
     }
 
     #[test]
@@ -130,12 +132,14 @@ mod tests {
         let store = store("invalid-configured-window-size");
         fs::create_dir_all(store.path.parent().unwrap()).unwrap();
         let original = br#"{"window_size":{"width":1,"height":720}}"#;
-        fs::write(&store.path, original).unwrap();
+        let directory = store.path.parent().unwrap();
+        let legacy = directory.join("latch.json");
+        fs::write(&legacy, original).unwrap();
         assert_eq!(
-            Store::load(&store.path).err().unwrap().kind(),
+            Store::load_portable(directory, None).err().unwrap().kind(),
             io::ErrorKind::InvalidData
         );
-        assert_eq!(fs::read(&store.path).unwrap(), original);
+        assert_eq!(fs::read(legacy).unwrap(), original);
     }
 
     #[test]

@@ -10,11 +10,13 @@ fn older_configuration_defaults_terminal_theme_without_rewriting_file() {
     let store = store("legacy-terminal-theme");
     fs::create_dir_all(store.path.parent().unwrap()).unwrap();
     let original = br#"{"connections":[],"sort_mode":"most_used"}"#;
-    fs::write(&store.path, original).unwrap();
-    let restored = Store::load(&store.path).unwrap();
+    let directory = store.path.parent().unwrap();
+    let legacy = directory.join("latch.json");
+    fs::write(&legacy, original).unwrap();
+    let restored = Store::load_portable(directory, None).unwrap();
     assert_eq!(restored.terminal_theme(), TerminalTheme::Classic);
     assert_eq!(restored.sort_mode(), SortMode::MostUsed);
-    assert_eq!(fs::read(&store.path).unwrap(), original);
+    assert_eq!(fs::read(legacy).unwrap(), original);
 }
 
 #[test]
@@ -50,8 +52,8 @@ fn all_terminal_themes_survive_restart_with_other_preferences() {
         assert_eq!(restored.sort_mode(), SortMode::FrequentAndName);
         assert_eq!(restored.window_size(), window_size);
         let value: serde_json::Value =
-            serde_json::from_slice(&fs::read(&store.path).unwrap()).unwrap();
-        assert_eq!(value["terminal_theme"], serialized);
+            serde_json::from_slice(&store.export_json().unwrap()).unwrap();
+        assert_eq!(value["configuration"]["terminal_theme"], serialized);
     }
 }
 
@@ -91,10 +93,12 @@ fn invalid_terminal_theme_is_rejected_without_rewriting_file() {
     let store = store("invalid-terminal-theme");
     fs::create_dir_all(store.path.parent().unwrap()).unwrap();
     let original = br#"{"terminal_theme":"unknown"}"#;
-    fs::write(&store.path, original).unwrap();
+    let directory = store.path.parent().unwrap();
+    let legacy = directory.join("latch.json");
+    fs::write(&legacy, original).unwrap();
     assert_eq!(
-        Store::load(&store.path).err().unwrap().kind(),
+        Store::load_portable(directory, None).err().unwrap().kind(),
         std::io::ErrorKind::InvalidData
     );
-    assert_eq!(fs::read(&store.path).unwrap(), original);
+    assert_eq!(fs::read(legacy).unwrap(), original);
 }

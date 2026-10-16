@@ -9,19 +9,10 @@ pub(super) fn store(tag: &str) -> Store {
 }
 
 pub(super) fn path(tag: &str) -> PathBuf {
-    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let repository = manifest
-        .ancestors()
-        .find(|directory| {
-            directory
-                .join(".plan/rust-native-ssh-sftp-app-spec.md")
-                .exists()
-        })
-        .unwrap();
-    repository
-        .join(".verification/latch-plan/storage")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join(".verification/encrypted-storage/storage")
         .join(format!("{tag}-{}", Uuid::new_v4()))
-        .join("latch.json")
+        .join("latch.db")
 }
 
 fn sample() -> Connection {
@@ -93,9 +84,9 @@ fn unknown_secret_fields_are_rejected_and_not_migrated_silently() {
 fn serialized_metadata_contains_only_allowed_fields() {
     let mut store = store("metadata-only");
     store.upsert(sample()).unwrap();
-    let bytes = fs::read(&store.path).unwrap();
+    let bytes = store.export_json().unwrap();
     let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    let mut fields: Vec<_> = value["connections"][0]
+    let mut fields: Vec<_> = value["configuration"]["connections"][0]
         .as_object()
         .unwrap()
         .keys()
@@ -115,7 +106,7 @@ fn serialized_metadata_contains_only_allowed_fields() {
         ]
     );
     assert_eq!(
-        value["connections"][0]["auth"],
+        value["configuration"]["connections"][0]["auth"],
         serde_json::json!({"method":"key_file","path":"existing-synthetic-key"})
     );
 }
@@ -159,14 +150,17 @@ fn duplicate_ids_and_invalid_connection_fields_are_rejected() {
     let mut invalid = original.clone();
     invalid.port = 0;
     assert!(store.upsert(invalid).is_err());
-    let mut value = serde_json::to_value(&store.configuration).unwrap();
-    value["connections"]
+    let mut value: serde_json::Value =
+        serde_json::from_slice(&store.export_json().unwrap()).unwrap();
+    value["configuration"]["connections"]
         .as_array_mut()
         .unwrap()
         .push(serde_json::to_value(&original).unwrap());
-    fs::write(&store.path, serde_json::to_vec(&value).unwrap()).unwrap();
     assert_eq!(
-        Store::load(&store.path).err().unwrap().kind(),
+        Store::parse_import(&serde_json::to_vec(&value).unwrap())
+            .err()
+            .unwrap()
+            .kind(),
         io::ErrorKind::InvalidData
     );
 }

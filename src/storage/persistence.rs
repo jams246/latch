@@ -1,80 +1,56 @@
-use std::{
-    fs::{self, OpenOptions},
-    io::{self, Write},
-    path::Path,
-};
+mod database;
+mod key;
+mod rows;
 
-use uuid::Uuid;
+#[cfg(test)]
+mod tests;
+
+use std::{fs, io, path::Path};
 
 use super::Configuration;
 
 pub(super) fn read(path: &Path) -> io::Result<Configuration> {
-    Ok(read_existing(path)?.unwrap_or_default())
-}
-
-pub(super) fn read_existing(path: &Path) -> io::Result<Option<Configuration>> {
-    let bytes = match fs::read(path) {
-        Ok(bytes) => bytes,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            return Ok(None);
-        }
-        Err(error) => return Err(error),
-    };
-    serde_json::from_slice(&bytes).map(Some).map_err(|_| {
-        io::Error::new(
-            io::ErrorKind::InvalidData,
-            "Connection configuration is invalid; the original file was preserved",
-        )
-    })
+    if !pair_exists(path)? {
+        return Ok(Configuration::default());
+    }
+    let connection = database::open(path)?;
+    let configuration = rows::read(&connection)?;
+    super::validate(&configuration)?;
+    Ok(configuration)
 }
 
 pub(super) fn write(path: &Path, configuration: &Configuration) -> io::Result<()> {
-    let parent = path
-        .parent()
-        .filter(|parent| !parent.as_os_str().is_empty());
-    if let Some(parent) = parent {
-        fs::create_dir_all(parent)?;
+    super::validate(configuration)?;
+    let existing = pair_exists(path)?;
+    if !existing {
+        fs::create_dir_all(
+            path.parent()
+                .filter(|parent| !parent.as_os_str().is_empty())
+                .unwrap_or_else(|| Path::new(".")),
+        )?;
+        key::create(&path.with_file_name("key.dpapi"))?;
     }
-    let bytes = serde_json::to_vec_pretty(configuration).map_err(io::Error::other)?;
-    let temporary = path.with_extension(format!("{}.tmp", Uuid::new_v4()));
-    replace_file(path, &temporary, &bytes)
+    let mut connection = database::open_for_write(path, !existing)?;
+    rows::write(&mut connection, configuration)
 }
 
-fn replace_file(path: &Path, temporary: &Path, bytes: &[u8]) -> io::Result<()> {
-    let mut created = false;
-    let result = (|| {
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(temporary)?;
-        created = true;
-        file.write_all(bytes)?;
-        file.sync_all()?;
-        drop(file);
-        // A same-directory rename preserves the old configuration if replacement fails.
-        fs::rename(temporary, path)
-    })();
-    if result.is_err() && created {
-        let _ = fs::remove_file(temporary);
+fn pair_exists(path: &Path) -> io::Result<bool> {
+    let exists = |path: &Path| match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => Ok(true),
+        Ok(_) => Err(invalid()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error),
+    };
+    match (exists(path)?, exists(&path.with_file_name("key.dpapi"))?) {
+        (false, false) => Ok(false),
+        (true, true) => Ok(true),
+        _ => Err(invalid()),
     }
-    result
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn exclusive_create_failure_preserves_unowned_temporary_and_existing_configuration() {
-        let store = crate::storage::tests_persistence::store("temporary-collision");
-        let path = store.path;
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        let temporary = path.with_extension("existing.tmp");
-        fs::write(&path, b"original configuration").unwrap();
-        fs::write(&temporary, b"unrelated existing file").unwrap();
-        let error = replace_file(&path, &temporary, b"new configuration").unwrap_err();
-        assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
-        assert_eq!(fs::read(&temporary).unwrap(), b"unrelated existing file");
-        assert_eq!(fs::read(path).unwrap(), b"original configuration");
-    }
+fn invalid() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        "Encrypted settings are incomplete, damaged, or unavailable to this Windows account; original files were preserved",
+    )
 }
