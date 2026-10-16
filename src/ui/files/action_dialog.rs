@@ -1,5 +1,5 @@
 use super::{Files, actions::ActionKind};
-use crate::ui::button;
+use crate::ui::{button, theme::CARBON};
 use gpui::{prelude::*, *};
 
 impl Files {
@@ -24,12 +24,13 @@ impl Files {
         };
         div().id("file-action-dialog-overlay")
             .absolute().inset_0().occlude().flex().items_center().justify_center()
-            .bg(rgba(0x000000a0))
+            .bg(rgba(CARBON.overlay))
             .child(div().id("file-action-dialog")
                 .debug_selector(|| "file-action-dialog".into())
                 .track_focus(&dialog.focus).tab_group().occlude()
                 .w(px(370.)).max_w_full().flex().flex_col()
-                .rounded_lg().overflow_hidden().bg(rgb(0x1c2c3a))
+                .rounded_lg().overflow_hidden().bg(rgb(CARBON.panel))
+                .text_color(rgb(CARBON.text))
                 .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
                     match event.keystroke.key.as_str() {
                         "escape" => this.close_action_ui(window, cx),
@@ -60,9 +61,9 @@ impl Files {
                 .child(div().flex().flex_col().gap_3().p_4()
                 .when(dialog.kind == ActionKind::Delete, |view| view
                     .child(format!("{}: delete {subject}, including folder contents?", if dialog.side == super::pane::Side::Local { "Local computer" } else { "Connected server" }))
-                    .child(div().text_color(rgb(0xffa69b)).child("This cannot be undone. Links are removed without deleting their targets.")))
+                    .child(div().text_color(rgb(CARBON.danger)).child("This cannot be undone. Links are removed without deleting their targets.")))
                 .children(dialog.input.iter().map(|input| div().child(input.clone())))
-                .children(dialog.error.iter().map(|error| div().text_color(rgb(0xffa69b)).child(error.clone())))
+                .children(dialog.error.iter().map(|error| div().text_color(rgb(CARBON.danger)).child(error.clone())))
                 .child(div().flex().gap_2().justify_end()
                     .child(button("cancel-file-action", "Cancel")
                         .track_focus(&dialog.cancel)
@@ -71,7 +72,7 @@ impl Files {
                     .child(button("confirm-file-action", confirm)
                         .track_focus(&dialog.confirm)
                         .debug_selector(|| "confirm-file-action".into())
-                        .when(dialog.kind == ActionKind::Delete, |button| button.text_color(rgb(0xff7777)))
+                        .when(dialog.kind == ActionKind::Delete, |button| button.border_color(rgb(CARBON.danger)))
                         .on_click(cx.listener(|this, _, window, cx| this.submit_action(window, cx)))))))
             .into_any_element()
     }

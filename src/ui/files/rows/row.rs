@@ -4,6 +4,7 @@ use super::{
     values::{cell, display_size, modified},
 };
 use crate::ui::files::pane::{Side, entry_type, file_size};
+use crate::ui::theme::CARBON;
 use gpui::{prelude::*, *};
 use latch::sftp::Entry;
 use std::sync::Arc;
@@ -30,9 +31,25 @@ impl Files {
             .debug_selector(move || format!("{}-entry-{index}", side.id()))
             .focusable()
             .tab_index(0)
-            .when(selected, |row| row.bg(rgb(0x365f79)))
-            .hover(move |row| row.bg(rgb(if selected { 0x42718b } else { 0x304d62 })))
-            .focus(move |row| row.bg(rgb(if selected { 0x365f79 } else { 0x304d62 })))
+            .when(selected, |row| {
+                row.bg(rgb(CARBON.selected))
+                    .border_color(rgb(CARBON.accent))
+            })
+            .hover(move |row| {
+                row.bg(rgb(if selected {
+                    CARBON.selected
+                } else {
+                    CARBON.hover
+                }))
+            })
+            .focus(move |row| {
+                row.bg(rgb(if selected {
+                    CARBON.selected
+                } else {
+                    CARBON.hover
+                }))
+                .border_color(rgb(CARBON.accent))
+            })
             .when(navigable, |row| row.cursor_pointer())
             .on_mouse_down(
                 MouseButton::Left,
@@ -78,8 +95,8 @@ impl Files {
             .cursor_pointer()
             .focusable()
             .tab_index(0)
-            .hover(|row| row.bg(rgb(0x304d62)))
-            .focus(|row| row.bg(rgb(0x304d62)))
+            .hover(move |row| row.bg(rgb(CARBON.hover)))
+            .focus(move |row| row.bg(rgb(CARBON.hover)).border_color(rgb(CARBON.accent)))
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, event: &MouseDownEvent, _, cx| {
@@ -124,7 +141,8 @@ fn row(id: impl Into<ElementId>) -> Stateful<Div> {
         .flex_shrink_0()
         .text_sm()
         .border_b_1()
-        .border_color(rgb(0x233847))
+        .border_color(rgb(CARBON.border))
+        .text_color(rgb(CARBON.text))
 }
 
 fn name(value: String, icon: AnyElement) -> Div {

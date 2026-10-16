@@ -1,5 +1,5 @@
 use super::Files;
-use crate::ui::button;
+use crate::ui::{button, theme::CARBON};
 use gpui::{prelude::*, *};
 use latch::sftp::{Conflict, ConflictChoice};
 use std::cell::Cell;
@@ -123,7 +123,7 @@ impl Files {
             .flex()
             .items_center()
             .justify_center()
-            .bg(rgba(0x000000a0))
+            .bg(rgba(CARBON.overlay))
             .child(
                 div()
                     .id("transfer-conflict-dialog")
@@ -137,7 +137,8 @@ impl Files {
                     .flex_col()
                     .rounded_lg()
                     .overflow_hidden()
-                    .bg(rgb(0x1c2c3a))
+                    .bg(rgb(CARBON.panel))
+                    .text_color(rgb(CARBON.text))
                     .on_key_down(cx.listener(move |this, event: &KeyDownEvent, window, cx| {
                         match event.keystroke.key.as_str() {
                             "escape" => this.cancel_conflict(id, window, cx),
@@ -186,12 +187,12 @@ impl Files {
                                     .text_sm()
                                     .child(format!("Destination: {}", dialog.request.destination)),
                             )
-                            .child(div().text_sm().text_color(rgb(0xa8c1d3)).child(
+                            .child(div().text_sm().text_color(rgb(CARBON.muted)).child(
                                 "Replace overwrites the destination. Duplicate adds a number to the name.",
                             ))
                             .when(dialog.request.can_merge, |view| {
                                 view.child(
-                                    div().text_sm().text_color(rgb(0xa8c1d3)).child(
+                                    div().text_sm().text_color(rgb(CARBON.muted)).child(
                                         "Merge combines folders and numbers files that already exist.",
                                     ),
                                 )
@@ -211,7 +212,7 @@ impl Files {
                                                 .flex_1()
                                                 .text_center()
                                                 .when(choice == ConflictChoice::Replace, |button| {
-                                                    button.text_color(rgb(0xff7777))
+                                                    button.border_color(rgb(CARBON.danger))
                                                 })
                                                 .when(!enabled, |button| button.opacity(0.35).tab_index(-1))
                                                 .on_click(cx.listener(move |this, _, window, cx| {

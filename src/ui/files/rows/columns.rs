@@ -2,6 +2,7 @@ use super::{Files, TABLE_WIDTH};
 use crate::ui::{
     button,
     files::pane::{Column, Side},
+    theme::CARBON,
 };
 use gpui::{prelude::*, *};
 
@@ -16,7 +17,7 @@ impl Files {
             .min_w(px(TABLE_WIDTH))
             .w_full()
             .flex_shrink_0()
-            .bg(rgb(0x263c4d))
+            .bg(rgb(CARBON.control))
             .children(
                 [
                     (Column::Name, "Name"),
@@ -47,11 +48,11 @@ impl Files {
                             cell.w(px(60.)).flex_shrink_0()
                         })
                         .when(sort.column == column, |cell| {
-                            cell.child(div().text_color(rgb(0x9ce6d6)).child(if sort.descending {
-                                "▼"
-                            } else {
-                                "▲"
-                            }))
+                            cell.child(
+                                div()
+                                    .text_color(rgb(CARBON.accent))
+                                    .child(if sort.descending { "▼" } else { "▲" }),
+                            )
                         })
                         .on_click(cx.listener(move |this, _, _, cx| {
                             match side {

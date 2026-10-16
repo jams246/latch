@@ -65,6 +65,7 @@ impl Latch {
         let Some(dialog) = &self.connection_delete else {
             return div().absolute().into_any_element();
         };
+        let palette = crate::ui::theme::CARBON;
         div()
             .id("connection-delete-overlay")
             .absolute()
@@ -73,7 +74,7 @@ impl Latch {
             .flex()
             .items_center()
             .justify_center()
-            .bg(rgba(0x000000a0))
+            .bg(rgba(palette.overlay))
             .child(
                 div()
                     .id("connection-delete-dialog")
@@ -87,7 +88,8 @@ impl Latch {
                     .flex_col()
                     .rounded_lg()
                     .overflow_hidden()
-                    .bg(rgb(0x1c2c3a))
+                    .bg(rgb(palette.surface))
+                    .text_color(rgb(palette.text))
                     .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
                         match event.keystroke.key.as_str() {
                             "escape" => this.close_connection_delete(window, cx),
@@ -136,11 +138,9 @@ impl Latch {
                             .flex()
                             .flex_col()
                             .gap_3()
-                            .children(
-                                dialog.error.iter().map(|error| {
-                                    div().text_color(rgb(0xffa69b)).child(error.clone())
-                                }),
-                            )
+                            .children(dialog.error.iter().map(|error| {
+                                div().text_color(rgb(palette.danger)).child(error.clone())
+                            }))
                             .child(
                                 div()
                                     .flex()
@@ -158,7 +158,7 @@ impl Latch {
                                         button("confirm-connection-delete", "Delete")
                                             .track_focus(&dialog.confirm)
                                             .debug_selector(|| "confirm-connection-delete".into())
-                                            .text_color(rgb(0xff7777))
+                                            .text_color(rgb(palette.danger))
                                             .on_click(cx.listener(|this, _, window, cx| {
                                                 this.confirm_connection_delete(window, cx)
                                             })),

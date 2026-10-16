@@ -6,6 +6,7 @@ mod row;
 pub(super) mod values;
 
 use super::{Files, pane::Side};
+use crate::ui::theme::CARBON;
 use gpui::{prelude::*, *};
 use std::sync::Arc;
 
@@ -48,7 +49,7 @@ impl Files {
             .min_w(px(TABLE_WIDTH))
             .w_full()
             .overflow_y_scroll()
-            .bg(rgb(0x192a37))
+            .bg(rgb(CARBON.surface))
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, _, _, cx| {

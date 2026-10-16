@@ -14,6 +14,7 @@ mod picker;
 mod session_events;
 mod sessions;
 mod tabs;
+mod theme;
 mod transport;
 mod view;
 mod workspace;
@@ -120,31 +121,35 @@ impl Latch {
 }
 
 pub fn button(id: impl Into<ElementId>, text: impl Into<SharedString>) -> Stateful<Div> {
+    let colors = theme::CARBON;
     div()
         .id(id)
         .px_3()
         .py_1()
         .rounded_md()
-        .bg(rgb(0x263c4d))
-        .text_color(rgb(0xe7f1fa))
+        .bg(rgb(colors.control))
+        .border_1()
+        .border_color(rgb(colors.border))
+        .text_color(rgb(colors.text))
         .cursor_pointer()
         .focusable()
         .tab_index(0)
-        .focus(|style| style.bg(rgb(0x426c80)).border_color(rgb(0x9ce6d6)))
-        .hover(|style| style.bg(rgb(0x36566a)))
+        .focus(move |style| style.border_color(rgb(colors.accent)))
+        .hover(move |style| style.bg(rgb(colors.hover)))
         .child(text.into())
 }
 
 pub(super) fn dialog_header(title: impl Into<SharedString>) -> Div {
+    let colors = theme::CARBON;
     div()
         .w_full()
         .flex_shrink_0()
         .px_4()
         .py_3()
         .rounded_t_lg()
-        .bg(rgb(0x263c4d))
+        .bg(rgb(colors.control))
         .border_b_1()
-        .border_color(rgb(0x426079))
+        .border_color(rgb(colors.border))
         .text_lg()
         .font_weight(FontWeight::SEMIBOLD)
         .child(title.into())

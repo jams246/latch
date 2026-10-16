@@ -1,4 +1,5 @@
 use super::files::{Files, pane::Side};
+use crate::ui::theme::CARBON;
 use gpui::{prelude::*, *};
 
 impl Render for Files {
@@ -23,7 +24,8 @@ impl Render for Files {
             .size_full()
             .p_3()
             .gap_3()
-            .bg(rgb(0x15232f))
+            .bg(rgb(CARBON.background))
+            .text_color(rgb(CARBON.text))
             .child(
                 div()
                     .flex()

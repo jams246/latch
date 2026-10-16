@@ -1,3 +1,4 @@
+use crate::ui::theme::CARBON;
 use gpui::{prelude::*, *};
 
 pub(super) fn generic_icon(is_dir: bool, is_link: bool) -> Div {
@@ -16,7 +17,7 @@ pub(super) fn generic_icon(is_dir: bool, is_link: bool) -> Div {
                     .rounded(px(1.))
                     .border_1()
                     .border_color(rgb(0xb38431))
-                    .bg(rgb(0xd5a547)),
+                    .bg(rgb(0xe8bd58)),
             )
             .child(
                 div()
@@ -28,8 +29,7 @@ pub(super) fn generic_icon(is_dir: bool, is_link: bool) -> Div {
                     .rounded(px(1.))
                     .border_1()
                     .border_color(rgb(0xb38431))
-                    .bg(rgb(0xe8bd58))
-                    .child(div().h(px(2.)).bg(rgb(0xf6d47b))),
+                    .bg(rgb(0xe8bd58)),
             )
         })
         .when(!is_dir, |icon| {
@@ -42,10 +42,10 @@ pub(super) fn generic_icon(is_dir: bool, is_link: bool) -> Div {
                     .h_4()
                     .rounded_sm()
                     .border_1()
-                    .border_color(rgb(0xb0cada))
-                    .bg(rgb(0x365369))
-                    .child(div().mx(px(2.)).mt(px(4.)).h(px(1.)).bg(rgb(0xb0cada)))
-                    .child(div().mx(px(2.)).mt(px(3.)).h(px(1.)).bg(rgb(0xb0cada))),
+                    .border_color(rgb(CARBON.muted))
+                    .bg(rgb(CARBON.control))
+                    .child(div().mx(px(2.)).mt(px(4.)).h(px(1.)).bg(rgb(CARBON.muted)))
+                    .child(div().mx(px(2.)).mt(px(3.)).h(px(1.)).bg(rgb(CARBON.muted))),
             )
         })
         .when(is_link, |icon| {
@@ -55,10 +55,10 @@ pub(super) fn generic_icon(is_dir: bool, is_link: bool) -> Div {
                     .left_0()
                     .bottom_0()
                     .size(px(10.))
-                    .bg(rgb(0x192a37))
+                    .bg(rgb(CARBON.surface))
                     .text_xs()
                     .line_height(px(10.))
-                    .text_color(rgb(0x9ce6d6))
+                    .text_color(rgb(CARBON.accent))
                     .child("↗"),
             )
         })

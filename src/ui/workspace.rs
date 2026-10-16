@@ -4,6 +4,7 @@ use latch::ssh::State;
 
 impl Latch {
     pub(super) fn workspace(&self, cx: &mut Context<Self>) -> AnyElement {
+        let colors = super::theme::CARBON;
         if let Some(index) = self.active.filter(|i| *i < self.tabs.len()) {
             let tab = &self.tabs[index];
             let connection = tab.connection.clone();
@@ -24,7 +25,7 @@ impl Latch {
                         .items_center()
                         .justify_between()
                         .p_2()
-                        .bg(rgb(0x1b2a38))
+                        .bg(rgb(colors.panel))
                         .child(format!(
                             "{} · {}",
                             tab.name,
@@ -66,7 +67,7 @@ impl Latch {
                 .children(
                     tab.error
                         .clone()
-                        .map(|error| div().p_3().text_color(rgb(0xffa69b)).child(error)),
+                        .map(|error| div().p_3().text_color(rgb(colors.danger)).child(error)),
                 )
                 .child(
                     div().flex_1().min_h_0().child(match &tab.content {
@@ -97,7 +98,7 @@ impl Latch {
                 .child("Save a connection. Open a terminal or SFTP tab.")
                 .child(
                     div()
-                        .text_color(rgb(0xa8c1d3))
+                        .text_color(rgb(colors.muted))
                         .child("Independent tabs · Native terminal · SFTP"),
                 )
                 .into_any_element()

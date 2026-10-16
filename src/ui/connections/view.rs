@@ -5,6 +5,7 @@ impl Latch {
         let Some(editor) = &self.editor else {
             return div().into_any_element();
         };
+        let palette = crate::ui::theme::CARBON;
         let labels = [
             "Display name",
             "Hostname or IP address",
@@ -22,7 +23,7 @@ impl Latch {
             .flex()
             .items_center()
             .justify_center()
-            .bg(rgba(0x000000b0))
+            .bg(rgba(palette.overlay))
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
                 match event.keystroke.key.as_str() {
                     "enter"
@@ -66,7 +67,8 @@ impl Latch {
                     .max_h_full()
                     .rounded_lg()
                     .overflow_hidden()
-                    .bg(rgb(0x1c2c3a))
+                    .bg(rgb(palette.surface))
+                    .text_color(rgb(palette.text))
                     .child(crate::ui::dialog_header(if editor.original.is_some() {
                         "Edit connection"
                     } else {
@@ -118,9 +120,14 @@ impl Latch {
                                         .map(|(index, label)| {
                                             button(("auth-method", index), label)
                                                 .bg(rgb(if editor.auth == index {
-                                                    0x276453
+                                                    palette.selected
                                                 } else {
-                                                    0x263c4d
+                                                    palette.control
+                                                }))
+                                                .border_color(rgb(if editor.auth == index {
+                                                    palette.accent
+                                                } else {
+                                                    palette.border
                                                 }))
                                                 .on_click(cx.listener(move |this, _, _, cx| {
                                                     if let Some(editor) = &mut this.editor {
@@ -132,9 +139,9 @@ impl Latch {
                                 ),
                             )
                             .children(
-                                self.error
-                                    .clone()
-                                    .map(|error| div().text_color(rgb(0xffa69b)).child(error)),
+                                self.error.clone().map(|error| {
+                                    div().text_color(rgb(palette.danger)).child(error)
+                                }),
                             )
                             .child(
                                 div()

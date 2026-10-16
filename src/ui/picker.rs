@@ -24,6 +24,7 @@ impl Latch {
         section: &'static str,
         cx: &mut Context<Self>,
     ) -> AnyElement {
+        let colors = super::theme::CARBON;
         let connect = connection.clone();
         let double_click = connection.clone();
         let sftp = connection.clone();
@@ -38,7 +39,7 @@ impl Latch {
             .gap_1()
             .p_2()
             .rounded_md()
-            .bg(rgb(0x1e2f3d))
+            .bg(rgb(colors.surface))
             .on_click(cx.listener(move |this, event: &ClickEvent, window, cx| {
                 if event.click_count() == 2 {
                     this.connect(double_click.clone(), SessionKind::Terminal, window, cx);
@@ -49,7 +50,7 @@ impl Latch {
                     .font_weight(FontWeight::SEMIBOLD)
                     .child(connection.name.clone()),
             )
-            .child(div().text_xs().text_color(rgb(0xa8c1d3)).child(format!(
+            .child(div().text_xs().text_color(rgb(colors.muted)).child(format!(
                 "{}@{}:{}",
                 connection.username, connection.host, connection.port
             )))
@@ -88,7 +89,7 @@ impl Latch {
                             SharedString::from(format!("delete-{section}-{id}")),
                             "Delete",
                         )
-                        .text_color(rgb(0xff7777))
+                        .text_color(rgb(colors.danger))
                         .debug_selector(move || format!("delete-{section}-{id}"))
                         .on_click(cx.listener(
                             move |this, _, window, cx| {

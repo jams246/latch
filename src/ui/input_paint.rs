@@ -5,6 +5,7 @@ const LINE_HEIGHT: Pixels = px(20.);
 
 impl Input {
     fn layout_text(&mut self, bounds: Bounds<Pixels>, window: &mut Window) {
+        let palette = crate::ui::theme::CARBON;
         let text = if self.masked {
             "•".repeat(self.value.chars().count())
         } else {
@@ -13,7 +14,12 @@ impl Input {
         let run = TextRun {
             len: text.len(),
             font: window.text_style().font(),
-            color: rgb(if self.disabled { 0x90a1af } else { 0xe4edf5 }).into(),
+            color: rgb(if self.disabled {
+                palette.muted
+            } else {
+                palette.text
+            })
+            .into(),
             background_color: None,
             underline: None,
             strikethrough: None,
@@ -45,6 +51,7 @@ impl Input {
             return;
         };
         let focused = self.focus.is_focused(window) && !self.disabled;
+        let palette = crate::ui::theme::CARBON;
         let origin = point(bounds.left() - self.scroll, bounds.top());
         window.with_content_mask(Some(ContentMask { bounds }), |window| {
             if focused && !self.selection.is_empty() {
@@ -55,7 +62,7 @@ impl Input {
                         point(origin.x + start, origin.y),
                         size(end - start, LINE_HEIGHT),
                     ),
-                    rgb(0x365578),
+                    rgb(palette.selected),
                 ));
             }
             let _ = line.paint(origin, LINE_HEIGHT, window, cx);
@@ -66,7 +73,7 @@ impl Input {
                         point(origin.x + cursor, origin.y),
                         size(px(1.5), LINE_HEIGHT),
                     ),
-                    rgb(0x9ce6d6),
+                    rgb(palette.accent),
                 ));
             }
         });
@@ -75,6 +82,7 @@ impl Input {
 
 impl Render for Input {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let palette = crate::ui::theme::CARBON;
         let entity = cx.entity();
         let painted = entity.clone();
         let focus = self.focus.clone().tab_index(0).tab_stop(!self.disabled);
@@ -86,12 +94,12 @@ impl Render for Input {
             .px_2()
             .py_1()
             .overflow_hidden()
-            .bg(rgb(0x111b25))
+            .bg(rgb(palette.background))
             .border_1()
             .border_color(rgb(if self.focus.is_focused(window) && !self.disabled {
-                0x62cbb6
+                palette.accent
             } else {
-                0x3a4a5a
+                palette.border
             }))
             .rounded_md()
             .cursor(if self.disabled {

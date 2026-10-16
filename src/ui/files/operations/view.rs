@@ -1,5 +1,5 @@
 use super::{super::Files, display_size, remaining_label};
-use crate::ui::button;
+use crate::ui::{button, theme::CARBON};
 use gpui::{prelude::*, *};
 use std::time::Instant;
 
@@ -43,7 +43,7 @@ impl Files {
             .items_center()
             .gap_3()
             .text_xs()
-            .text_color(rgb(0xa8c1d3))
+            .text_color(rgb(CARBON.muted))
             .child(
                 div()
                     .flex_1()
@@ -63,7 +63,7 @@ impl Files {
                                     .flex_1()
                                     .min_w_0()
                                     .truncate()
-                                    .text_color(rgb(0xe7f1fa))
+                                    .text_color(rgb(CARBON.text))
                                     .child(name),
                             )
                             .child("|")
@@ -99,8 +99,8 @@ impl Files {
                             .h(px(4.))
                             .rounded_sm()
                             .overflow_hidden()
-                            .bg(rgb(0x263c4d))
-                            .child(div().w(relative(fraction)).h_full().bg(rgb(0x7fd1b9))),
+                            .bg(rgb(CARBON.control))
+                            .child(div().w(relative(fraction)).h_full().bg(rgb(CARBON.accent))),
                     ),
             )
             .child(

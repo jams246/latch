@@ -4,6 +4,7 @@ use latch::storage::SortMode;
 
 impl Render for Latch {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let colors = super::theme::CARBON;
         let tabs = self.tab_bar(window, cx);
         let sort = self.store.sort_mode();
         let search = self.connection_search.read(cx).value.to_string();
@@ -14,7 +15,7 @@ impl Render for Latch {
             rows.push(
                 div()
                     .text_xs()
-                    .text_color(rgb(0x75d9c0))
+                    .text_color(rgb(colors.accent))
                     .child("TOP 3 FREQUENTLY USED")
                     .into_any_element(),
             );
@@ -27,7 +28,7 @@ impl Render for Latch {
                 div()
                     .mt_3()
                     .text_xs()
-                    .text_color(rgb(0x75d9c0))
+                    .text_color(rgb(colors.accent))
                     .child("ALL CONNECTIONS")
                     .into_any_element(),
             );
@@ -39,8 +40,8 @@ impl Render for Latch {
             .relative()
             .size_full()
             .flex()
-            .bg(rgb(0x111b25))
-            .text_color(rgb(0xe4edf5))
+            .bg(rgb(colors.background))
+            .text_color(rgb(colors.text))
             .text_size(px(14.))
             .font_family("Segoe UI")
             .child(
@@ -51,7 +52,9 @@ impl Render for Latch {
                     .flex_shrink_0()
                     .p_3()
                     .gap_3()
-                    .bg(rgb(0x182531))
+                    .bg(rgb(colors.panel))
+                    .border_r_1()
+                    .border_color(rgb(colors.border))
                     .child(
                         div()
                             .flex()
@@ -83,7 +86,14 @@ impl Render for Latch {
                             .map(|(index, (mode, label))| {
                                 button(("sort", index), label)
                                     .px_2()
-                                    .bg(rgb(if sort == mode { 0x276453 } else { 0x263c4d }))
+                                    .bg(rgb(if sort == mode {
+                                        colors.selected
+                                    } else {
+                                        colors.control
+                                    }))
+                                    .when(sort == mode, |button| {
+                                        button.border_color(rgb(colors.accent))
+                                    })
                                     .on_click(cx.listener(move |this, _, _, cx| {
                                         if let Err(error) = this.store.set_sort_mode(mode) {
                                             this.error =
@@ -107,12 +117,12 @@ impl Render for Latch {
                     )
                     .children((self.store.connections().is_empty()).then(|| {
                         div()
-                            .text_color(rgb(0xa8c1d3))
+                            .text_color(rgb(colors.muted))
                             .child("No saved connections")
                     }))
                     .children(no_matches.then(|| {
                         div()
-                            .text_color(rgb(0xa8c1d3))
+                            .text_color(rgb(colors.muted))
                             .child("No matching connections")
                     })),
             )
@@ -128,7 +138,7 @@ impl Render for Latch {
                         self.error
                             .clone()
                             .filter(|_| self.editor.is_none())
-                            .map(|error| div().p_3().text_color(rgb(0xffa69b)).child(error)),
+                            .map(|error| div().p_3().text_color(rgb(colors.danger)).child(error)),
                     )
                     .child(content),
             )

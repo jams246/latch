@@ -2,6 +2,7 @@ use super::*;
 
 impl Render for AuthDialog {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let palette = crate::ui::theme::CARBON;
         let host = matches!(self.prompt, Some(Prompt::HostKey { .. }));
         let unlock = self.title == "Unlock SSH key";
         div()
@@ -10,8 +11,8 @@ impl Render for AuthDialog {
             .size_full()
             .flex()
             .flex_col()
-            .bg(rgb(0x182531))
-            .text_color(rgb(0xe4edf5))
+            .bg(rgb(palette.surface))
+            .text_color(rgb(palette.text))
             .text_size(px(14.))
             .overflow_hidden()
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
@@ -48,11 +49,15 @@ impl Render for AuthDialog {
                     .p_4()
                     .overflow_y_scroll()
                     .child(self.destination.clone())
-                    .child(div().text_color(rgb(0xa8c1d3)).child(self.detail.clone()))
+                    .child(
+                        div()
+                            .text_color(rgb(palette.muted))
+                            .child(self.detail.clone()),
+                    )
                     .children(
                         self.error
                             .clone()
-                            .map(|error| div().text_color(rgb(0xffa69b)).child(error)),
+                            .map(|error| div().text_color(rgb(palette.danger)).child(error)),
                     )
                     .children(self.fields.iter().map(|(label, input)| {
                         div()

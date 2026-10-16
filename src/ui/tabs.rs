@@ -32,6 +32,7 @@ impl Latch {
     }
 
     pub(super) fn tab_bar(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        let colors = super::theme::CARBON;
         let reveal_key = self.active.and_then(|index| {
             self.tabs
                 .get(index)
@@ -78,10 +79,16 @@ impl Latch {
                     .flex_shrink_0()
                     .items_center()
                     .rounded_md()
-                    .bg(rgb(if self.active == Some(index) {
-                        0x315267
+                    .border_1()
+                    .border_color(rgb(if self.active == Some(index) {
+                        colors.accent
                     } else {
-                        0x263c4d
+                        colors.border
+                    }))
+                    .bg(rgb(if self.active == Some(index) {
+                        colors.selected
+                    } else {
+                        colors.control
                     }))
                     .child(
                         button(SharedString::from(format!("close-{}", tab.id)), "×")
@@ -92,8 +99,9 @@ impl Latch {
                             .size(px(32.))
                             .p_0()
                             .bg(rgba(0))
+                            .border_color(rgba(0))
                             .text_size(px(22.))
-                            .text_color(rgb(0xffa69b))
+                            .text_color(rgb(colors.danger))
                             .on_click(cx.listener(move |this, event, window, cx| {
                                 if this.tab_drag.did_drag && matches!(event, ClickEvent::Mouse(_)) {
                                     return;
@@ -109,6 +117,7 @@ impl Latch {
                         .debug_selector(|| format!("tab-name-{index}"))
                         .px(px(10.))
                         .bg(rgba(0))
+                        .border_color(rgba(0))
                         .on_click(cx.listener(
                             move |this, event, window, cx| {
                                 if this.tab_drag.did_drag && matches!(event, ClickEvent::Mouse(_)) {

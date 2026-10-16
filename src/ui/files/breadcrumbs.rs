@@ -1,5 +1,5 @@
 use super::{Files, pane::Side};
-use crate::ui::button;
+use crate::ui::{button, theme::CARBON};
 use gpui::{prelude::*, *};
 use std::path::{Path, PathBuf};
 
@@ -88,7 +88,7 @@ impl Files {
                         .items_center()
                         .flex_shrink_0()
                         .when(index > 0, |row| {
-                            row.child(div().text_color(rgb(0x7893a8)).child("/"))
+                            row.child(div().text_color(rgb(CARBON.muted)).child("/"))
                         })
                         .child(crumb)
                 })),
@@ -108,7 +108,7 @@ impl Files {
                             div()
                                 .debug_selector(|| "local-drives-label".into())
                                 .text_xs()
-                                .text_color(rgb(0xa8c1d3))
+                                .text_color(rgb(CARBON.muted))
                                 .child("Drives"),
                         )
                         .child(
@@ -128,7 +128,9 @@ impl Files {
                                             .px_2()
                                             .flex_shrink_0()
                                             .when(directory.path.starts_with(drive), |button| {
-                                                button.bg(rgb(0x426c80))
+                                                button
+                                                    .bg(rgb(CARBON.selected))
+                                                    .border_color(rgb(CARBON.accent))
                                             })
                                             .on_click(cx.listener(move |this, _, _, cx| {
                                                 this.navigate_local(path.clone(), cx);
