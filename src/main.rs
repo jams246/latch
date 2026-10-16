@@ -3,7 +3,7 @@
 mod ui;
 
 use gpui::*;
-use latch::storage::Store;
+use latch::storage::{Store, WindowSize};
 use std::{io, path::PathBuf, sync::Arc};
 
 fn main() {
@@ -34,20 +34,35 @@ fn main() {
         }
     };
     Application::new().run(move |cx: &mut App| {
+        let window_size = store.window_size();
         let mut options = ui::options(
             "Lightweight Access Terminal & Connection Handler",
-            1120.,
-            720.,
+            window_size.width,
+            window_size.height,
             cx,
         );
-        options.window_min_size = Some(size(px(720.), px(480.)));
+        options.window_min_size = Some(size(px(WindowSize::MIN_WIDTH), px(WindowSize::MIN_HEIGHT)));
+        if window_size.maximized
+            && let Some(bounds) = options.window_bounds
+        {
+            options.window_bounds = Some(WindowBounds::Maximized(bounds.get_bounds()));
+        }
         if let Err(error) = cx.open_window(options, |window, cx| {
             let owner = window.window_handle();
             let root = cx.new(|cx| ui::Latch::new(store, directory, runtime, owner, cx));
             let weak = root.downgrade();
-            window.on_window_should_close(cx, move |_, cx| {
+            window.on_window_should_close(cx, move |window, cx| {
+                let bounds = window.window_bounds();
+                let size = bounds.get_bounds().size;
                 let ready = weak
-                    .update(cx, |app, cx| app.request_shutdown(cx))
+                    .update(cx, |app, cx| {
+                        app.save_window_size(WindowSize {
+                            width: f32::from(size.width).max(WindowSize::MIN_WIDTH),
+                            height: f32::from(size.height).max(WindowSize::MIN_HEIGHT),
+                            maximized: matches!(bounds, WindowBounds::Maximized(_)),
+                        });
+                        app.request_shutdown(cx)
+                    })
                     .unwrap_or(true);
                 if ready {
                     cx.quit();

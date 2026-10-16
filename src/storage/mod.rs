@@ -3,6 +3,7 @@
 mod model;
 mod persistence;
 mod portable;
+mod window;
 
 #[cfg(test)]
 mod tests_persistence;
@@ -16,12 +17,15 @@ use std::{cmp::Ordering, collections::HashSet, io, path::PathBuf};
 use serde::{Deserialize, Serialize};
 
 pub use model::{AuthMethod, Connection, SortMode};
+pub use window::WindowSize;
 
 #[derive(Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 struct Configuration {
     connections: Vec<Connection>,
     sort_mode: SortMode,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    window_size: Option<WindowSize>,
 }
 
 /// Connection metadata persisted as one atomically replaced JSON file.
@@ -170,6 +174,9 @@ fn compare_usage(a: &Connection, b: &Connection) -> Ordering {
 }
 
 fn validate(configuration: &Configuration) -> io::Result<()> {
+    if let Some(window_size) = configuration.window_size {
+        window_size.validate()?;
+    }
     let mut ids = HashSet::new();
     for connection in &configuration.connections {
         connection.validate()?;
