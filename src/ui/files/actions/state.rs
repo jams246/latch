@@ -37,6 +37,5 @@ pub(in crate::ui::files) struct ActionDialog {
 
 pub(in crate::ui::files) struct ActionResult {
     pub side: Side,
-    pub kind: ActionKind,
     pub result: Result<(), String>,
 }

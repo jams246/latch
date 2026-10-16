@@ -16,7 +16,6 @@ impl Files {
         let commands = self.commands.clone();
         let sender = self.action_sender.clone();
         self.action_busy = true;
-        self.action_status[usize::from(side == Side::Remote)] = Some("Working…".into());
         self.action_task = Some(self.runtime.spawn(async move {
             let result = match dialog.parent {
                 Target::Local(parent) => tokio::task::spawn_blocking(move || match kind {
@@ -77,7 +76,14 @@ impl Files {
                     .await
                 }
             };
-            let _ = sender.send(ActionResult { side, kind, result });
+            let result = result.map_err(|error| {
+                if kind == ActionKind::Delete {
+                    format!("{error} Some selected items may already have been deleted.")
+                } else {
+                    error
+                }
+            });
+            let _ = sender.send(ActionResult { side, result });
         }));
         cx.notify();
     }
@@ -86,27 +92,13 @@ impl Files {
         while let Ok(event) = self.action_events.try_recv() {
             self.action_busy = false;
             self.action_task = None;
-            let message = match event.result {
-                Ok(()) => match event.kind {
-                    ActionKind::Rename => "Item renamed".to_string(),
-                    ActionKind::NewFolder => "Folder created".to_string(),
-                    ActionKind::Delete => "Selected items deleted".to_string(),
-                    ActionKind::Copy => "Copy complete".to_string(),
-                    ActionKind::Refresh => "Directory refreshed".to_string(),
-                },
-                Err(error) => {
-                    if event.side == Side::Remote {
-                        self.browser = None;
-                    }
-                    if event.kind == ActionKind::Delete {
-                        format!("{error} Some selected items may already have been deleted.")
-                    } else {
-                        error
-                    }
+            if let Err(error) = event.result {
+                if event.side == Side::Remote {
+                    self.browser = None;
                 }
-            };
+                eprintln!("SFTP file action failed: {error}");
+            }
             self.refresh(event.side, cx);
-            self.action_status[usize::from(event.side == Side::Remote)] = Some(message);
             cx.notify();
         }
     }

@@ -179,10 +179,7 @@ fn confirming_delete_uses_captured_targets_even_after_selection_changes(cx: &mut
     handle
         .read_with(&visual, |files, _| {
             assert!(files.dialog.is_none() && files.action_task.is_none());
-            assert_eq!(
-                files.action_status[0].as_deref(),
-                Some("Selected items deleted")
-            );
+            assert!(files.local_busy);
         })
         .unwrap();
 }
