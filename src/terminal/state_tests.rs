@@ -38,6 +38,31 @@ fn alternate_screen_should_preserve_shell_content() {
 }
 
 #[test]
+fn reconnect_should_restore_shell_history_and_default_modes() {
+    let terminal = TerminalState::new(10, 2);
+    terminal.feed(b"first\r\nsecond\r\nshell\x1b[?1049happ\x1b[?1h\x1b[?2004h\x1b[?25l");
+    terminal.reset_for_reconnect();
+    assert_eq!(terminal.mode(), TermMode::default());
+    assert_eq!(terminal.snapshot().cells[0].cell.c, 's');
+    terminal.scroll(1);
+    assert_eq!(terminal.snapshot().cells[0].cell.c, 'f');
+}
+
+#[test]
+fn reconnect_should_discard_partial_escape_sequences_and_pending_replies() {
+    let terminal = TerminalState::new(10, 2);
+    terminal.feed(b"old\x1b[31m\x1b[31");
+    lock(&lock(&terminal.0).replies).extend_from_slice(b"stale");
+    terminal.reset_for_reconnect();
+    assert!(terminal.feed(b"X").is_empty());
+    let cell = &terminal.snapshot().cells[3].cell;
+    assert_eq!(
+        (cell.c, cell.fg),
+        ('X', Color::Named(NamedColor::Foreground))
+    );
+}
+
+#[test]
 fn resize_should_keep_valid_minimum_dimensions() {
     let terminal = TerminalState::new(10, 2);
     terminal.resize(0, 0);

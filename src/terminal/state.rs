@@ -99,6 +99,29 @@ impl TerminalState {
         std::mem::take(&mut *lock(&inner.replies))
     }
 
+    /// Starts a fresh shell's terminal modes while preserving the primary screen and history.
+    pub fn reset_for_reconnect(&self) {
+        let mut inner = lock(&self.0);
+        if inner.term.mode().contains(TermMode::ALT_SCREEN) {
+            inner.term.swap_alt();
+        }
+        let size = Size {
+            columns: inner.term.columns(),
+            rows: inner.term.screen_lines(),
+        };
+        let mut term = Term::new(Config::default(), &size, Replies(inner.replies.clone()));
+        std::mem::swap(inner.term.grid_mut(), term.grid_mut());
+        let cursor = &mut term.grid_mut().cursor;
+        cursor.template = Cell::default();
+        cursor.charsets = Default::default();
+        cursor.input_needs_wrap = false;
+        term.grid_mut().saved_cursor = term.grid().cursor.clone();
+        inner.term = term;
+        inner.parser = Processor::new();
+        lock(&inner.replies).clear();
+        inner.revision = inner.revision.wrapping_add(1);
+    }
+
     /// Resize the grid, returning whether the remote PTY also needs resizing.
     pub fn resize(&self, columns: u16, rows: u16) -> bool {
         let mut inner = lock(&self.0);
