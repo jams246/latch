@@ -72,15 +72,40 @@ fn directory_link_sorts_with_folders_while_preserving_link_type() {
 }
 
 #[test]
-fn modified_sort_does_not_group_folders_before_files() {
-    let sort = Sort {
-        column: Column::Modified,
-        descending: false,
-    };
-    let mut folder = entry("alpha", true);
-    folder.modified = Some(10);
-    assert_eq!(
-        sort.compare(&folder, &entry("zeta", false)),
-        Ordering::Greater
-    );
+fn every_column_keeps_folders_first_and_sorts_within_each_group_in_both_directions() {
+    let entries = [
+        Entry {
+            modified: Some(30),
+            size: Some(100),
+            ..entry("alpha.txt", false)
+        },
+        Entry {
+            modified: Some(10),
+            size: Some(200),
+            ..entry("zeta", true)
+        },
+        Entry {
+            modified: Some(5),
+            size: Some(2),
+            ..entry("beta.csv", false)
+        },
+        Entry {
+            modified: Some(20),
+            size: Some(1),
+            ..entry("omega", true)
+        },
+    ];
+    for (column, ascending, descending) in [
+        (Column::Name, [3, 1, 0, 2], [1, 3, 2, 0]),
+        (Column::Modified, [1, 3, 2, 0], [3, 1, 0, 2]),
+        (Column::Size, [3, 1, 2, 0], [1, 3, 0, 2]),
+        (Column::Type, [3, 1, 2, 0], [1, 3, 0, 2]),
+    ] {
+        for (descending, expected) in [(false, ascending), (true, descending)] {
+            let sort = Sort { column, descending };
+            let mut indices = [0, 1, 2, 3];
+            indices.sort_by(|&left, &right| sort.compare(&entries[left], &entries[right]));
+            assert_eq!(indices, expected, "{column:?}, descending={descending}");
+        }
+    }
 }
