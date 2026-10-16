@@ -53,10 +53,11 @@ impl russh_sftp::server::Handler for Filesystem {
         if !self.directories.insert(handle.clone()) {
             return Err(StatusCode::Eof);
         }
-        Ok(Name {
-            id,
-            files: self.entries(&handle)?,
-        })
+        let files = self.entries(&handle)?;
+        if files.is_empty() {
+            return Err(StatusCode::Eof);
+        }
+        Ok(Name { id, files })
     }
 
     async fn stat(&mut self, id: u32, path: String) -> Result<Attrs, Self::Error> {

@@ -26,7 +26,7 @@ impl Files {
             .local
             .as_ref()
             .map_or_else(|| PathBuf::from("."), |directory| directory.path.clone());
-        let prompt = cx.prompt_for_new_path(&directory, Some(name));
+        let prompt = cx.prompt_for_new_path(&directory, Some(download_name(name)));
         cx.spawn(async move |this, cx| {
             let result = prompt
                 .await
@@ -48,5 +48,34 @@ impl Files {
             }
         })
         .detach();
+    }
+}
+
+fn download_name(name: &str) -> &str {
+    // Server filenames must not become paths or device names in the native save dialog.
+    if local::validate_name(name).is_ok() {
+        name
+    } else {
+        "download"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::download_name;
+
+    #[test]
+    fn save_dialog_receives_only_safe_filename_suggestions() {
+        for name in [
+            "../escape",
+            r"\\server\share\file",
+            "C:secret",
+            "file:stream",
+            "NUL",
+            "file.",
+        ] {
+            assert_eq!(download_name(name), "download");
+        }
+        assert_eq!(download_name("report.txt"), "report.txt");
     }
 }

@@ -1,6 +1,6 @@
 use std::{fmt::Write, io, path::Path, time::Duration};
 
-use rusqlite::{Connection, OpenFlags};
+use rusqlite::{Connection, OpenFlags, config::DbConfig};
 use zeroize::Zeroizing;
 
 use super::{invalid, key};
@@ -21,6 +21,13 @@ pub(super) fn open_for_write(path: &Path, create: bool) -> io::Result<Connection
         flags |= OpenFlags::SQLITE_OPEN_CREATE;
     }
     let connection = Connection::open_with_flags(path, flags).map_err(error)?;
+    // Apply schema protections before reading potentially modified database content.
+    connection
+        .set_db_config(DbConfig::SQLITE_DBCONFIG_DEFENSIVE, true)
+        .map_err(error)?;
+    connection
+        .set_db_config(DbConfig::SQLITE_DBCONFIG_TRUSTED_SCHEMA, false)
+        .map_err(error)?;
     // SQLCipher's Windows allocator recursively logs allocation failures through itself.
     connection
         .execute_batch("PRAGMA cipher_log='off'; PRAGMA cipher_memory_security=ON;")

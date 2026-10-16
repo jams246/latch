@@ -6,6 +6,7 @@ use super::super::{
     Error,
     operations::{child, read_directory},
     transfer::wait_running,
+    tree_limits::TreeLimits,
 };
 
 #[derive(Eq, PartialEq)]
@@ -36,9 +37,11 @@ pub(super) async fn snapshot(
     root: &str,
     mut controls: Option<Controls<'_>>,
 ) -> Result<Snapshot, Error> {
-    let mut pending = vec![String::new()];
+    let mut pending = vec![(String::new(), 0)];
     let mut entries = Vec::new();
-    while let Some(relative) = pending.pop() {
+    let mut limits = TreeLimits::default();
+    limits.reserve(0, root.len())?;
+    while let Some((relative, depth)) = pending.pop() {
         if let Some((cancel, paused)) = controls.as_mut() {
             wait_running(cancel, paused).await?;
         }
@@ -49,7 +52,9 @@ pub(super) async fn snapshot(
                 if let Some((cancel, paused)) = controls.as_mut() {
                     wait_running(cancel, paused).await?;
                 }
-                pending.push(child(&relative, &entry.file_name())?);
+                let child = child(&relative, &entry.file_name())?;
+                limits.reserve(depth + 1, child.len())?;
+                pending.push((child, depth + 1));
             }
         }
         entries.push((relative, metadata.into()));
@@ -106,8 +111,10 @@ fn retained(path: &str, reason: impl std::fmt::Display) -> Error {
 }
 
 pub(super) async fn remove(session: &SftpSession, path: &str) -> Result<(), Error> {
-    let mut pending = vec![(path.to_owned(), false)];
-    while let Some((path, visited)) = pending.pop() {
+    let mut pending = vec![(path.to_owned(), false, 0)];
+    let mut limits = TreeLimits::default();
+    limits.reserve(0, path.len())?;
+    while let Some((path, visited, depth)) = pending.pop() {
         let metadata = session.symlink_metadata(&path).await?;
         if !metadata.file_type().is_dir() {
             session.remove_file(path).await?;
@@ -115,9 +122,11 @@ pub(super) async fn remove(session: &SftpSession, path: &str) -> Result<(), Erro
             session.remove_dir(path).await?;
         } else {
             let entries = read_directory(session, &path).await?;
-            pending.push((path.clone(), true));
+            pending.push((path.clone(), true, depth));
             for entry in entries {
-                pending.push((child(&path, &entry.file_name())?, false));
+                let child = child(&path, &entry.file_name())?;
+                limits.reserve(depth + 1, child.len())?;
+                pending.push((child, false, depth + 1));
             }
         }
     }

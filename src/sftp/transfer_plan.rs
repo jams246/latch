@@ -8,6 +8,7 @@ use super::{
     operations::{child, read_directory, validate_path},
     transfer::wait_running,
     transfer_destination::local_is_link,
+    tree_limits::TreeLimits,
 };
 
 pub(super) struct Node {
@@ -23,8 +24,10 @@ pub(super) async fn plan(
     paused: &mut watch::Receiver<bool>,
 ) -> Result<Vec<Node>, Error> {
     let mut nodes = Vec::new();
+    let mut limits = TreeLimits::default();
     for direction in directions {
-        nodes.push(build(session, direction, cancel, paused).await?);
+        reserve(&mut limits, &direction, 0)?;
+        nodes.push(build(session, direction, cancel, paused, &mut limits, 0).await?);
     }
     Ok(nodes)
 }
@@ -34,6 +37,8 @@ async fn build(
     direction: Direction,
     cancel: &mut watch::Receiver<bool>,
     paused: &mut watch::Receiver<bool>,
+    limits: &mut TreeLimits,
+    depth: usize,
 ) -> Result<Node, Error> {
     wait_running(cancel, paused).await?;
     let mut children = Vec::new();
@@ -51,10 +56,12 @@ async fn build(
                 while let Some(entry) = entries.next_entry().await? {
                     wait_running(cancel, paused).await?;
                     let name = entry.file_name();
-                    children.push(Direction::Upload {
+                    let child = Direction::Upload {
                         local: entry.path(),
                         remote: child(remote, name.to_str().ok_or(Error::InvalidPath)?)?,
-                    });
+                    };
+                    reserve(limits, &child, depth + 1)?;
+                    children.push(child);
                 }
                 (true, None)
             } else {
@@ -74,10 +81,12 @@ async fn build(
                     wait_running(cancel, paused).await?;
                     let name = entry.file_name();
                     validate_local_name(&name)?;
-                    children.push(Direction::Download {
+                    let child = Direction::Download {
                         remote: child(remote, &name)?,
                         local: local.join(name),
-                    });
+                    };
+                    reserve(limits, &child, depth + 1)?;
+                    children.push(child);
                 }
                 (true, None)
             } else {
@@ -87,13 +96,18 @@ async fn build(
     };
     let mut nodes = Vec::new();
     for child in children {
-        nodes.push(Box::pin(build(session, child, cancel, paused)).await?);
+        nodes.push(Box::pin(build(session, child, cancel, paused, limits, depth + 1)).await?);
     }
     Ok(Node {
         direction,
         total: if is_dir { total_size(&nodes) } else { total },
         children: is_dir.then_some(nodes),
     })
+}
+
+fn reserve(limits: &mut TreeLimits, direction: &Direction, depth: usize) -> Result<(), Error> {
+    let (Direction::Upload { local, remote } | Direction::Download { local, remote }) = direction;
+    limits.reserve(depth, local.as_os_str().len().saturating_add(remote.len()))
 }
 
 pub(super) fn total_size(nodes: &[Node]) -> Option<u64> {

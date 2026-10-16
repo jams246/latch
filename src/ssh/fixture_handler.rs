@@ -12,6 +12,7 @@ pub(super) struct Handler {
     pub(super) reject_pty: bool,
     pub(super) channels: HashMap<ChannelId, Channel<server::Msg>>,
     pub(super) subsystem: Option<Subsystem>,
+    pub(super) flood_output: bool,
 }
 
 impl Drop for Handler {
@@ -38,11 +39,14 @@ impl server::Handler for Handler {
         password: &str,
     ) -> Result<server::Auth, Self::Error> {
         self.counts.passwords.fetch_add(1, Ordering::SeqCst);
-        Ok(if user == "synthetic" && password == "test-only-password" {
-            server::Auth::Accept
-        } else {
-            server::Auth::reject()
-        })
+        self.flood_output = user == "synthetic-output-flood";
+        Ok(
+            if (user == "synthetic" || self.flood_output) && password == "test-only-password" {
+                server::Auth::Accept
+            } else {
+                server::Auth::reject()
+            },
+        )
     }
 
     async fn auth_publickey(
@@ -90,8 +94,16 @@ impl server::Handler for Handler {
             _ => vec![(Cow::Borrowed("Code"), false)],
         };
         Ok(server::Auth::Partial {
-            name: Cow::Borrowed("Synthetic verification"),
-            instructions: Cow::Borrowed("Enter the synthetic code"),
+            name: if user == "synthetic-long-name" {
+                Cow::Owned("x".repeat(4097))
+            } else {
+                Cow::Borrowed("Synthetic verification")
+            },
+            instructions: if user == "synthetic-long-instructions" {
+                Cow::Owned("x".repeat(4097))
+            } else {
+                Cow::Borrowed("Enter the synthetic code")
+            },
             prompts: Cow::Owned(prompts),
         })
     }
@@ -154,7 +166,9 @@ impl server::Handler for Handler {
         session: &mut server::Session,
     ) -> Result<(), Self::Error> {
         self.counts.shells.fetch_add(1, Ordering::SeqCst);
-        if self.reject_shell {
+        if self.flood_output {
+            session.data(channel, vec![b'x'; 1024 * 1024 + 1])?;
+        } else if self.reject_shell {
             session.channel_failure(channel)?;
         } else {
             session.channel_success(channel)?;

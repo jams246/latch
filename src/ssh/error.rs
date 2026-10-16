@@ -41,6 +41,9 @@ pub enum Error {
     /// The server explicitly rejected a requested terminal or subsystem channel.
     #[error("The server refused the remote PTY, shell, or SFTP subsystem")]
     ChannelRejected,
+    /// The server exceeded the buffer allowed before acknowledging channel startup.
+    #[error("The server sent too much output before starting the remote channel")]
+    ChannelOutputLimit,
 }
 
 impl From<russh::Error> for Error {

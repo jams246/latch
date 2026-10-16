@@ -6,6 +6,7 @@ edition = "2024"
 [workspace]
 members = ["vendor/stacksafe-macro"]
 default-members = [".", "vendor/stacksafe-macro"]
+exclude = ["vendor/alacritty_terminal", "vendor/russh-sftp", "vendor/vte"]
 
 [build-dependencies]
 embed-resource = "3.0.12"
@@ -27,7 +28,7 @@ image = { version = "0.25", default-features = false }
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 rusqlite = { version = "0.40.2", features = ["bundled-sqlcipher-vendored-openssl"] }
 
-windows = { version = "0.61.3", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_UI_Input_KeyboardAndMouse"] }
+windows = { version = "0.61.3", features = ["Wdk_Foundation", "Wdk_Storage_FileSystem", "Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Security", "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_IO", "Win32_System_WindowsProgramming", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_UI_Input_KeyboardAndMouse"] }
 
 [dev-dependencies]
 gpui = { version = "0.2.2", features = ["test-support"] }
@@ -37,3 +38,7 @@ futures = "0.3"
 [patch.crates-io]
 # Replace the unmaintained diagnostic dependency without changing stack growth.
 stacksafe-macro = { path = "vendor/stacksafe-macro" }
+# Bound memory retained from untrusted terminal and SFTP server output.
+alacritty_terminal = { path = "vendor/alacritty_terminal" }
+russh-sftp = { path = "vendor/russh-sftp" }
+vte = { path = "vendor/vte" }

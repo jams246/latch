@@ -118,6 +118,7 @@ impl server::Server for Factory {
             reject_pty: self.reject_pty,
             channels: HashMap::new(),
             subsystem: self.subsystem,
+            flood_output: false,
         }
     }
 }

@@ -8,7 +8,9 @@ use tokio::fs;
 use uuid::Uuid;
 
 use super::{
-    super::{Error, transfer::wait_running, transfer_destination::local_is_link},
+    super::{
+        Error, transfer::wait_running, transfer_destination::local_is_link, tree_limits::TreeLimits,
+    },
     Controls,
 };
 
@@ -30,6 +32,8 @@ pub(super) async fn snapshot(
 ) -> Result<Snapshot, Error> {
     let mut pending = vec![PathBuf::new()];
     let mut entries = Vec::new();
+    let mut limits = TreeLimits::default();
+    limits.reserve(0, root.as_os_str().len())?;
     while let Some(relative) = pending.pop() {
         if let Some((cancel, paused)) = controls.as_mut() {
             wait_running(cancel, paused).await?;
@@ -47,7 +51,9 @@ pub(super) async fn snapshot(
                 if let Some((cancel, paused)) = controls.as_mut() {
                     wait_running(cancel, paused).await?;
                 }
-                pending.push(relative.join(child.file_name()));
+                let child = relative.join(child.file_name());
+                limits.reserve(child.components().count(), child.as_os_str().len())?;
+                pending.push(child);
             }
         }
         entries.push((

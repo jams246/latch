@@ -88,7 +88,12 @@ async fn keyboard_interactive_identifies_and_answers_challenge() {
 
 #[tokio::test]
 async fn keyboard_interactive_rejects_oversized_challenges_before_prompting() {
-    for username in ["synthetic-oversized-challenge", "synthetic-long-challenge"] {
+    for username in [
+        "synthetic-oversized-challenge",
+        "synthetic-long-challenge",
+        "synthetic-long-name",
+        "synthetic-long-instructions",
+    ] {
         let fixture = Fixture::start(false).await;
         let mut config = config(&fixture, username);
         config.username = username.into();

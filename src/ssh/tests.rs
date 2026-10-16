@@ -189,3 +189,28 @@ async fn cancelling_host_confirmation_releases_network_session() {
     .unwrap();
     drop(pending);
 }
+
+#[tokio::test]
+async fn excessive_output_before_shell_acknowledgement_fails_without_connecting() {
+    let fixture = Fixture::start(false).await;
+    let mut config = config(&fixture, "startup-output-limit");
+    config.username = "synthetic-output-flood".into();
+    let (control, mut prompts, mut events) = start(config);
+    trust(&mut prompts).await;
+    password(&mut prompts, "test-only-password", false).await;
+    let error = tokio::time::timeout(Duration::from_secs(5), async {
+        let mut error = None;
+        loop {
+            match events.recv().await.expect("Expected terminal failure") {
+                Event::Error(message) => error = Some(message),
+                Event::Status(State::Failed) => break error,
+                Event::Status(State::Connected) => panic!("Flooding server opened a shell"),
+                _ => (),
+            }
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(error, Some(Error::ChannelOutputLimit.to_string()));
+    assert!(control.commands.is_closed());
+}

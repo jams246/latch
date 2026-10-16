@@ -1,6 +1,7 @@
 //! SFTP directory browsing and cancellable transfers over an authenticated SSH tab.
 
 mod browser;
+mod local_source;
 mod operations;
 mod transfer;
 mod transfer_conflicts;
@@ -12,6 +13,7 @@ mod transfer_plan;
 mod transfer_progress;
 mod transfer_publish;
 mod transfer_trees;
+mod tree_limits;
 
 #[cfg(test)]
 mod tests;
@@ -39,6 +41,8 @@ mod tests_progress;
 mod tests_progress_totals;
 #[cfg(test)]
 mod tests_races;
+#[cfg(test)]
+mod tests_security;
 #[cfg(test)]
 pub(crate) mod tests_server;
 #[cfg(test)]
@@ -152,6 +156,9 @@ pub enum Error {
     /// A copy source is a symbolic link or a special file.
     #[error("Links and special files cannot be copied. No link target was followed.")]
     UnsupportedCopySource,
+    /// A directory tree exceeds the bounded planning or traversal budget.
+    #[error("The directory tree is too large or too deep. Select a smaller folder.")]
+    TreeLimit,
     /// A temporary file could not be removed after a failure.
     #[error(
         "Transfer cleanup failed. A temporary .latch file may remain in the destination folder."

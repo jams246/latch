@@ -5,7 +5,7 @@ use russh_sftp::{
     protocol::{OpenFlags, StatusCode},
 };
 use tokio::{
-    fs::{self, File, OpenOptions},
+    fs::{self, OpenOptions},
     sync::watch,
 };
 use uuid::Uuid;
@@ -42,11 +42,8 @@ pub(super) async fn upload(
 ) -> Result<(), Error> {
     validate_remote(remote)?;
     wait_running(cancel, paused).await?;
-    let mut source = File::open(local).await?;
+    let mut source = super::local_source::open(local).await?;
     let metadata = source.metadata().await?;
-    if !metadata.is_file() {
-        return Err(Error::InvalidPath);
-    }
     if replacement.is_none() {
         ensure_new(session, remote).await?;
     }

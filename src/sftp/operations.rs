@@ -1,9 +1,9 @@
 use russh_sftp::{
-    client::{SftpSession, fs::ReadDir},
+    client::{SftpSession, fs::DirEntry},
     protocol::StatusCode,
 };
 
-use super::{Browser, Error};
+use super::{Browser, Error, tree_limits::TreeLimits};
 
 impl Browser {
     /// Renames an entry within its existing directory without replacing another entry.
@@ -42,11 +42,13 @@ impl Browser {
     /// Returns invalid-path, permissions, or transport failures. Earlier entries may
     /// already have been deleted when a later entry fails.
     pub async fn delete(&self, paths: &[String]) -> Result<(), Error> {
+        let mut limits = TreeLimits::default();
         for path in paths {
             validate_path(path)?;
+            limits.reserve(0, path.len())?;
         }
-        let mut pending: Vec<_> = paths.iter().cloned().map(|path| (path, false)).collect();
-        while let Some((path, visited)) = pending.pop() {
+        let mut pending: Vec<_> = paths.iter().cloned().map(|path| (path, false, 0)).collect();
+        while let Some((path, visited, depth)) = pending.pop() {
             let metadata = self.session.symlink_metadata(&path).await?;
             if !metadata.file_type().is_dir() {
                 self.session.remove_file(path).await?;
@@ -54,9 +56,11 @@ impl Browser {
                 self.session.remove_dir(path).await?;
             } else {
                 let entries = read_directory(&self.session, &path).await?;
-                pending.push((path.clone(), true));
+                pending.push((path.clone(), true, depth));
                 for entry in entries {
-                    pending.push((child(&path, &entry.file_name())?, false));
+                    let child = child(&path, &entry.file_name())?;
+                    limits.reserve(depth + 1, child.len())?;
+                    pending.push((child, false, depth + 1));
                 }
             }
         }
@@ -64,13 +68,27 @@ impl Browser {
     }
 }
 
-pub(super) async fn read_directory(session: &SftpSession, path: &str) -> Result<ReadDir, Error> {
-    match session.read_dir(path).await {
+pub(super) async fn read_directory(
+    session: &SftpSession,
+    path: &str,
+) -> Result<Vec<DirEntry>, Error> {
+    if path != "/" {
+        validate_path(path)?;
+    }
+    let result = async {
+        let entries: Vec<_> = session.read_dir(path).await?.collect();
+        for entry in &entries {
+            validate_name(&entry.file_name())?;
+        }
+        Ok(entries)
+    }
+    .await;
+    match result {
         Ok(directory) => Ok(directory),
         Err(error) => {
             // Closing the SFTP channel also releases a directory handle on read failure.
             let _ = session.close().await;
-            Err(error.into())
+            Err(error)
         }
     }
 }

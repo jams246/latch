@@ -102,3 +102,51 @@ fn independent_terminal_should_not_share_output() {
     first.feed(b"first");
     assert_eq!(second.snapshot().cells[0].cell.c, ' ');
 }
+
+#[test]
+fn remote_clipboard_requests_never_generate_replies() {
+    let terminal = TerminalState::new(10, 2);
+    assert!(
+        terminal
+            .feed(b"\x1b]52;c;?\x07\x1b]52;c;c2VjcmV0\x07")
+            .is_empty()
+    );
+}
+
+#[test]
+fn combining_flood_stays_bounded_across_output_chunks() {
+    let terminal = TerminalState::new(10, 2);
+    terminal.feed(b"a");
+    let marks = "\u{301}".repeat(1024);
+    for _ in 0..32 {
+        terminal.feed(marks.as_bytes());
+    }
+    terminal.feed(b"b");
+    let snapshot = terminal.snapshot();
+    assert_eq!(snapshot.cells[0].cell.zerowidth().unwrap().len(), 32);
+    assert_eq!(snapshot.cells[1].cell.c, 'b');
+}
+
+#[test]
+fn ordinary_combining_characters_remain_visible() {
+    let terminal = TerminalState::new(10, 2);
+    terminal.feed("a\u{301}\u{308}".as_bytes());
+    assert_eq!(
+        terminal.snapshot().cells[0].cell.zerowidth(),
+        Some(['\u{301}', '\u{308}'].as_slice())
+    );
+}
+
+#[test]
+fn oversized_remote_color_command_is_ignored_and_parser_recovers() {
+    let terminal = TerminalState::new(10, 2);
+    terminal.feed(b"\x1b]10;");
+    for _ in 0..32 {
+        terminal.feed(&[b'x'; 1024]);
+    }
+    terminal.feed(b"\x07ok\x1b[6n");
+    let snapshot = terminal.snapshot();
+    assert_eq!(snapshot.colors[NamedColor::Foreground], None);
+    assert_eq!(snapshot.cells[0].cell.c, 'o');
+    assert_eq!(snapshot.cells[1].cell.c, 'k');
+}

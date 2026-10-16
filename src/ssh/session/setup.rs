@@ -56,9 +56,9 @@ pub(super) async fn establish(
         shell
             .request_pty(true, "xterm-256color", config.cols, config.rows, 0, 0, &[])
             .await?;
-        initial = await_success(&mut shell).await?;
+        await_success(&mut shell, &mut initial).await?;
         shell.request_shell(true).await?;
-        initial.extend(await_success(&mut shell).await?);
+        await_success(&mut shell, &mut initial).await?;
         Some(shell)
     } else {
         None
@@ -72,12 +72,20 @@ pub(super) async fn establish(
     })
 }
 
-async fn await_success(channel: &mut Channel<client::Msg>) -> Result<Vec<u8>, Error> {
-    let mut initial = Vec::new();
+async fn await_success(
+    channel: &mut Channel<client::Msg>,
+    initial: &mut Vec<u8>,
+) -> Result<(), Error> {
+    const MAX_INITIAL_OUTPUT: usize = 1024 * 1024;
     loop {
         match channel.wait().await {
-            Some(ChannelMsg::Success) => return Ok(initial),
-            Some(ChannelMsg::Data { data }) => initial.extend_from_slice(&data),
+            Some(ChannelMsg::Success) => return Ok(()),
+            Some(ChannelMsg::Data { data }) | Some(ChannelMsg::ExtendedData { data, .. }) => {
+                if data.len() > MAX_INITIAL_OUTPUT.saturating_sub(initial.len()) {
+                    return Err(Error::ChannelOutputLimit);
+                }
+                initial.extend_from_slice(&data);
+            }
             Some(ChannelMsg::Failure | ChannelMsg::Close | ChannelMsg::Eof) | None => {
                 return Err(Error::ChannelRejected);
             }
@@ -89,6 +97,6 @@ async fn await_success(channel: &mut Channel<client::Msg>) -> Result<Vec<u8>, Er
 pub(super) async fn open_sftp(handle: &client::Handle<Client>) -> Result<SftpStream, Error> {
     let mut channel = handle.channel_open_session().await?;
     channel.request_subsystem(true, "sftp").await?;
-    await_success(&mut channel).await?;
+    await_success(&mut channel, &mut Vec::new()).await?;
     Ok(channel.into_stream())
 }

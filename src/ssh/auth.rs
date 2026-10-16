@@ -1,4 +1,4 @@
-use std::{path::Path, sync::Arc};
+use std::{io::Read, path::Path, sync::Arc};
 
 use russh::{client, keys::PrivateKeyWithHashAlg};
 use tokio::sync::{mpsc, oneshot};
@@ -57,7 +57,17 @@ async fn read_key(
 ) -> Result<russh::keys::PrivateKey, russh::keys::Error> {
     let path = path.to_owned();
     tokio::task::spawn_blocking(move || {
-        let contents = Zeroizing::new(std::fs::read_to_string(path)?);
+        const MAX_KEY_BYTES: u64 = 1024 * 1024;
+        let file = std::fs::File::open(path)?;
+        let metadata = file.metadata()?;
+        if !metadata.is_file() || metadata.len() > MAX_KEY_BYTES {
+            return Err(russh::keys::Error::CouldNotReadKey);
+        }
+        let mut contents = Zeroizing::new(String::new());
+        file.take(MAX_KEY_BYTES + 1).read_to_string(&mut contents)?;
+        if contents.len() as u64 > MAX_KEY_BYTES {
+            return Err(russh::keys::Error::CouldNotReadKey);
+        }
         decode_key(&contents, passphrase.as_deref().map(String::as_str))
     })
     .await
@@ -151,7 +161,11 @@ async fn keyboard(
                 instructions,
                 prompts: fields,
             } => {
-                if fields.len() > 16 || fields.iter().any(|field| field.prompt.len() > 4096) {
+                if name.len() > 4096
+                    || instructions.len() > 4096
+                    || fields.len() > 16
+                    || fields.iter().any(|field| field.prompt.len() > 4096)
+                {
                     return Err(Error::Challenge);
                 }
                 let count = fields.len();

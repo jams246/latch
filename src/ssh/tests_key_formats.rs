@@ -98,3 +98,35 @@ async fn missing_or_unsupported_key_files_fail_without_credential_prompts() {
         assert_eq!(fixture.counts.passwords.load(Ordering::SeqCst), 0);
     }
 }
+
+#[tokio::test]
+async fn oversized_or_non_file_private_keys_fail_without_credential_prompts() {
+    for directory in [false, true] {
+        let fixture = Fixture::start(false).await;
+        let mut config = config(&fixture, "bounded-key-read");
+        let path = config.known_hosts.with_file_name("synthetic-rejected-key");
+        if directory {
+            std::fs::create_dir(&path).unwrap();
+        } else {
+            std::fs::File::create(&path)
+                .unwrap()
+                .set_len(1024 * 1024 + 1)
+                .unwrap();
+        }
+        config.auth = AuthMethod::KeyFile(path);
+        let (_control, mut prompts, mut events) = start(config);
+        trust(&mut prompts).await;
+        let error = tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                if let Some(Event::Error(error)) = events.recv().await {
+                    return error;
+                }
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(error, Error::PrivateKey.to_string());
+        assert!(prompts.try_recv().is_err());
+        assert_eq!(fixture.counts.passwords.load(Ordering::SeqCst), 0);
+    }
+}

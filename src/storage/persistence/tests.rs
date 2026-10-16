@@ -4,6 +4,34 @@ use crate::storage::{AuthMethod, Connection, Store, tests_persistence::path};
 
 use super::{database, key};
 
+#[test]
+fn encrypted_database_enables_schema_protections_and_rejects_schema_overwrites() {
+    use rusqlite::config::DbConfig;
+
+    let path = path("defensive-schema");
+    Store::load(&path).unwrap().save().unwrap();
+    let database = database::open(&path).unwrap();
+    assert!(
+        database
+            .db_config(DbConfig::SQLITE_DBCONFIG_DEFENSIVE)
+            .unwrap()
+    );
+    assert!(
+        !database
+            .db_config(DbConfig::SQLITE_DBCONFIG_TRUSTED_SCHEMA)
+            .unwrap()
+    );
+    assert!(
+        database
+            .execute_batch(
+                "PRAGMA writable_schema=ON; DELETE FROM sqlite_schema WHERE name='connections'"
+            )
+            .is_err()
+    );
+    drop(database);
+    assert!(Store::load(path).is_ok());
+}
+
 fn sample() -> Connection {
     Connection::new(
         "encrypted-synthetic-server".into(),

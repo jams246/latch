@@ -47,6 +47,7 @@ impl Browser {
         let path = self.session.canonicalize(path).await?;
         let directory = read_directory(&self.session, &path).await?;
         let mut entries: Vec<_> = directory
+            .into_iter()
             .map(|entry| {
                 let metadata = entry.metadata();
                 let file_type = metadata.file_type();
@@ -77,6 +78,9 @@ impl Browser {
     /// Returns lookup, broken-link, permissions, and transport failures.
     pub async fn resolve_link(&self, path: &str) -> Result<Option<String>, Error> {
         let path = self.session.canonicalize(path).await?;
+        if path != "/" {
+            super::operations::validate_path(&path)?;
+        }
         let metadata = self.session.metadata(path.clone()).await?;
         Ok(metadata.file_type().is_dir().then_some(path))
     }
