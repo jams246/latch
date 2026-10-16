@@ -124,7 +124,6 @@ mod tests {
         let port = listener.local_addr().unwrap().port();
         drop(listener);
         let mut config = ConnectionConfig {
-            name: "Synthetic timeout".into(),
             host: "127.0.0.1".into(),
             port,
             username: "synthetic".into(),

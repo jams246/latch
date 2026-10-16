@@ -51,7 +51,6 @@ async fn replacing_files_with_folders_and_folders_with_files_works_in_both_direc
                 events,
             );
             let request = conflict(&transfer).await;
-            assert_eq!(request.is_dir, source_is_dir);
             assert!(!request.can_merge);
             assert!(transfer.resolve_conflict(request.id, ConflictChoice::Replace));
             assert_eq!(finished(&mut incoming).await, TransferEvent::Completed);

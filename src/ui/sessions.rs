@@ -22,7 +22,6 @@ impl Latch {
             return;
         }
         let config = ssh::ConnectionConfig {
-            name: connection.name.clone(),
             host: connection.host.clone(),
             port: connection.port,
             username: connection.username.clone(),

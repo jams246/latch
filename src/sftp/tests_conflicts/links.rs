@@ -48,7 +48,6 @@ async fn remote_destination_link_cannot_merge_and_duplicate_never_changes_its_ta
         events,
     );
     let request = conflict(&transfer).await;
-    assert!(request.is_dir);
     assert!(!request.can_merge);
     assert!(!transfer.resolve_conflict(request.id, ConflictChoice::Merge));
     assert!(transfer.resolve_conflict(request.id, ConflictChoice::Duplicate));

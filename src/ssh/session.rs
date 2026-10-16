@@ -65,17 +65,6 @@ fn spawn_mode(
     SessionControl { commands, task }
 }
 
-/// Drives a session on a caller-owned Tokio task, emitting its final lifecycle state.
-/// Closing the command channel cancels the attempt; callers must abort the task on drop.
-pub async fn run(
-    config: ConnectionConfig,
-    commands: mpsc::Receiver<Command>,
-    prompts: mpsc::Sender<Prompt>,
-    events: mpsc::Sender<Event>,
-) {
-    run_session(config, commands, prompts, events, true).await;
-}
-
 async fn run_session(
     config: ConnectionConfig,
     mut commands: mpsc::Receiver<Command>,

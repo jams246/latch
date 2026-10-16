@@ -50,7 +50,6 @@ async fn download_file_conflict_skip_replace_and_numbered_duplicate_preserve_exp
             events,
         );
         let request = conflict(&transfer).await;
-        assert!(!request.is_dir);
         assert!(!request.can_merge);
         assert!(!transfer.resolve_conflict(request.id + 1, choice));
         assert!(!transfer.resolve_conflict(request.id, ConflictChoice::Merge));
@@ -203,7 +202,7 @@ async fn skipping_existing_folder_excludes_its_subtree_from_remaining_transfer_t
         events,
     );
     let request = conflict(&transfer).await;
-    assert!(request.is_dir && request.can_merge);
+    assert!(request.can_merge);
     assert!(transfer.resolve_conflict(request.id, ConflictChoice::Skip));
     assert_eq!(finished(&mut incoming).await, TransferEvent::Completed);
     let bytes = b"Synthetic SFTP content\n".len() as u64;

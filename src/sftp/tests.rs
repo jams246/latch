@@ -29,7 +29,6 @@ pub(super) async fn connected_with(
     let (prompts, mut incoming) = mpsc::channel(8);
     let (events, mut output) = mpsc::channel(32);
     let config = ssh::ConnectionConfig {
-        name: "Synthetic SFTP".into(),
         host: "127.0.0.1".into(),
         port: fixture.port,
         username: "synthetic".into(),

@@ -13,7 +13,7 @@ use tokio::sync::{mpsc, oneshot};
 use zeroize::Zeroizing;
 
 pub use error::Error;
-pub use session::{SessionControl, run, spawn, spawn_sftp};
+pub use session::{SessionControl, spawn, spawn_sftp};
 
 /// A short-lived authentication response that clears its owned string on drop.
 pub type Secret = Zeroizing<String>;
@@ -36,8 +36,6 @@ pub enum AuthMethod {
 /// Non-secret settings for one independently owned SSH connection attempt.
 #[derive(Clone, Debug)]
 pub struct ConnectionConfig {
-    /// Connection label associated with authentication UI.
-    pub name: String,
     /// Hostname or IP address without brackets or a port suffix.
     pub host: String,
     /// Remote SSH TCP port.

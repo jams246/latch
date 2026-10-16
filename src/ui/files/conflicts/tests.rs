@@ -8,7 +8,6 @@ fn request(can_merge: bool) -> Conflict {
         id: 7,
         source: "source/report.txt".into(),
         destination: "destination/report.txt".into(),
-        is_dir: can_merge,
         can_merge,
     }
 }

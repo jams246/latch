@@ -24,8 +24,6 @@ pub struct Conflict {
     pub source: String,
     /// Existing destination path.
     pub destination: String,
-    /// Whether the source is a directory.
-    pub is_dir: bool,
     /// Whether both source and destination are regular directories.
     pub can_merge: bool,
 }
@@ -60,7 +58,6 @@ impl Resolver {
     pub(super) async fn choose(
         &mut self,
         direction: &Direction,
-        is_dir: bool,
         can_merge: bool,
         cancel: &mut watch::Receiver<bool>,
     ) -> Result<ConflictChoice, Error> {
@@ -78,7 +75,6 @@ impl Resolver {
             id: self.next,
             source,
             destination,
-            is_dir,
             can_merge,
         }));
         let result = loop {

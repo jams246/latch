@@ -13,7 +13,6 @@ pub(super) fn config(fixture: &Fixture, tag: &str) -> ConnectionConfig {
         .join(format!("{tag}-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&path).unwrap();
     ConnectionConfig {
-        name: "Synthetic fixture".into(),
         host: "127.0.0.1".into(),
         port: fixture.port,
         username: "synthetic".into(),

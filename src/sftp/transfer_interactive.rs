@@ -84,7 +84,7 @@ impl Context<'_> {
                 .await?;
                 (
                     self.resolver
-                        .choose(&node.direction, is_dir, can_merge, self.cancel)
+                        .choose(&node.direction, can_merge, self.cancel)
                         .await?,
                     Some(approved),
                 )
