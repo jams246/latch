@@ -1,3 +1,5 @@
+mod shell;
+
 use super::fixture::{Counts, Subsystem, key};
 use russh::{Channel, ChannelId, Pty, keys::PublicKey, server};
 use std::{
@@ -13,6 +15,8 @@ pub(super) struct Handler {
     pub(super) channels: HashMap<ChannelId, Channel<server::Msg>>,
     pub(super) subsystem: Option<Subsystem>,
     pub(super) flood_output: bool,
+    pub(super) shell: Option<&'static str>,
+    pub(super) directory: String,
 }
 
 impl Drop for Handler {
@@ -167,16 +171,16 @@ impl server::Handler for Handler {
         channel: ChannelId,
         session: &mut server::Session,
     ) -> Result<(), Self::Error> {
-        self.counts.shells.fetch_add(1, Ordering::SeqCst);
-        if self.flood_output {
-            session.data(channel, vec![b'x'; 1024 * 1024 + 1])?;
-        } else if self.reject_shell {
-            session.channel_failure(channel)?;
-        } else {
-            session.channel_success(channel)?;
-            session.data(channel, b"\x1b[32mSynthetic SSH shell\x1b[0m\r\n".to_vec())?;
-        }
-        Ok(())
+        self.open_shell(channel, session)
+    }
+
+    async fn exec_request(
+        &mut self,
+        channel: ChannelId,
+        data: &[u8],
+        session: &mut server::Session,
+    ) -> Result<(), Self::Error> {
+        self.execute(channel, data, session)
     }
 
     async fn data(
@@ -185,30 +189,7 @@ impl server::Handler for Handler {
         data: &[u8],
         session: &mut server::Session,
     ) -> Result<(), Self::Error> {
-        if data == b"synthetic-drop" {
-            session.disconnect(
-                russh::Disconnect::ByApplication,
-                "Synthetic disconnect",
-                "en",
-            )?;
-            return Ok(());
-        }
-        if data == b"synthetic-exit" || data == b"synthetic-eof-exit" {
-            if data == b"synthetic-eof-exit" {
-                session.eof(channel)?;
-            }
-            session.exit_status_request(channel, 0)?;
-            session.close(channel)?;
-            return Ok(());
-        }
-        if data == b"synthetic-shell-close" {
-            session.close(channel)?;
-            return Ok(());
-        }
-        if self.channels.contains_key(&channel) {
-            session.data(channel, data.to_vec())?;
-        }
-        Ok(())
+        self.shell_input(channel, data, session)
     }
 
     async fn window_change_request(

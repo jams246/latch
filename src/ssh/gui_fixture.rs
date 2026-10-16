@@ -10,7 +10,8 @@ fn subsystem(stream: russh::ChannelStream<russh::server::Msg>) {
 #[tokio::test]
 #[ignore = "Interactive loopback GUI verification server"]
 async fn gui_server() {
-    let fixture = Fixture::start_with(false, Some(subsystem)).await;
+    let fixture = Fixture::start_shell_with("/bin/bash", Some(subsystem)).await;
+    *fixture.counts.directory.lock().unwrap() = Some("/srv/latch project".into());
     let root =
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".verification/latch-plan/gui-fixture");
     let directory = root.join(uuid::Uuid::new_v4().to_string());

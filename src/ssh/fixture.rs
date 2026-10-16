@@ -1,8 +1,8 @@
 use std::{
     collections::HashMap,
     sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
+        Arc, Mutex,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
 };
 
@@ -26,6 +26,9 @@ pub(crate) struct Counts {
     pub agent_forwarding: AtomicUsize,
     pub cols: AtomicUsize,
     pub rows: AtomicUsize,
+    pub execs: Mutex<Vec<String>>,
+    pub directory: Mutex<Option<String>>,
+    pub reject_wrapped_shell: AtomicBool,
 }
 
 pub(crate) fn key(seed: u8) -> PrivateKey {
@@ -52,17 +55,26 @@ impl Fixture {
     }
 
     pub async fn start_with(reject_shell: bool, subsystem: Option<Subsystem>) -> Self {
-        Self::start_options(reject_shell, false, subsystem).await
+        Self::start_options(reject_shell, false, subsystem, None).await
     }
 
     pub async fn start_sftp(subsystem: Subsystem) -> Self {
-        Self::start_options(true, true, Some(subsystem)).await
+        Self::start_options(true, true, Some(subsystem), None).await
+    }
+
+    pub async fn start_shell(shell: &'static str) -> Self {
+        Self::start_shell_with(shell, None).await
+    }
+
+    pub async fn start_shell_with(shell: &'static str, subsystem: Option<Subsystem>) -> Self {
+        Self::start_options(false, false, subsystem, Some(shell)).await
     }
 
     async fn start_options(
         reject_shell: bool,
         reject_pty: bool,
         subsystem: Option<Subsystem>,
+        shell: Option<&'static str>,
     ) -> Self {
         use server::Server as _;
         let socket = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
@@ -79,6 +91,7 @@ impl Fixture {
             reject_shell,
             reject_pty,
             subsystem,
+            shell,
         };
         let (ready, receiver) = tokio::sync::oneshot::channel();
         let task = tokio::spawn(async move {
@@ -108,6 +121,7 @@ struct Factory {
     reject_shell: bool,
     reject_pty: bool,
     subsystem: Option<Subsystem>,
+    shell: Option<&'static str>,
 }
 
 impl server::Server for Factory {
@@ -121,6 +135,8 @@ impl server::Server for Factory {
             channels: HashMap::new(),
             subsystem: self.subsystem,
             flood_output: false,
+            shell: self.shell,
+            directory: "/home/synthetic".into(),
         }
     }
 }
