@@ -53,8 +53,9 @@ impl Files {
                             [
                                 (ActionKind::Rename, "Rename", selected == 1),
                                 (ActionKind::Delete, "Delete", selected > 0),
-                                (ActionKind::NewFolder, "New Folder", true),
+                                (ActionKind::NewFolder, "New Folder", menu.parent.is_some()),
                                 (ActionKind::Copy, "Copy to target directory", selected > 0),
+                                (ActionKind::Refresh, "Refresh", true),
                             ]
                             .into_iter()
                             .enumerate()

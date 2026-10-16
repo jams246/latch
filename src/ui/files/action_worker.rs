@@ -36,7 +36,9 @@ impl Files {
                             .collect::<std::io::Result<Vec<_>>>()?;
                         local::delete(&paths)
                     }
-                    ActionKind::Copy => Err(std::io::Error::other("Invalid file action")),
+                    ActionKind::Copy | ActionKind::Refresh => {
+                        Err(std::io::Error::other("Invalid file action"))
+                    }
                 })
                 .await
                 .map_err(|error| error.to_string())
@@ -66,7 +68,9 @@ impl Files {
                                     .collect::<Result<Vec<_>, _>>()?;
                                 browser.delete(&paths).await
                             }
-                            ActionKind::Copy => return Err("Invalid file action".into()),
+                            ActionKind::Copy | ActionKind::Refresh => {
+                                return Err("Invalid file action".into());
+                            }
                         }
                         .map_err(|error| error.to_string())
                     }
@@ -88,6 +92,7 @@ impl Files {
                     ActionKind::NewFolder => "Folder created".to_string(),
                     ActionKind::Delete => "Selected items deleted".to_string(),
                     ActionKind::Copy => "Copy complete".to_string(),
+                    ActionKind::Refresh => "Directory refreshed".to_string(),
                 },
                 Err(error) => {
                     if event.side == Side::Remote {

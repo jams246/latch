@@ -20,43 +20,6 @@ impl Files {
         cx.notify();
     }
 
-    pub(in crate::ui) fn upload(&mut self, cx: &mut Context<Self>) {
-        if self.busy || self.action_busy || self.dialog.is_some() || self.transfer.is_some() {
-            return;
-        }
-        let Some(directory) = &self.directory else {
-            return;
-        };
-        let directory = directory.path.clone();
-        let prompt = cx.prompt_for_paths(PathPromptOptions {
-            files: true,
-            directories: false,
-            multiple: false,
-            prompt: Some("Upload a file".into()),
-        });
-        cx.spawn(async move |this, cx| match prompt.await {
-            Ok(Ok(Some(paths))) => {
-                if let Some(local) = paths.into_iter().next() {
-                    let Some(name) = local.file_name().and_then(|name| name.to_str()) else {
-                        return;
-                    };
-                    let remote = format!("{}/{name}", directory.trim_end_matches('/'));
-                    let _ = this.update(cx, |this, cx| {
-                        this.start_transfer(Direction::Upload { local, remote }, cx)
-                    });
-                }
-            }
-            Ok(Err(error)) => {
-                let _ = this.update(cx, |this, cx| {
-                    this.status = format!("Cannot choose upload file: {error}");
-                    cx.notify();
-                });
-            }
-            _ => (),
-        })
-        .detach();
-    }
-
     pub(in crate::ui) fn download(&mut self, remote: String, name: &str, cx: &mut Context<Self>) {
         if self.busy || self.action_busy || self.dialog.is_some() || self.transfer.is_some() {
             return;

@@ -26,9 +26,7 @@ impl Files {
         if row.is_none() {
             self.selections[index].clear();
         }
-        let Some(parent) = self.pane_directory(side) else {
-            return;
-        };
+        let parent = self.pane_directory(side);
         let targets = self.selected_targets(side);
         let focus = cx.focus_handle();
         window.focus(&focus);
@@ -83,6 +81,11 @@ impl Files {
         if !self.actions_idle() {
             return;
         }
+        if kind == ActionKind::Refresh {
+            window.focus(&self.path.read(cx).focus);
+            self.refresh(menu.side, cx);
+            return;
+        }
         if kind == ActionKind::Copy {
             self.copy_targets(menu.side, menu.targets, cx);
             window.focus(&self.path.read(cx).focus);
@@ -93,6 +96,7 @@ impl Files {
         {
             return;
         }
+        let Some(parent) = menu.parent else { return };
         let input = (kind != ActionKind::Delete).then(|| {
             let name = if kind == ActionKind::Rename {
                 menu.targets.first().map(target_name).unwrap_or_default()
@@ -113,7 +117,7 @@ impl Files {
             kind,
             side: menu.side,
             targets: menu.targets,
-            parent: menu.parent,
+            parent,
             input,
             focus,
             cancel,

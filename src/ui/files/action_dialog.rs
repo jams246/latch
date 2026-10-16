@@ -15,7 +15,7 @@ impl Files {
             ActionKind::Rename => ("Rename", "Rename"),
             ActionKind::NewFolder => ("New Folder", "Create folder"),
             ActionKind::Delete => ("Delete selected items?", "Delete"),
-            ActionKind::Copy => return div().absolute().into_any_element(),
+            ActionKind::Copy | ActionKind::Refresh => return div().absolute().into_any_element(),
         };
         let subject = if dialog.targets.len() == 1 {
             format!("\"{}\"", super::actions::target_name(&dialog.targets[0]))

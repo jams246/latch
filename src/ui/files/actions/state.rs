@@ -12,6 +12,7 @@ pub(in crate::ui::files) enum ActionKind {
     Delete,
     NewFolder,
     Copy,
+    Refresh,
 }
 
 pub(in crate::ui::files) struct ContextMenu {
@@ -19,7 +20,7 @@ pub(in crate::ui::files) struct ContextMenu {
     pub position: Point<Pixels>,
     pub focus: FocusHandle,
     pub targets: Vec<Target>,
-    pub parent: Target,
+    pub parent: Option<Target>,
 }
 
 pub(in crate::ui::files) struct ActionDialog {

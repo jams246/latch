@@ -18,6 +18,8 @@ mod tests_actions;
 mod tests_interaction;
 #[cfg(test)]
 mod tests_navigation;
+#[cfg(test)]
+mod tests_refresh;
 mod transfers;
 
 use super::input::Input;

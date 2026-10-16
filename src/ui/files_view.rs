@@ -27,26 +27,17 @@ impl Render for Files {
             .p_3()
             .gap_3()
             .bg(rgb(0x15232f))
-            .child(
-                div()
-                    .flex()
-                    .gap_2()
-                    .items_center()
-                    .child(div().flex_1().text_lg().child("SFTP files"))
-                    .child(
-                        button("upload", "Upload file…")
-                            .on_click(cx.listener(|this, _, _, cx| this.upload(cx))),
-                    )
-                    .when(self.transfer.is_some(), |row| {
-                        row.child(button("cancel-transfer", "Cancel transfer").on_click(
-                            cx.listener(|this, _, _, _| {
-                                if let Some(transfer) = &this.transfer {
-                                    transfer.cancel();
-                                }
-                            }),
-                        ))
-                    }),
-            )
+            .when(self.transfer.is_some(), |view| {
+                view.child(
+                    button("cancel-transfer", "Cancel transfer").on_click(cx.listener(
+                        |this, _, _, _| {
+                            if let Some(transfer) = &this.transfer {
+                                transfer.cancel();
+                            }
+                        },
+                    )),
+                )
+            })
             .child(
                 div()
                     .flex()
@@ -86,17 +77,7 @@ impl Files {
                 MouseButton::Navigate(NavigationDirection::Forward),
                 cx.listener(move |this, _, _, cx| this.history_forward(side, cx)),
             )
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .justify_between()
-                    .child(div().text_lg().child(title))
-                    .child(
-                        button("refresh", "Refresh")
-                            .on_click(cx.listener(move |this, _, _, cx| this.refresh(side, cx))),
-                    ),
-            )
+            .child(div().text_lg().child(title))
             .child(self.breadcrumbs(side, cx))
             .child(self.address_row(side, cx))
             .child(
