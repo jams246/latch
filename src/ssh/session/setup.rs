@@ -4,7 +4,7 @@ use russh::{Channel, ChannelMsg, client};
 use tokio::sync::{mpsc, watch};
 
 use crate::ssh::{
-    ConnectionConfig, Error, Event, Prompt, Secret, SftpStream, State,
+    ConnectionConfig, Error, Event, Prompt, SftpStream, State,
     host::{CancelOnDrop, Client},
     socket::SocketGuard,
 };
@@ -22,7 +22,7 @@ pub(super) async fn establish(
     prompts: &mpsc::Sender<Prompt>,
     events: &mpsc::Sender<Event>,
     request_shell: bool,
-    cached: &mut Option<Secret>,
+    memory: &mut super::Memory,
     reconnecting: bool,
 ) -> Result<Established, Error> {
     let (cancel, cancelled) = watch::channel(false);
@@ -61,18 +61,32 @@ pub(super) async fn establish(
             .map_err(|_| Error::Cancelled)?;
     }
     tokio::select! {
-        result = crate::ssh::auth::authenticate(&mut handle, config, prompts, cached) => result?,
+        result = crate::ssh::auth::authenticate(&mut handle, config, prompts, &mut memory.credential) => result?,
         _ = disconnected.changed() => return Err(Error::Transport),
     }
     let mut initial = Vec::new();
     let shell = if request_shell {
-        let mut shell = handle.channel_open_session().await?;
-        shell
-            .request_pty(true, "xterm-256color", config.cols, config.rows, 0, 0, &[])
-            .await?;
-        await_success(&mut shell, &mut initial).await?;
-        shell.request_shell(true).await?;
-        await_success(&mut shell, &mut initial).await?;
+        let detected = super::probe::detect(&handle).await;
+        let mut shell = open_terminal(&handle, config, &mut initial).await?;
+        if let Some(detected) = detected {
+            shell
+                .exec(true, detected.command(memory.directory.path()))
+                .await?;
+            match await_success(&mut shell, &mut initial).await {
+                Ok(()) => (),
+                Err(Error::ChannelRejected) => {
+                    let _ = shell.close().await;
+                    initial.clear();
+                    shell = open_terminal(&handle, config, &mut initial).await?;
+                    shell.request_shell(true).await?;
+                    await_success(&mut shell, &mut initial).await?;
+                }
+                Err(error) => return Err(error),
+            }
+        } else {
+            shell.request_shell(true).await?;
+            await_success(&mut shell, &mut initial).await?;
+        }
         Some(shell)
     } else {
         if reconnecting {
@@ -95,6 +109,19 @@ pub(super) async fn establish(
         _socket_guard: guard,
         disconnected,
     })
+}
+
+async fn open_terminal(
+    handle: &client::Handle<Client>,
+    config: &ConnectionConfig,
+    initial: &mut Vec<u8>,
+) -> Result<Channel<client::Msg>, Error> {
+    let mut channel = handle.channel_open_session().await?;
+    channel
+        .request_pty(true, "xterm-256color", config.cols, config.rows, 0, 0, &[])
+        .await?;
+    await_success(&mut channel, initial).await?;
+    Ok(channel)
 }
 
 async fn await_success(

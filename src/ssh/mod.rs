@@ -188,6 +188,8 @@ mod tests_agent;
 #[cfg(test)]
 mod tests_auth;
 #[cfg(test)]
+mod tests_directory;
+#[cfg(test)]
 mod tests_key_formats;
 #[cfg(test)]
 mod tests_lifecycle;

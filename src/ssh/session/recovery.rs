@@ -2,8 +2,9 @@ use std::time::Duration;
 
 use tokio::{sync::mpsc, time::Instant};
 
+use super::Memory;
 use super::setup::{Established, establish};
-use crate::ssh::{Command, ConnectionConfig, Error, Event, Prompt, Secret};
+use crate::ssh::{Command, ConnectionConfig, Error, Event, Prompt};
 
 pub(super) async fn attempt(
     config: &mut ConnectionConfig,
@@ -11,7 +12,7 @@ pub(super) async fn attempt(
     prompts: &mpsc::Sender<Prompt>,
     events: &mpsc::Sender<Event>,
     request_shell: bool,
-    cached: &mut Option<Secret>,
+    memory: &mut Memory,
     reconnect_deadline: Option<Instant>,
 ) -> Result<Established, Error> {
     let reconnecting = reconnect_deadline.is_some();
@@ -24,7 +25,7 @@ pub(super) async fn attempt(
             prompts,
             events,
             request_shell,
-            cached,
+            memory,
             reconnecting,
         ),
     );
@@ -62,7 +63,7 @@ pub(super) async fn recover(
     prompts: &mpsc::Sender<Prompt>,
     events: &mpsc::Sender<Event>,
     request_shell: bool,
-    cached: &mut Option<Secret>,
+    memory: &mut Memory,
 ) -> Result<Established, Error> {
     let deadline = Instant::now() + Duration::from_secs(30);
     let mut error = Error::Transport;
@@ -76,7 +77,7 @@ pub(super) async fn recover(
             prompts,
             events,
             request_shell,
-            cached,
+            memory,
             Some(deadline),
         )
         .await
@@ -143,7 +144,7 @@ mod tests {
                 &prompts,
                 &events,
                 true,
-                &mut None
+                &mut Memory::default()
             )
             .await
             .is_err()
@@ -177,14 +178,17 @@ mod tests {
             })
             .await
             .unwrap();
-        let mut cached = Some(Secret::new("test-only-password".into()));
+        let mut memory = Memory {
+            credential: Some(crate::ssh::Secret::new("test-only-password".into())),
+            ..Memory::default()
+        };
         let connection = attempt(
             &mut config,
             &mut receiver,
             &prompts,
             &events,
             true,
-            &mut cached,
+            &mut memory,
             Some(Instant::now() + Duration::from_secs(30)),
         )
         .await

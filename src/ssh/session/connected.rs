@@ -11,6 +11,7 @@ pub(super) async fn serve(
     config: &mut ConnectionConfig,
     commands: &mut mpsc::Receiver<Command>,
     events: &mpsc::Sender<Event>,
+    memory: &mut super::Memory,
 ) -> Result<(), Error> {
     let Established {
         handle,
@@ -24,6 +25,7 @@ pub(super) async fn serve(
         .await
         .map_err(|_| Error::Cancelled)?;
     if !initial.is_empty() {
+        memory.directory.feed(&initial);
         events
             .send(Event::Output(initial))
             .await
@@ -59,6 +61,7 @@ pub(super) async fn serve(
             _ = disconnected.changed(), if shell.is_none() => return Err(Error::Transport),
             message = async { shell.as_mut()?.wait().await }, if shell.is_some() => match message {
                 Some(ChannelMsg::Data { data }) | Some(ChannelMsg::ExtendedData { data, .. }) => {
+                    memory.directory.feed(&data);
                     events.send(Event::Output(data.to_vec())).await.map_err(|_| Error::Cancelled)?;
                 }
                 Some(ChannelMsg::ExitStatus { exit_status }) => {

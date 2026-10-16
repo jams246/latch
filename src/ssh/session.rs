@@ -1,10 +1,19 @@
 mod connected;
+mod directory;
+mod probe;
 mod recovery;
 mod setup;
+pub(super) mod shell;
 
 use tokio::sync::mpsc;
 
 use super::{Command, ConnectionConfig, Error, Event, Prompt, State};
+
+#[derive(Default)]
+pub(super) struct Memory {
+    credential: Option<super::Secret>,
+    directory: directory::Directory,
+}
 
 /// Owns one tab's transport task; dropping it aborts pending work and closes its socket.
 pub struct SessionControl {
@@ -110,22 +119,23 @@ async fn serve(
         .await
         .map_err(|_| Error::Cancelled)?;
     let mut config = config.clone();
-    let mut cached = None;
+    let mut memory = Memory::default();
     let mut connection = recovery::attempt(
         &mut config,
         commands,
         prompts,
         events,
         request_shell,
-        &mut cached,
+        &mut memory,
         None,
     )
     .await?;
     loop {
-        let result = connected::serve(connection, &mut config, commands, events).await;
+        let result = connected::serve(connection, &mut config, commands, events, &mut memory).await;
         match result {
             Ok(()) | Err(Error::Cancelled) => return result,
             Err(_) => {
+                memory.directory.reset_parser();
                 events
                     .send(Event::Status(State::Reconnecting))
                     .await
@@ -136,7 +146,7 @@ async fn serve(
                     prompts,
                     events,
                     request_shell,
-                    &mut cached,
+                    &mut memory,
                 )
                 .await?;
             }
