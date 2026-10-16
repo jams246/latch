@@ -1,16 +1,14 @@
 use std::path::{Component, Path, PathBuf};
 
 use russh_sftp::client::SftpSession;
-use tokio::{
-    fs,
-    sync::{mpsc, watch},
-};
+use tokio::{fs, sync::watch};
 
 use super::{
-    Direction, Error, TransferEvent,
+    Direction, Error,
     operations::{child, ensure_new, read_directory, validate_path},
     transfer::check_cancel,
     transfer_files::{download, upload},
+    transfer_progress::Reporter,
 };
 
 enum Item {
@@ -19,14 +17,20 @@ enum Item {
     File(Direction),
 }
 
+struct Plan {
+    items: Vec<Item>,
+    total: Option<u64>,
+}
+
 pub(super) async fn copy_many(
     session: &SftpSession,
     directions: Vec<Direction>,
     cancel: &mut watch::Receiver<bool>,
-    events: &mpsc::Sender<TransferEvent>,
+    progress: &mut Reporter,
 ) -> Result<(), Error> {
     let plan = plan(session, directions, cancel).await?;
-    for item in plan {
+    progress.total(plan.total);
+    for item in plan.items {
         check_cancel(cancel)?;
         match item {
             Item::UploadDirectory(path) => session.create_dir(path).await?,
@@ -37,7 +41,7 @@ pub(super) async fn copy_many(
                 if !fs::symlink_metadata(&local).await?.is_file() {
                     return Err(Error::UnsupportedCopySource);
                 }
-                upload(session, &local, &remote, cancel, events).await?;
+                upload(session, &local, &remote, cancel, progress).await?;
             }
             Item::File(Direction::Download { remote, local }) => {
                 if !session
@@ -48,7 +52,7 @@ pub(super) async fn copy_many(
                 {
                     return Err(Error::UnsupportedCopySource);
                 }
-                download(session, &remote, &local, cancel, events).await?;
+                download(session, &remote, &local, cancel, progress).await?;
             }
         }
     }
@@ -59,17 +63,20 @@ async fn plan(
     session: &SftpSession,
     mut pending: Vec<Direction>,
     cancel: &watch::Receiver<bool>,
-) -> Result<Vec<Item>, Error> {
+) -> Result<Plan, Error> {
     let mut plan = Vec::new();
+    let mut total = Some(0_u64);
     pending.reverse();
     while let Some(direction) = pending.pop() {
         check_cancel(cancel)?;
         match direction {
             Direction::Upload { local, remote } => {
                 validate_path(&remote)?;
-                let kind = fs::symlink_metadata(&local).await?.file_type();
+                let metadata = fs::symlink_metadata(&local).await?;
+                let kind = metadata.file_type();
                 ensure_new(session, &remote).await?;
                 if kind.is_file() {
+                    total = total.and_then(|total| total.checked_add(metadata.len()));
                     plan.push(Item::File(Direction::Upload { local, remote }));
                 } else if kind.is_dir() {
                     let mut entries = fs::read_dir(&local).await?;
@@ -89,9 +96,13 @@ async fn plan(
             }
             Direction::Download { remote, local } => {
                 validate_path(&remote)?;
-                let kind = session.symlink_metadata(&remote).await?.file_type();
+                let metadata = session.symlink_metadata(&remote).await?;
+                let kind = metadata.file_type();
                 ensure_local_new(&local).await?;
                 if kind.is_file() {
+                    total = total
+                        .zip(metadata.size)
+                        .and_then(|(total, size)| total.checked_add(size));
                     plan.push(Item::File(Direction::Download { remote, local }));
                 } else if kind.is_dir() {
                     for entry in read_directory(session, &remote).await? {
@@ -110,7 +121,7 @@ async fn plan(
             }
         }
     }
-    Ok(plan)
+    Ok(Plan { items: plan, total })
 }
 
 async fn ensure_local_new(path: &Path) -> Result<(), Error> {

@@ -4,12 +4,15 @@ mod browser;
 mod operations;
 mod transfer;
 mod transfer_files;
+mod transfer_progress;
 mod transfer_trees;
 
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod tests_browse;
+#[cfg(test)]
+mod tests_cancelled;
 #[cfg(test)]
 mod tests_filesystem;
 #[cfg(test)]
@@ -18,6 +21,8 @@ mod tests_lifecycle;
 mod tests_operations;
 #[cfg(test)]
 mod tests_progress;
+#[cfg(test)]
+mod tests_progress_totals;
 #[cfg(test)]
 mod tests_races;
 #[cfg(test)]
@@ -78,16 +83,18 @@ pub enum Direction {
 /// Transfer state delivered without credentials or file contents.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TransferEvent {
-    /// Bytes copied so far, and source length when known.
+    /// Current filename, cumulative bytes copied, and operation length when known.
     Progress {
-        /// Bytes copied so far.
+        /// Source filename currently being copied.
+        name: String,
+        /// Bytes copied across the complete operation so far.
         completed: u64,
-        /// Source file length, when supplied.
+        /// Total source length across the complete operation, when supplied.
         total: Option<u64>,
     },
     /// The completed file was published at its destination.
     Completed,
-    /// Cancellation completed and the temporary destination was removed.
+    /// Cancellation completed and already copied data was retained.
     Cancelled,
     /// The transfer failed, with a displayable diagnostic.
     Failed(String),
@@ -105,6 +112,14 @@ pub enum Error {
     /// The user cancelled this transfer.
     #[error("Transfer cancelled")]
     Cancelled,
+    /// A cancelled transfer retained partial data outside its intended destination.
+    #[error("Transfer cancelled. Partial data remains at {path}. {reason}")]
+    PartialRetained {
+        /// Path containing the preserved partial file.
+        path: String,
+        /// Reason the partial file could not use its intended name.
+        reason: String,
+    },
     /// A destination file already exists.
     #[error("Existing destination was preserved. Choose a new filename.")]
     DestinationExists,

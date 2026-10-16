@@ -9,6 +9,7 @@ use tokio::{
 use super::{
     Direction, Error, TransferEvent,
     transfer_files::{download, upload},
+    transfer_progress::Reporter,
     transfer_trees::copy_many,
 };
 
@@ -17,12 +18,13 @@ pub(super) enum Sources {
     Selection(Vec<Direction>),
 }
 
-/// Cooperative transfer cancellation, including cleanup when its owning tab closes.
+/// Cooperative transfer cancellation, including file closure when its owning tab closes.
 /// Await [`Self::cancel_and_wait`] before releasing its parent SSH transport.
 pub struct Transfer {
     cancel: watch::Sender<bool>,
     task: Option<tokio::task::JoinHandle<Result<(), Error>>>,
     terminal: watch::Receiver<Option<TransferEvent>>,
+    progress: watch::Receiver<Option<TransferEvent>>,
 }
 
 impl Transfer {
@@ -33,16 +35,18 @@ impl Transfer {
     ) -> Self {
         let (cancel, mut cancelled) = watch::channel(false);
         let (terminal_tx, terminal) = watch::channel(None);
+        let (progress_tx, progress) = watch::channel(None);
         let task = tokio::spawn(async move {
+            let mut reporter = Reporter::new(events.clone(), progress_tx);
             let result = match sources {
                 Sources::File(Direction::Upload { local, remote }) => {
-                    upload(&session, &local, &remote, &mut cancelled, &events).await
+                    upload(&session, &local, &remote, &mut cancelled, &mut reporter).await
                 }
                 Sources::File(Direction::Download { remote, local }) => {
-                    download(&session, &remote, &local, &mut cancelled, &events).await
+                    download(&session, &remote, &local, &mut cancelled, &mut reporter).await
                 }
                 Sources::Selection(directions) => {
-                    copy_many(&session, directions, &mut cancelled, &events).await
+                    copy_many(&session, directions, &mut cancelled, &mut reporter).await
                 }
             };
             let event = match &result {
@@ -58,10 +62,11 @@ impl Transfer {
             cancel,
             task: Some(task),
             terminal,
+            progress,
         }
     }
 
-    /// Requests cancellation; the terminal event is sent after temporary-file cleanup.
+    /// Requests cancellation; the terminal event is sent after preserving copied data.
     pub fn cancel(&self) {
         let _ = self.cancel.send(true);
     }
@@ -72,9 +77,14 @@ impl Transfer {
         self.terminal.borrow().clone()
     }
 
-    /// Cancels and waits for file-handle closure and temporary-file cleanup.
+    /// Returns the latest progress even when the bounded event queue was full.
+    pub fn progress_event(&self) -> Option<TransferEvent> {
+        self.progress.borrow().clone()
+    }
+
+    /// Cancels and waits for file-handle closure and preservation of copied data.
     /// Keep the parent SSH transport alive until this method returns.
-    /// Successful cleanup of a cancelled or already completed transfer returns `Ok(())`.
+    /// Successful closure of a cancelled or already completed transfer returns `Ok(())`.
     ///
     /// # Errors
     /// Returns transfer, cleanup, or task failures. After 35 seconds, aborts the task
@@ -106,13 +116,10 @@ impl Drop for Transfer {
 pub(super) async fn copy<R: AsyncRead + Unpin, W: AsyncWrite + Unpin>(
     source: &mut R,
     destination: &mut W,
-    total: Option<u64>,
     cancel: &mut watch::Receiver<bool>,
-    events: &mpsc::Sender<TransferEvent>,
+    progress: &mut Reporter,
 ) -> Result<(), Error> {
     let mut buffer = [0_u8; 32 * 1024];
-    let mut completed = 0;
-    let _ = events.try_send(TransferEvent::Progress { completed, total });
     loop {
         let length = cancellable(cancel, source.read(&mut buffer)).await?;
         if length == 0 {
@@ -120,8 +127,7 @@ pub(super) async fn copy<R: AsyncRead + Unpin, W: AsyncWrite + Unpin>(
             return Ok(());
         }
         cancellable(cancel, destination.write_all(&buffer[..length])).await?;
-        completed += length as u64;
-        let _ = events.try_send(TransferEvent::Progress { completed, total });
+        progress.advance(length);
         tokio::task::yield_now().await;
     }
 }
@@ -168,10 +174,12 @@ mod tests {
         tokio::task::yield_now().await;
         let (cancel, _cancelled) = watch::channel(false);
         let (_terminal, terminal) = watch::channel(None);
+        let (_progress, progress) = watch::channel(None);
         let transfer = Transfer {
             cancel,
             task: Some(task),
             terminal,
+            progress,
         };
         let error = transfer.cancel_and_wait().await.unwrap_err();
         assert!(matches!(error, Error::CleanupTimeout));
