@@ -4,6 +4,8 @@ use gpui::{prelude::*, *};
 use std::path::{Path, PathBuf};
 
 #[cfg(test)]
+mod drive_tests;
+#[cfg(test)]
 mod scroll_tests;
 
 impl Files {
@@ -32,16 +34,6 @@ impl Files {
     }
 
     pub(in crate::ui) fn breadcrumbs(&self, side: Side, cx: &mut Context<Self>) -> Div {
-        let (back, forward) = match side {
-            Side::Local => (
-                self.local_history.can_back(),
-                self.local_history.can_forward(),
-            ),
-            Side::Remote => (
-                self.remote_history.can_back(),
-                self.remote_history.can_forward(),
-            ),
-        };
         let crumbs: Vec<AnyElement> = match side {
             Side::Local => self.local.as_ref().map_or_else(Vec::new, |directory| {
                 local_crumbs(&directory.path)
@@ -76,82 +68,75 @@ impl Files {
                     .collect()
             }),
         };
-        div()
-            .flex()
-            .items_center()
-            .h_8()
-            .gap_1()
-            .child(
-                button("back", "‹")
-                    .px_2()
-                    .when(!back, |button| button.opacity(0.35).tab_index(-1))
-                    .on_click(cx.listener(move |this, _, _, cx| this.history_back(side, cx))),
-            )
-            .child(
-                button("forward", "›")
-                    .px_2()
-                    .when(!forward, |button| button.opacity(0.35).tab_index(-1))
-                    .on_click(cx.listener(move |this, _, _, cx| this.history_forward(side, cx))),
-            )
-            .child(
-                div()
-                    .id("breadcrumbs")
-                    .debug_selector(move || format!("{}-breadcrumbs", side.id()))
-                    .flex()
-                    .flex_1()
-                    .min_w_0()
-                    .items_center()
-                    .gap_1()
-                    .overflow_x_scroll()
-                    .track_scroll(match side {
-                        Side::Local => &self.local_breadcrumb_scroll,
-                        Side::Remote => &self.remote_breadcrumb_scroll,
-                    })
-                    .children(crumbs.into_iter().enumerate().map(|(index, crumb)| {
-                        div()
-                            .flex()
-                            .items_center()
-                            .flex_shrink_0()
-                            .when(index > 0, |row| {
-                                row.child(div().text_color(rgb(0x7893a8)).child("/"))
-                            })
-                            .child(crumb)
-                    })),
-            )
+        div().flex().items_center().h_8().gap_1().child(
+            div()
+                .id("breadcrumbs")
+                .debug_selector(move || format!("{}-breadcrumbs", side.id()))
+                .flex()
+                .flex_1()
+                .min_w_0()
+                .items_center()
+                .gap_1()
+                .overflow_x_scroll()
+                .track_scroll(match side {
+                    Side::Local => &self.local_breadcrumb_scroll,
+                    Side::Remote => &self.remote_breadcrumb_scroll,
+                })
+                .children(crumbs.into_iter().enumerate().map(|(index, crumb)| {
+                    div()
+                        .flex()
+                        .items_center()
+                        .flex_shrink_0()
+                        .when(index > 0, |row| {
+                            row.child(div().text_color(rgb(0x7893a8)).child("/"))
+                        })
+                        .child(crumb)
+                })),
+        )
     }
 
     pub(in crate::ui) fn address_row(&self, side: Side, cx: &mut Context<Self>) -> AnyElement {
         let row = div().flex().h_8().items_center().gap_2();
         match side {
             Side::Local => row
-                .child(div().text_xs().text_color(rgb(0xa8c1d3)).child("Drives"))
-                .child(
-                    div()
-                        .id("drives")
-                        .flex()
-                        .flex_1()
-                        .min_w_0()
-                        .gap_1()
-                        .overflow_x_scroll()
-                        .children(self.local.as_ref().map_or_else(Vec::new, |directory| {
-                            directory
-                                .drives
-                                .iter()
-                                .enumerate()
-                                .map(|(index, drive)| {
-                                    let path = drive.clone();
-                                    button(("drive", index), display_path(drive))
-                                        .px_2()
-                                        .flex_shrink_0()
-                                        .when(directory.path.starts_with(drive), |button| {
-                                            button.bg(rgb(0x426c80))
-                                        })
-                                        .on_click(cx.listener(move |this, _, _, cx| {
-                                            this.navigate_local(path.clone(), cx);
-                                        }))
-                                })
-                                .collect::<Vec<_>>()
-                        })),
+                .when_some(
+                    self.local
+                        .as_ref()
+                        .filter(|directory| directory.drives.len() > 1),
+                    |row, directory| {
+                        row.child(
+                            div()
+                                .debug_selector(|| "local-drives-label".into())
+                                .text_xs()
+                                .text_color(rgb(0xa8c1d3))
+                                .child("Drives"),
+                        )
+                        .child(
+                            div()
+                                .id("drives")
+                                .debug_selector(|| "local-drives".into())
+                                .flex()
+                                .flex_1()
+                                .min_w_0()
+                                .gap_1()
+                                .overflow_x_scroll()
+                                .children(directory.drives.iter().enumerate().map(
+                                    |(index, drive)| {
+                                        let path = drive.clone();
+                                        button(("drive", index), display_path(drive))
+                                            .debug_selector(move || format!("local-drive-{index}"))
+                                            .px_2()
+                                            .flex_shrink_0()
+                                            .when(directory.path.starts_with(drive), |button| {
+                                                button.bg(rgb(0x426c80))
+                                            })
+                                            .on_click(cx.listener(move |this, _, _, cx| {
+                                                this.navigate_local(path.clone(), cx);
+                                            }))
+                                    },
+                                )),
+                        )
+                    },
                 )
                 .into_any_element(),
             Side::Remote => row
