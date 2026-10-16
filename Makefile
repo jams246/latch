@@ -5,4 +5,8 @@ endif
 .PHONY: build\:production
 
 build\:production:
+ifeq ($(OS),Windows_NT)
+	powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File scripts/build-production.ps1
+else
 	cargo build --release --locked --bin latch
+endif
