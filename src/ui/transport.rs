@@ -25,7 +25,7 @@ impl Transport {
         session: ssh::SessionControl,
         events: mpsc::Receiver<ssh::Event>,
         input: mpsc::UnboundedReceiver<TerminalInput>,
-        state: TerminalState,
+        state: impl Into<Option<TerminalState>>,
         runtime: &tokio::runtime::Runtime,
     ) -> (Self, sync::Receiver<ssh::Event>) {
         let commands = session.commands.clone();
@@ -34,7 +34,7 @@ impl Transport {
         let router = runtime.spawn(route(
             events,
             input,
-            state,
+            state.into(),
             commands.clone(),
             ui_events,
             accepting_input.clone(),
@@ -89,7 +89,7 @@ impl Drop for Transport {
 async fn route(
     mut events: mpsc::Receiver<ssh::Event>,
     mut input: mpsc::UnboundedReceiver<TerminalInput>,
-    state: TerminalState,
+    state: Option<TerminalState>,
     commands: mpsc::Sender<ssh::Command>,
     ui_events: sync::Sender<ssh::Event>,
     accepting_input: Arc<AtomicBool>,
@@ -99,8 +99,10 @@ async fn route(
         tokio::select! {
             event = events.recv() => match event {
                 Some(ssh::Event::Output(bytes)) => {
-                    let reply = state.feed(&bytes);
-                    if !reply.is_empty() && commands.send(ssh::Command::Input(reply)).await.is_err() { break; }
+                    if let Some(state) = &state {
+                        let reply = state.feed(&bytes);
+                        if !reply.is_empty() && commands.send(ssh::Command::Input(reply)).await.is_err() { break; }
+                    }
                 }
                 Some(event) => { let _ = ui_events.send(event); }
                 None => break,
@@ -135,7 +137,7 @@ mod tests {
         let task = tokio::spawn(route(
             events,
             input,
-            TerminalState::new(80, 24),
+            Some(TerminalState::new(80, 24)),
             commands,
             ui_events,
             Arc::new(AtomicBool::new(false)),
@@ -165,7 +167,7 @@ mod tests {
         let task = tokio::spawn(route(
             events,
             input,
-            TerminalState::new(80, 24),
+            Some(TerminalState::new(80, 24)),
             commands,
             ui_events,
             Arc::new(AtomicBool::new(false)),
@@ -183,6 +185,38 @@ mod tests {
         assert!(
             matches!(command_rx.recv().await, Some(ssh::Command::Input(bytes)) if bytes == b"\x1b[1;1R")
         );
+        assert!(command_rx.recv().await.is_none());
+    }
+
+    #[tokio::test]
+    async fn sftp_router_relays_status_without_terminal_output_replies() {
+        let (event_tx, events) = mpsc::channel(4);
+        let (input_tx, input) = mpsc::unbounded_channel();
+        let (commands, mut command_rx) = mpsc::channel(4);
+        let (ui_events, ui_rx) = sync::channel();
+        drop(input_tx);
+        let task = tokio::spawn(route(
+            events,
+            input,
+            None,
+            commands,
+            ui_events,
+            Arc::new(AtomicBool::new(true)),
+        ));
+        event_tx
+            .send(ssh::Event::Status(ssh::State::Connected))
+            .await
+            .unwrap();
+        event_tx
+            .send(ssh::Event::Output(b"\x1b[6n".to_vec()))
+            .await
+            .unwrap();
+        drop(event_tx);
+        task.await.unwrap();
+        assert!(matches!(
+            ui_rx.try_recv(),
+            Ok(ssh::Event::Status(ssh::State::Connected))
+        ));
         assert!(command_rx.recv().await.is_none());
     }
 }
