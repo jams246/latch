@@ -4,28 +4,7 @@ use latch::storage::SortMode;
 
 impl Render for Latch {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let reveal_key = self.active.and_then(|index| {
-            self.tabs
-                .get(index)
-                .map(|tab| (tab.id.clone(), index, window.viewport_size().width))
-        });
-        if self.tab_reveal_key != reveal_key {
-            if let Some((_, index, _)) = &reveal_key {
-                let index = *index;
-                self.tab_scroll.scroll_to_item(index);
-                let entity = cx.weak_entity();
-                // GPUI's scroll handle receives the resized viewport during prepaint.
-                window.on_next_frame(move |_, cx| {
-                    let _ = entity.update(cx, |this, cx| {
-                        if let Some(index) = this.active {
-                            this.tab_scroll.scroll_to_item(index);
-                            cx.notify();
-                        }
-                    });
-                });
-            }
-            self.tab_reveal_key = reveal_key;
-        }
+        let tabs = self.tab_bar(window, cx);
         let sort = self.store.sort_mode();
         let search = self.connection_search.read(cx).value.to_string();
         let connections = filter_connections(self.store.sorted(), &search);
@@ -144,63 +123,7 @@ impl Render for Latch {
                     .flex_1()
                     .min_w_0()
                     .min_h_0()
-                    .child(
-                        div()
-                            .id("tabs")
-                            .flex()
-                            .gap_1()
-                            .p_2()
-                            .overflow_x_scroll()
-                            .track_scroll(&self.tab_scroll)
-                            .children(self.tabs.iter().enumerate().map(|(index, tab)| {
-                                div()
-                                    .flex()
-                                    .flex_shrink_0()
-                                    .items_center()
-                                    .rounded_md()
-                                    .bg(rgb(if self.active == Some(index) {
-                                        0x315267
-                                    } else {
-                                        0x263c4d
-                                    }))
-                                    .child(
-                                        button(
-                                            SharedString::from(format!("close-{}", tab.id)),
-                                            "×",
-                                        )
-                                        .flex()
-                                        .items_center()
-                                        .justify_center()
-                                        .size(px(32.))
-                                        .p_0()
-                                        .bg(rgba(0))
-                                        .text_size(px(22.))
-                                        .text_color(rgb(0xffa69b))
-                                        .on_click(
-                                            cx.listener(move |this, _, window, cx| {
-                                                this.close_tab(index, window, cx)
-                                            }),
-                                        ),
-                                    )
-                                    .child(
-                                        button(
-                                            SharedString::from(format!("tab-{}", tab.id)),
-                                            tab.name.clone(),
-                                        )
-                                        .px(px(10.))
-                                        .bg(rgba(0))
-                                        .on_click(
-                                            cx.listener(move |this, _, window, cx| {
-                                                this.active = Some(index);
-                                                if let Some(tab) = this.tabs.get(index) {
-                                                    window.focus(&tab.visible_focus(cx));
-                                                }
-                                                cx.notify();
-                                            }),
-                                        ),
-                                    )
-                            })),
-                    )
+                    .child(tabs)
                     .children(
                         self.error
                             .clone()
