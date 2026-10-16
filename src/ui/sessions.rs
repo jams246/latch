@@ -85,6 +85,7 @@ impl Latch {
             transport: Some(transport),
             content,
             dialog: None,
+            host_dialog: None,
             events,
             prompts,
             closing: false,

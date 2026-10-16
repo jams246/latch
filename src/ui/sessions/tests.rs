@@ -62,6 +62,7 @@ fn synthetic_tab(
             transport: None,
             content,
             dialog: None,
+            host_dialog: None,
             events,
             prompts,
             closing: false,

@@ -15,6 +15,18 @@ impl Latch {
             .and_then(|index| self.tabs.get(index))
             .map(|tab| tab.id.clone());
         for tab in &mut self.tabs {
+            if tab.host_dialog.as_ref().is_some_and(|dialog| {
+                dialog.reply.is_closed()
+                    || !matches!(
+                        tab.state,
+                        ssh::State::Connecting | ssh::State::Authenticating
+                    )
+            }) {
+                if let Some(dialog) = tab.host_dialog.take() {
+                    dialog.dismiss(self.owner, cx);
+                }
+                changed = true;
+            }
             while let Ok(event) = tab.events.try_recv() {
                 changed = true;
                 match event {
@@ -62,6 +74,13 @@ impl Latch {
                         {
                             let _ = dialog.update(cx, |dialog, window, _| dialog.close(window));
                         }
+                        if matches!(
+                            state,
+                            ssh::State::Connected | ssh::State::Failed | ssh::State::Disconnected
+                        ) && let Some(dialog) = tab.host_dialog.take()
+                        {
+                            dialog.dismiss(self.owner, cx);
+                        }
                         if state == ssh::State::Connected
                             && !tab.closing
                             && self.settings.is_none()
@@ -83,6 +102,23 @@ impl Latch {
                     continue;
                 }
                 changed = true;
+                if let ssh::Prompt::HostKey {
+                    host,
+                    port,
+                    algorithm,
+                    fingerprint,
+                    reply,
+                } = prompt
+                {
+                    tab.host_dialog = Some(super::host_dialog::HostDialog::new(
+                        format!(
+                            "Unknown host {host}:{port}\n{algorithm}\n{fingerprint}\nVerify this fingerprint out of band before trusting."
+                        ),
+                        reply,
+                        cx,
+                    ));
+                    continue;
+                }
                 if let Some(dialog) = tab.dialog {
                     let _ = dialog.update(cx, |dialog, window, cx| {
                         dialog.set_prompt(prompt, window, cx)

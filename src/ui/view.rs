@@ -56,5 +56,6 @@ impl Render for Latch {
             .when(self.connection_delete.is_some(), |view| {
                 view.child(self.connection_delete_view(cx))
             })
+            .child(self.host_dialog_view(window, cx))
     }
 }

@@ -95,6 +95,7 @@ fn pending_dialog(cx: &mut TestAppContext, kind: SecretKind, session_kind: Sessi
                 transport: None,
                 content,
                 dialog: Some(dialog),
+                host_dialog: None,
                 events,
                 prompts,
                 closing: false,

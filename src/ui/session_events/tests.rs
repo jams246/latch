@@ -60,6 +60,7 @@ fn only_matching_live_sftp_tabs_can_persist_local_preferences(cx: &mut TestAppCo
                     focus: cx.focus_handle(),
                 },
                 dialog: None,
+                host_dialog: None,
                 events,
                 prompts,
                 closing: false,

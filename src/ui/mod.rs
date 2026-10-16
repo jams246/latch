@@ -3,6 +3,7 @@ mod connection_delete;
 mod connections;
 mod files;
 mod files_view;
+mod host_dialog;
 mod input;
 mod input_handler;
 mod input_paint;
@@ -72,6 +73,7 @@ struct Tab {
     transport: Option<transport::Transport>,
     content: TabContent,
     dialog: Option<WindowHandle<auth_dialog::AuthDialog>>,
+    host_dialog: Option<host_dialog::HostDialog>,
     events: std::sync::mpsc::Receiver<ssh::Event>,
     prompts: tokio::sync::mpsc::Receiver<ssh::Prompt>,
     closing: bool,
