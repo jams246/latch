@@ -1,6 +1,9 @@
 use latch::sftp::Entry;
 use std::{cmp::Ordering, path::Path};
 
+#[cfg(test)]
+mod sort_tests;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(in crate::ui) enum Side {
     Local,
@@ -38,6 +41,9 @@ impl Sort {
     }
 
     pub(in crate::ui) fn compare(self, left: &Entry, right: &Entry) -> Ordering {
+        if self.column == Column::Name && left.is_dir != right.is_dir {
+            return right.is_dir.cmp(&left.is_dir);
+        }
         let order = match self.column {
             Column::Name => names(left, right),
             Column::Modified => left.modified.cmp(&right.modified),
@@ -114,10 +120,12 @@ impl<T: Clone + PartialEq> History<T> {
         }
     }
 
+    #[cfg(test)]
     pub(in crate::ui) fn can_back(&self) -> bool {
         self.index > 0
     }
 
+    #[cfg(test)]
     pub(in crate::ui) fn can_forward(&self) -> bool {
         self.index + 1 < self.paths.len()
     }

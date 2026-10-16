@@ -38,7 +38,7 @@ fn populated(cx: &mut TestAppContext) -> (WindowHandle<Files>, VisualTestContext
     let (handle, mut visual) = fixture(cx);
     handle
         .update(&mut visual, |files, _, _| {
-            let entries: Vec<_> = ["zeta.txt", "alpha", "middle.log", "link"]
+            let entries: Vec<_> = ["zeta.txt", "omega", "middle.log", "link"]
                 .into_iter()
                 .enumerate()
                 .map(|(index, name)| Entry {
@@ -143,6 +143,19 @@ fn sorting_keeps_selected_items_and_parent_row_first(cx: &mut TestAppContext) {
             let entry = visual.debug_bounds(row_selector(side, index)).unwrap();
             assert!(parent.origin.y < entry.origin.y);
         }
+        let folder = visual.debug_bounds(row_selector(side, 1)).unwrap();
+        let first_file = visual.debug_bounds(row_selector(side, 0)).unwrap();
+        assert!(folder.origin.y < first_file.origin.y);
+        let position = visual.debug_bounds(row_selector(side, 2)).unwrap().center();
+        visual.simulate_click(
+            position,
+            Modifiers {
+                shift: true,
+                ..Modifiers::default()
+            },
+        );
+        assert_eq!(selected(handle, &visual, side), BTreeSet::from([0, 1, 2]));
+        draw(handle, &mut visual);
     }
 }
 
