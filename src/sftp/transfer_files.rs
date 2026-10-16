@@ -10,7 +10,7 @@ use uuid::Uuid;
 use super::{
     Error,
     operations::ensure_new,
-    transfer::{check_cancel, copy},
+    transfer::{check_cancel, copy, wait_running},
     transfer_progress::Reporter,
 };
 
@@ -32,10 +32,11 @@ pub(super) async fn upload(
     local: &Path,
     remote: &str,
     cancel: &mut watch::Receiver<bool>,
+    paused: &mut watch::Receiver<bool>,
     progress: &mut Reporter,
 ) -> Result<(), Error> {
     validate_remote(remote)?;
-    check_cancel(cancel)?;
+    wait_running(cancel, paused).await?;
     let mut source = File::open(local).await?;
     let metadata = source.metadata().await?;
     if !metadata.is_file() {
@@ -57,7 +58,7 @@ pub(super) async fn upload(
             .into_owned(),
         Some(metadata.len()),
     );
-    let result = copy(&mut source, &mut destination, cancel, progress).await;
+    let result = copy(&mut source, &mut destination, cancel, paused, progress).await;
     let closed = destination.close().await.map_err(Error::RemoteClose);
     if matches!(result, Err(Error::Cancelled)) || check_cancel(cancel).is_err() {
         closed.map_err(|error| retained(&temporary, error))?;
@@ -86,10 +87,11 @@ pub(super) async fn download(
     remote: &str,
     local: &Path,
     cancel: &mut watch::Receiver<bool>,
+    paused: &mut watch::Receiver<bool>,
     progress: &mut Reporter,
 ) -> Result<(), Error> {
     validate_remote(remote)?;
-    check_cancel(cancel)?;
+    wait_running(cancel, paused).await?;
     match fs::symlink_metadata(local).await {
         Ok(_) => return Err(Error::DestinationExists),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
@@ -115,7 +117,7 @@ pub(super) async fn download(
         remote.rsplit('/').next().unwrap_or(remote).to_owned(),
         total,
     );
-    let result = copy(&mut source, &mut destination, cancel, progress).await;
+    let result = copy(&mut source, &mut destination, cancel, paused, progress).await;
     let closed = source.close().await.map_err(Error::RemoteClose);
     let synced = destination.sync_all().await;
     drop(destination);

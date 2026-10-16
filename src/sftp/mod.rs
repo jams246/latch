@@ -20,6 +20,8 @@ mod tests_lifecycle;
 #[cfg(test)]
 mod tests_operations;
 #[cfg(test)]
+mod tests_pause;
+#[cfg(test)]
 mod tests_progress;
 #[cfg(test)]
 mod tests_progress_totals;

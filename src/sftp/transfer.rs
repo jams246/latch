@@ -22,6 +22,7 @@ pub(super) enum Sources {
 /// Await [`Self::cancel_and_wait`] before releasing its parent SSH transport.
 pub struct Transfer {
     cancel: watch::Sender<bool>,
+    paused: watch::Sender<bool>,
     task: Option<tokio::task::JoinHandle<Result<(), Error>>>,
     terminal: watch::Receiver<Option<TransferEvent>>,
     progress: watch::Receiver<Option<TransferEvent>>,
@@ -34,19 +35,43 @@ impl Transfer {
         events: mpsc::Sender<TransferEvent>,
     ) -> Self {
         let (cancel, mut cancelled) = watch::channel(false);
+        let (paused, mut pause_requested) = watch::channel(false);
         let (terminal_tx, terminal) = watch::channel(None);
         let (progress_tx, progress) = watch::channel(None);
         let task = tokio::spawn(async move {
             let mut reporter = Reporter::new(events.clone(), progress_tx);
             let result = match sources {
                 Sources::File(Direction::Upload { local, remote }) => {
-                    upload(&session, &local, &remote, &mut cancelled, &mut reporter).await
+                    upload(
+                        &session,
+                        &local,
+                        &remote,
+                        &mut cancelled,
+                        &mut pause_requested,
+                        &mut reporter,
+                    )
+                    .await
                 }
                 Sources::File(Direction::Download { remote, local }) => {
-                    download(&session, &remote, &local, &mut cancelled, &mut reporter).await
+                    download(
+                        &session,
+                        &remote,
+                        &local,
+                        &mut cancelled,
+                        &mut pause_requested,
+                        &mut reporter,
+                    )
+                    .await
                 }
                 Sources::Selection(directions) => {
-                    copy_many(&session, directions, &mut cancelled, &mut reporter).await
+                    copy_many(
+                        &session,
+                        directions,
+                        &mut cancelled,
+                        &mut pause_requested,
+                        &mut reporter,
+                    )
+                    .await
                 }
             };
             let event = match &result {
@@ -60,6 +85,7 @@ impl Transfer {
         });
         Self {
             cancel,
+            paused,
             task: Some(task),
             terminal,
             progress,
@@ -69,6 +95,21 @@ impl Transfer {
     /// Requests cancellation; the terminal event is sent after preserving copied data.
     pub fn cancel(&self) {
         let _ = self.cancel.send(true);
+    }
+
+    /// Pauses before the next chunk, retaining the current file handles and offsets.
+    pub fn pause(&self) {
+        self.paused.send_replace(true);
+    }
+
+    /// Continues the same transfer from its retained position.
+    pub fn resume(&self) {
+        self.paused.send_replace(false);
+    }
+
+    /// Whether a pause has been requested. An in-flight chunk may still finish.
+    pub fn is_paused(&self) -> bool {
+        *self.paused.borrow()
     }
 
     /// Returns the retained completion, cancellation, or failure state, when available.
@@ -117,10 +158,12 @@ pub(super) async fn copy<R: AsyncRead + Unpin, W: AsyncWrite + Unpin>(
     source: &mut R,
     destination: &mut W,
     cancel: &mut watch::Receiver<bool>,
+    paused: &mut watch::Receiver<bool>,
     progress: &mut Reporter,
 ) -> Result<(), Error> {
     let mut buffer = [0_u8; 32 * 1024];
     loop {
+        wait_running(cancel, paused).await?;
         let length = cancellable(cancel, source.read(&mut buffer)).await?;
         if length == 0 {
             cancellable(cancel, destination.flush()).await?;
@@ -129,6 +172,24 @@ pub(super) async fn copy<R: AsyncRead + Unpin, W: AsyncWrite + Unpin>(
         cancellable(cancel, destination.write_all(&buffer[..length])).await?;
         progress.advance(length);
         tokio::task::yield_now().await;
+    }
+}
+
+pub(super) async fn wait_running(
+    cancel: &mut watch::Receiver<bool>,
+    paused: &mut watch::Receiver<bool>,
+) -> Result<(), Error> {
+    loop {
+        check_cancel(cancel)?;
+        if !*paused.borrow_and_update() {
+            return Ok(());
+        }
+        tokio::select! {
+            _ = cancel.changed() => return Err(Error::Cancelled),
+            changed = paused.changed() => {
+                changed.map_err(|_| Error::Cancelled)?;
+            }
+        }
     }
 }
 
@@ -152,42 +213,4 @@ pub(super) fn check_cancel(cancel: &watch::Receiver<bool>) -> Result<(), Error> 
 }
 
 #[cfg(test)]
-mod tests {
-    use std::sync::atomic::{AtomicBool, Ordering};
-
-    use super::*;
-
-    #[tokio::test(start_paused = true)]
-    async fn shutdown_deadline_aborts_task_and_reports_possible_partial_data() {
-        struct Dropped(Arc<AtomicBool>);
-        impl Drop for Dropped {
-            fn drop(&mut self) {
-                self.0.store(true, Ordering::SeqCst);
-            }
-        }
-        let dropped = Arc::new(AtomicBool::new(false));
-        let cleanup = Dropped(dropped.clone());
-        let task = tokio::spawn(async move {
-            let _cleanup = cleanup;
-            std::future::pending::<Result<(), Error>>().await
-        });
-        tokio::task::yield_now().await;
-        let (cancel, _cancelled) = watch::channel(false);
-        let (_terminal, terminal) = watch::channel(None);
-        let (_progress, progress) = watch::channel(None);
-        let transfer = Transfer {
-            cancel,
-            task: Some(task),
-            terminal,
-            progress,
-        };
-        let error = transfer.cancel_and_wait().await.unwrap_err();
-        assert!(matches!(error, Error::CleanupTimeout));
-        assert!(
-            error
-                .to_string()
-                .contains("temporary .latch file may remain")
-        );
-        assert!(dropped.load(Ordering::SeqCst));
-    }
-}
+mod tests;
