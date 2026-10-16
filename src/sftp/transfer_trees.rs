@@ -1,26 +1,14 @@
-use std::path::{Component, Path, PathBuf};
-
 use russh_sftp::client::SftpSession;
-use tokio::{fs, sync::watch};
+use tokio::sync::watch;
 
 use super::{
     Direction, Error,
-    operations::{child, ensure_new, read_directory, validate_path},
     transfer::wait_running,
+    transfer_destination::{create_directory, ensure_new, local_is_link},
     transfer_files::{download, upload},
+    transfer_plan::{plan, total_size},
     transfer_progress::Reporter,
 };
-
-enum Item {
-    UploadDirectory(String),
-    DownloadDirectory(PathBuf),
-    File(Direction),
-}
-
-struct Plan {
-    items: Vec<Item>,
-    total: Option<u64>,
-}
 
 pub(super) async fn copy_many(
     session: &SftpSession,
@@ -29,192 +17,75 @@ pub(super) async fn copy_many(
     paused: &mut watch::Receiver<bool>,
     progress: &mut Reporter,
 ) -> Result<(), Error> {
-    let plan = plan(session, directions, cancel, paused).await?;
-    progress.total(plan.total);
-    for item in plan.items {
+    let nodes = plan(session, directions, cancel, paused).await?;
+    let mut pending: Vec<_> = nodes.iter().collect();
+    while let Some(node) = pending.pop() {
         wait_running(cancel, paused).await?;
-        match item {
-            Item::UploadDirectory(path) => session.create_dir(path).await?,
-            Item::DownloadDirectory(path) => {
-                fs::create_dir(path).await.map_err(destination_error)?
-            }
-            Item::File(Direction::Upload { local, remote }) => {
-                if !fs::symlink_metadata(&local).await?.is_file() {
-                    return Err(Error::UnsupportedCopySource);
-                }
-                upload(session, &local, &remote, cancel, paused, progress).await?;
-            }
-            Item::File(Direction::Download { remote, local }) => {
-                if !session
-                    .symlink_metadata(&remote)
-                    .await?
-                    .file_type()
-                    .is_file()
-                {
-                    return Err(Error::UnsupportedCopySource);
-                }
-                download(session, &remote, &local, cancel, paused, progress).await?;
-            }
+        ensure_new(session, &node.direction).await?;
+        if let Some(children) = &node.children {
+            pending.extend(children);
+        }
+    }
+    progress.total(total_size(&nodes));
+    let mut pending = nodes;
+    pending.reverse();
+    while let Some(node) = pending.pop() {
+        wait_running(cancel, paused).await?;
+        if let Some(mut children) = node.children {
+            create_directory(session, &node.direction).await?;
+            children.reverse();
+            pending.extend(children);
+        } else {
+            copy_file(session, &node.direction, cancel, paused, progress, None).await?;
         }
     }
     Ok(())
 }
 
-async fn plan(
+pub(super) async fn copy_file(
     session: &SftpSession,
-    mut pending: Vec<Direction>,
+    direction: &Direction,
     cancel: &mut watch::Receiver<bool>,
     paused: &mut watch::Receiver<bool>,
-) -> Result<Plan, Error> {
-    let mut plan = Vec::new();
-    let mut total = Some(0_u64);
-    pending.reverse();
-    while let Some(direction) = pending.pop() {
-        wait_running(cancel, paused).await?;
-        match direction {
-            Direction::Upload { local, remote } => {
-                validate_path(&remote)?;
-                let metadata = fs::symlink_metadata(&local).await?;
-                let kind = metadata.file_type();
-                ensure_new(session, &remote).await?;
-                if kind.is_file() {
-                    total = total.and_then(|total| total.checked_add(metadata.len()));
-                    plan.push(Item::File(Direction::Upload { local, remote }));
-                } else if kind.is_dir() {
-                    let mut entries = fs::read_dir(&local).await?;
-                    while let Some(entry) = entries.next_entry().await? {
-                        wait_running(cancel, paused).await?;
-                        let name = entry.file_name();
-                        let name = name.to_str().ok_or(Error::InvalidPath)?;
-                        pending.push(Direction::Upload {
-                            local: entry.path(),
-                            remote: child(&remote, name)?,
-                        });
-                    }
-                    plan.push(Item::UploadDirectory(remote));
-                } else {
-                    return Err(Error::UnsupportedCopySource);
-                }
+    progress: &mut Reporter,
+    replacement: Option<&super::transfer_publish::Replacement>,
+) -> Result<(), Error> {
+    match direction {
+        Direction::Upload { local, remote } => {
+            let metadata = tokio::fs::symlink_metadata(local).await?;
+            if !metadata.is_file() || local_is_link(&metadata) {
+                return Err(Error::UnsupportedCopySource);
             }
-            Direction::Download { remote, local } => {
-                validate_path(&remote)?;
-                let metadata = session.symlink_metadata(&remote).await?;
-                let kind = metadata.file_type();
-                ensure_local_new(&local).await?;
-                if kind.is_file() {
-                    total = total
-                        .zip(metadata.size)
-                        .and_then(|(total, size)| total.checked_add(size));
-                    plan.push(Item::File(Direction::Download { remote, local }));
-                } else if kind.is_dir() {
-                    for entry in read_directory(session, &remote).await? {
-                        wait_running(cancel, paused).await?;
-                        let name = entry.file_name();
-                        validate_local_name(&name)?;
-                        pending.push(Direction::Download {
-                            remote: child(&remote, &name)?,
-                            local: local.join(name),
-                        });
-                    }
-                    plan.push(Item::DownloadDirectory(local));
-                } else {
-                    return Err(Error::UnsupportedCopySource);
-                }
-            }
-        }
-    }
-    Ok(Plan { items: plan, total })
-}
-
-async fn ensure_local_new(path: &Path) -> Result<(), Error> {
-    match fs::symlink_metadata(path).await {
-        Ok(_) => Err(Error::DestinationExists),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error.into()),
-    }
-}
-
-fn validate_local_name(name: &str) -> Result<(), Error> {
-    super::operations::validate_name(name)?;
-    let mut components = Path::new(name).components();
-    if !matches!(components.next(), Some(Component::Normal(_))) || components.next().is_some() {
-        return Err(Error::InvalidPath);
-    }
-    #[cfg(windows)]
-    {
-        let stem = name
-            .split('.')
-            .next()
-            .unwrap_or_default()
-            .trim_end_matches(' ')
-            .to_ascii_uppercase();
-        let numbered = stem
-            .strip_prefix("COM")
-            .or_else(|| stem.strip_prefix("LPT"));
-        if name.contains([':', '<', '>', '"', '|', '?', '*'])
-            || name.ends_with([' ', '.'])
-            || name.chars().any(|character| character.is_control())
-            || matches!(
-                stem.as_str(),
-                "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$"
+            upload(
+                session,
+                local,
+                remote,
+                cancel,
+                paused,
+                progress,
+                replacement,
             )
-            || numbered.is_some_and(|number| {
-                matches!(
-                    number,
-                    "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "¹" | "²" | "³"
-                )
-            })
-        {
-            return Err(Error::InvalidPath);
+            .await
         }
-    }
-    Ok(())
-}
-
-fn destination_error(error: std::io::Error) -> Error {
-    if error.kind() == std::io::ErrorKind::AlreadyExists {
-        Error::DestinationExists
-    } else {
-        Error::Local(error)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn server_child_names_cannot_escape_local_destination() {
-        for name in [
-            "",
-            ".",
-            "..",
-            "/absolute",
-            "../escape",
-            "a/b",
-            "a\\b",
-            "nul\0",
-        ] {
-            assert!(validate_local_name(name).is_err(), "Accepted {name:?}");
-        }
-    }
-
-    #[cfg(windows)]
-    #[test]
-    fn server_child_names_reject_windows_devices_and_aliases() {
-        for name in [
-            "CON",
-            "nul.txt",
-            "COM1.txt",
-            "LPT9",
-            "COM¹",
-            "NUL .txt",
-            "CONOUT$",
-            "file:stream",
-            "trailing.",
-            "trailing ",
-        ] {
-            assert!(validate_local_name(name).is_err(), "Accepted {name:?}");
+        Direction::Download { remote, local } => {
+            if !session
+                .symlink_metadata(remote)
+                .await?
+                .file_type()
+                .is_file()
+            {
+                return Err(Error::UnsupportedCopySource);
+            }
+            download(
+                session,
+                remote,
+                local,
+                cancel,
+                paused,
+                progress,
+                replacement,
+            )
+            .await
         }
     }
 }

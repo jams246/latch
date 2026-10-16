@@ -3,8 +3,14 @@
 mod browser;
 mod operations;
 mod transfer;
+mod transfer_conflicts;
+mod transfer_destination;
 mod transfer_files;
+mod transfer_interactive;
+mod transfer_io;
+mod transfer_plan;
 mod transfer_progress;
+mod transfer_publish;
 mod transfer_trees;
 
 #[cfg(test)]
@@ -14,9 +20,15 @@ mod tests_browse;
 #[cfg(test)]
 mod tests_cancelled;
 #[cfg(test)]
+mod tests_conflicts;
+#[cfg(test)]
+mod tests_file_replace;
+#[cfg(test)]
 mod tests_filesystem;
 #[cfg(test)]
 mod tests_lifecycle;
+#[cfg(test)]
+mod tests_merge;
 #[cfg(test)]
 mod tests_operations;
 #[cfg(test)]
@@ -36,6 +48,7 @@ use std::{io, path::PathBuf};
 
 pub use browser::Browser;
 pub use transfer::Transfer;
+pub use transfer_conflicts::{Conflict, ConflictChoice};
 
 /// One non-secret remote directory entry.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -63,7 +76,7 @@ pub struct Directory {
     pub entries: Vec<Entry>,
 }
 
-/// Transfer source and destination. Existing destinations are never overwritten.
+/// Transfer source and destination. Interactive transfers can request replacement.
 #[derive(Clone, Debug)]
 pub enum Direction {
     /// Copy a local regular file or directory tree to a new remote path.
@@ -120,6 +133,14 @@ pub enum Error {
         /// Path containing the preserved partial file.
         path: String,
         /// Reason the partial file could not use its intended name.
+        reason: String,
+    },
+    /// A failed replacement retained the original destination at a backup path.
+    #[error("Destination replacement failed. Original data remains at {path}. {reason}")]
+    ReplacementRetained {
+        /// Path containing the preserved original destination.
+        path: String,
+        /// Reason replacement or restoration could not complete.
         reason: String,
     },
     /// A destination file already exists.

@@ -1,21 +1,23 @@
-use std::{future::Future, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use russh_sftp::client::SftpSession;
-use tokio::{
-    io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
-    sync::{mpsc, watch},
-};
+use tokio::sync::{mpsc, watch};
 
 use super::{
-    Direction, Error, TransferEvent,
+    Conflict, ConflictChoice, Direction, Error, TransferEvent,
+    transfer_conflicts::Resolver,
     transfer_files::{download, upload},
     transfer_progress::Reporter,
     transfer_trees::copy_many,
 };
 
+pub(super) use super::transfer_io::{check_cancel, copy, wait_running};
+
 pub(super) enum Sources {
     File(Direction),
     Selection(Vec<Direction>),
+    Interactive(Vec<Direction>),
+    InteractiveFile(Direction),
 }
 
 /// Cooperative transfer cancellation, including file closure when its owning tab closes.
@@ -26,6 +28,8 @@ pub struct Transfer {
     task: Option<tokio::task::JoinHandle<Result<(), Error>>>,
     terminal: watch::Receiver<Option<TransferEvent>>,
     progress: watch::Receiver<Option<TransferEvent>>,
+    conflict: watch::Sender<Option<Conflict>>,
+    resolutions: mpsc::UnboundedSender<(u64, ConflictChoice)>,
 }
 
 impl Transfer {
@@ -38,6 +42,7 @@ impl Transfer {
         let (paused, mut pause_requested) = watch::channel(false);
         let (terminal_tx, terminal) = watch::channel(None);
         let (progress_tx, progress) = watch::channel(None);
+        let (mut resolver, conflict, resolutions) = Resolver::channel();
         let task = tokio::spawn(async move {
             let mut reporter = Reporter::new(events.clone(), progress_tx);
             let result = match sources {
@@ -49,6 +54,7 @@ impl Transfer {
                         &mut cancelled,
                         &mut pause_requested,
                         &mut reporter,
+                        None,
                     )
                     .await
                 }
@@ -60,6 +66,7 @@ impl Transfer {
                         &mut cancelled,
                         &mut pause_requested,
                         &mut reporter,
+                        None,
                     )
                     .await
                 }
@@ -71,6 +78,38 @@ impl Transfer {
                         &mut pause_requested,
                         &mut reporter,
                     )
+                    .await
+                }
+                Sources::Interactive(directions) => {
+                    super::transfer_interactive::copy_many(
+                        &session,
+                        directions,
+                        &mut cancelled,
+                        &mut pause_requested,
+                        &mut reporter,
+                        &mut resolver,
+                    )
+                    .await
+                }
+                Sources::InteractiveFile(direction) => {
+                    async {
+                        let direction = match direction {
+                            Direction::Download { remote, local } => Direction::Download {
+                                remote: session.canonicalize(remote).await?,
+                                local,
+                            },
+                            upload => upload,
+                        };
+                        super::transfer_interactive::copy_many(
+                            &session,
+                            vec![direction],
+                            &mut cancelled,
+                            &mut pause_requested,
+                            &mut reporter,
+                            &mut resolver,
+                        )
+                        .await
+                    }
                     .await
                 }
             };
@@ -89,6 +128,8 @@ impl Transfer {
             task: Some(task),
             terminal,
             progress,
+            conflict,
+            resolutions,
         }
     }
 
@@ -110,6 +151,33 @@ impl Transfer {
     /// Whether a pause has been requested. An in-flight chunk may still finish.
     pub fn is_paused(&self) -> bool {
         *self.paused.borrow()
+    }
+
+    /// Returns the destination conflict currently awaiting a decision.
+    pub fn conflict(&self) -> Option<Conflict> {
+        if *self.cancel.borrow() {
+            None
+        } else {
+            self.conflict.borrow().clone()
+        }
+    }
+
+    /// Resolves the matching request once. Stale requests and unavailable merges are rejected.
+    pub fn resolve_conflict(&self, id: u64, choice: ConflictChoice) -> bool {
+        if *self.cancel.borrow() {
+            return false;
+        }
+        let accepted = self.conflict.send_if_modified(|pending| {
+            if pending.as_ref().is_some_and(|conflict| {
+                conflict.id == id && (choice != ConflictChoice::Merge || conflict.can_merge)
+            }) {
+                *pending = None;
+                true
+            } else {
+                false
+            }
+        });
+        accepted && self.resolutions.send((id, choice)).is_ok()
     }
 
     /// Returns the retained completion, cancellation, or failure state, when available.
@@ -151,64 +219,6 @@ impl Transfer {
 impl Drop for Transfer {
     fn drop(&mut self) {
         self.cancel();
-    }
-}
-
-pub(super) async fn copy<R: AsyncRead + Unpin, W: AsyncWrite + Unpin>(
-    source: &mut R,
-    destination: &mut W,
-    cancel: &mut watch::Receiver<bool>,
-    paused: &mut watch::Receiver<bool>,
-    progress: &mut Reporter,
-) -> Result<(), Error> {
-    let mut buffer = [0_u8; 32 * 1024];
-    loop {
-        wait_running(cancel, paused).await?;
-        let length = cancellable(cancel, source.read(&mut buffer)).await?;
-        if length == 0 {
-            cancellable(cancel, destination.flush()).await?;
-            return Ok(());
-        }
-        cancellable(cancel, destination.write_all(&buffer[..length])).await?;
-        progress.advance(length);
-        tokio::task::yield_now().await;
-    }
-}
-
-pub(super) async fn wait_running(
-    cancel: &mut watch::Receiver<bool>,
-    paused: &mut watch::Receiver<bool>,
-) -> Result<(), Error> {
-    loop {
-        check_cancel(cancel)?;
-        if !*paused.borrow_and_update() {
-            return Ok(());
-        }
-        tokio::select! {
-            _ = cancel.changed() => return Err(Error::Cancelled),
-            changed = paused.changed() => {
-                changed.map_err(|_| Error::Cancelled)?;
-            }
-        }
-    }
-}
-
-async fn cancellable<T>(
-    cancel: &mut watch::Receiver<bool>,
-    operation: impl Future<Output = std::io::Result<T>>,
-) -> Result<T, Error> {
-    check_cancel(cancel)?;
-    tokio::select! {
-        _ = cancel.changed() => Err(Error::Cancelled),
-        result = operation => result.map_err(Error::Local),
-    }
-}
-
-pub(super) fn check_cancel(cancel: &watch::Receiver<bool>) -> Result<(), Error> {
-    if *cancel.borrow() || cancel.has_changed().is_err() {
-        Err(Error::Cancelled)
-    } else {
-        Ok(())
     }
 }
 

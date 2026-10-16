@@ -98,4 +98,32 @@ impl Browser {
     ) -> Transfer {
         Transfer::spawn(self.session.clone(), Sources::Selection(directions), events)
     }
+
+    /// Copies one item, requesting a decision when its destination exists.
+    /// An explicitly opened remote link resolves to its canonical source first.
+    pub fn transfer_interactive(
+        &self,
+        direction: Direction,
+        events: mpsc::Sender<TransferEvent>,
+    ) -> Transfer {
+        Transfer::spawn(
+            self.session.clone(),
+            Sources::InteractiveFile(direction),
+            events,
+        )
+    }
+
+    /// Copies selected files and folders, requesting decisions for destination conflicts.
+    /// Links and special source files are rejected before any destination is changed.
+    pub fn transfer_many_interactive(
+        &self,
+        directions: Vec<Direction>,
+        events: mpsc::Sender<TransferEvent>,
+    ) -> Transfer {
+        Transfer::spawn(
+            self.session.clone(),
+            Sources::Interactive(directions),
+            events,
+        )
+    }
 }

@@ -21,12 +21,15 @@ async fn shutdown_deadline_aborts_task_and_reports_possible_partial_data() {
     let (paused, _pause_requested) = watch::channel(false);
     let (_terminal, terminal) = watch::channel(None);
     let (_progress, progress) = watch::channel(None);
+    let (_resolver, conflict, resolutions) = Resolver::channel();
     let transfer = Transfer {
         cancel,
         paused,
         task: Some(task),
         terminal,
         progress,
+        conflict,
+        resolutions,
     };
     let error = transfer.cancel_and_wait().await.unwrap_err();
     assert!(matches!(error, Error::CleanupTimeout));
