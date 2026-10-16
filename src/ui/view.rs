@@ -187,7 +187,7 @@ impl Render for Latch {
                                             SharedString::from(format!("tab-{}", tab.id)),
                                             tab.name.clone(),
                                         )
-                                        .pl_0()
+                                        .px(px(10.))
                                         .bg(rgba(0))
                                         .on_click(
                                             cx.listener(move |this, _, window, cx| {
