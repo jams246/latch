@@ -2,6 +2,8 @@
 mod native;
 mod operations;
 #[cfg(test)]
+mod persistence_tests;
+#[cfg(test)]
 mod tests;
 
 pub(in crate::ui) use operations::{create_directory, delete, rename, validate_name};
@@ -26,8 +28,8 @@ pub(in crate::ui) struct Directory {
     pub drives: Vec<PathBuf>,
 }
 
-pub(super) fn list_initial(config_directory: &Path) -> io::Result<Directory> {
-    let mut candidates = vec![initial_path(config_directory)];
+pub(super) fn list_initial(config_directory: &Path, connection_id: &str) -> io::Result<Directory> {
+    let mut candidates = vec![initial_path(config_directory, connection_id)];
     candidates.extend(home_directory());
     candidates.extend(std::env::current_dir().ok());
     #[cfg(windows)]
@@ -100,8 +102,8 @@ pub(super) fn list(path: &Path) -> io::Result<Directory> {
     })
 }
 
-pub(super) fn initial_path(config_directory: &Path) -> PathBuf {
-    fs::read(config_directory.join("sftp-local-directory.json"))
+pub(super) fn initial_path(config_directory: &Path, connection_id: &str) -> PathBuf {
+    fs::read(preference_path(config_directory, connection_id))
         .ok()
         .and_then(|bytes| serde_json::from_slice::<PathBuf>(&bytes).ok())
         .filter(|path| path.is_dir())
@@ -117,10 +119,14 @@ fn home_directory() -> Option<PathBuf> {
         .filter(|path| path.is_dir())
 }
 
-pub(super) fn remember(config_directory: &Path, path: &Path) -> io::Result<()> {
+pub(in crate::ui) fn remember(
+    config_directory: &Path,
+    connection_id: &str,
+    path: &Path,
+) -> io::Result<()> {
     let bytes = serde_json::to_vec(path).map_err(io::Error::other)?;
-    fs::create_dir_all(config_directory)?;
-    let destination = config_directory.join("sftp-local-directory.json");
+    fs::create_dir_all(config_directory.join("sftp-local-directories"))?;
+    let destination = preference_path(config_directory, connection_id);
     let temporary = destination.with_extension(format!("{}.tmp", uuid::Uuid::new_v4()));
     let mut file = fs::OpenOptions::new()
         .write(true)
@@ -136,6 +142,18 @@ pub(super) fn remember(config_directory: &Path, path: &Path) -> io::Result<()> {
         let _ = fs::remove_file(temporary);
     }
     result
+}
+
+fn preference_path(config_directory: &Path, connection_id: &str) -> PathBuf {
+    use std::fmt::Write as _;
+    let mut filename = String::with_capacity(connection_id.len() * 2 + 5);
+    for byte in connection_id.bytes() {
+        let _ = write!(filename, "{byte:02x}");
+    }
+    filename.push_str(".json");
+    config_directory
+        .join("sftp-local-directories")
+        .join(filename)
 }
 
 pub(super) fn follow_link(path: &Path) -> io::Result<PathBuf> {

@@ -1,6 +1,6 @@
 use super::*;
 
-fn fixture(name: &str) -> PathBuf {
+pub(super) fn fixture(name: &str) -> PathBuf {
     let directory = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join(".verification/sftp-dual-pane/local")
         .join(format!("{name}-{}", uuid::Uuid::new_v4()));
@@ -29,27 +29,6 @@ fn listing_omits_directory_sizes_and_preserves_file_metadata() {
     assert_eq!(file.metadata.size, Some(8));
     assert!(file.metadata.modified.is_some());
     assert_eq!(file.path, directory.join("résumé.txt"));
-}
-
-#[test]
-fn remembered_local_directory_survives_restart_and_can_be_replaced() {
-    let configuration = fixture("preferences");
-    let first = fixture("first");
-    let second = fixture("second");
-    remember(&configuration, &first).unwrap();
-    assert_eq!(initial_path(&configuration), first);
-    remember(&configuration, &second).unwrap();
-    assert_eq!(initial_path(&configuration), second);
-}
-
-#[test]
-fn unavailable_remembered_directory_falls_back_to_an_existing_directory() {
-    let configuration = fixture("unavailable");
-    let unavailable = configuration.join("missing");
-    remember(&configuration, &unavailable).unwrap();
-    let selected = initial_path(&configuration);
-    assert_ne!(selected, unavailable);
-    assert!(selected.is_dir());
 }
 
 #[test]
