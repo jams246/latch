@@ -33,6 +33,7 @@ impl Files {
         let (events, progress) = tokio::sync::mpsc::channel(32);
         let _guard = self.runtime.enter();
         self.transfer = Some(browser.transfer_many(directions, events));
+        self.metrics = Some(operations::Metrics::new(std::time::Instant::now()));
         self.progress = Some(progress);
         self.batch_copy = true;
         self.action_status = Default::default();

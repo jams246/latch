@@ -16,6 +16,7 @@ fn retained_terminal_states_release_transfer_controls_but_progress_does_not() {
     );
     assert!(
         !transfer_status(TransferEvent::Progress {
+            name: "file.txt".into(),
             completed: 1,
             total: Some(2)
         })

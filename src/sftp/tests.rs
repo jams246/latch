@@ -140,7 +140,7 @@ async fn browse_navigate_upload_download_and_reuse_authenticated_transport() {
 }
 
 #[tokio::test]
-async fn cancellation_removes_remote_and_local_partial_files() {
+async fn cancellation_retains_remote_and_local_partial_files() {
     let (_fixture, _control, browser) = connected().await;
     let directory = directory();
     let local = directory.join("large.bin");
@@ -160,14 +160,12 @@ async fn cancellation_removes_remote_and_local_partial_files() {
     ));
     upload.cancel();
     assert_eq!(finished(&mut events).await, TransferEvent::Cancelled);
+    let entries = browser.list("/").await.unwrap().entries;
+    assert!(entries.iter().any(|entry| entry.name == "cancelled.bin"));
     assert!(
-        !browser
-            .list("/")
-            .await
-            .unwrap()
-            .entries
+        !entries
             .iter()
-            .any(|entry| entry.name.starts_with(".latch-") || entry.name == "cancelled.bin")
+            .any(|entry| entry.name.starts_with(".latch-"))
     );
     let destination = directory.join("cancelled-download.bin");
     let (download, mut events) = transfer(
@@ -183,7 +181,7 @@ async fn cancellation_removes_remote_and_local_partial_files() {
     ));
     drop(download);
     assert_eq!(finished(&mut events).await, TransferEvent::Cancelled);
-    assert!(!destination.exists());
+    assert!(destination.is_file());
     assert!(!std::fs::read_dir(directory).unwrap().any(|entry| {
         entry
             .unwrap()

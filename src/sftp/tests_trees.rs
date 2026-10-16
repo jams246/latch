@@ -137,7 +137,7 @@ async fn copy_selected_link_never_downloads_its_target() {
 }
 
 #[tokio::test]
-async fn cancelling_batch_copy_cleans_temporary_file_before_reporting_completion() {
+async fn cancelling_batch_copy_retains_partial_file_before_reporting_completion() {
     let (_fixture, _control, browser) = connected().await;
     let local = directory();
     tokio::fs::create_dir(local.join("source")).await.unwrap();
@@ -158,12 +158,7 @@ async fn cancelling_batch_copy_cleans_temporary_file_before_reporting_completion
     ));
     copy.cancel_and_wait().await.unwrap();
     assert_eq!(finished(&mut incoming).await, TransferEvent::Cancelled);
-    assert!(
-        browser
-            .list("/cancelled-folder")
-            .await
-            .unwrap()
-            .entries
-            .is_empty()
-    );
+    let entries = browser.list("/cancelled-folder").await.unwrap().entries;
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].name, "large.bin");
 }

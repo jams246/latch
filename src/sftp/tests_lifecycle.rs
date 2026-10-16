@@ -8,7 +8,7 @@ use super::{
 };
 
 #[tokio::test]
-async fn cancel_and_wait_finishes_cleanup_before_transport_is_released() {
+async fn cancel_and_wait_retains_partial_file_before_transport_is_released() {
     let (_fixture, control, browser) = connected().await;
     let directory = directory();
     let source = directory.join("source.bin");
@@ -27,14 +27,12 @@ async fn cancel_and_wait_finishes_cleanup_before_transport_is_released() {
         Some(TransferEvent::Progress { .. })
     ));
     upload.cancel_and_wait().await.unwrap();
+    let entries = browser.list("/").await.unwrap().entries;
+    assert!(entries.iter().any(|entry| entry.name == "cancel-wait.bin"));
     assert!(
-        !browser
-            .list("/")
-            .await
-            .unwrap()
-            .entries
+        !entries
             .iter()
-            .any(|entry| entry.name.starts_with(".latch-") || entry.name == "cancel-wait.bin")
+            .any(|entry| entry.name.starts_with(".latch-"))
     );
     drop(control);
 }
@@ -45,6 +43,7 @@ async fn abandoned_full_event_queue_cannot_block_cancel_and_wait() {
     let (events, _unpolled) = mpsc::channel(1);
     events
         .send(TransferEvent::Progress {
+            name: "large.bin".into(),
             completed: 0,
             total: None,
         })
@@ -96,7 +95,7 @@ fn denied_remove(stream: russh::ChannelStream<russh::server::Msg>) {
 }
 
 #[tokio::test]
-async fn remote_close_timeout_is_reported_after_local_partial_cleanup() {
+async fn remote_close_timeout_reports_retained_local_partial_on_cancellation() {
     let (_fixture, _control, browser) = connected_with(slow_close).await;
     browser.session.set_timeout(1);
     let directory = directory();
@@ -116,16 +115,14 @@ async fn remote_close_timeout_is_reported_after_local_partial_cleanup() {
         .await
         .unwrap()
         .unwrap_err();
-    assert!(
-        matches!(error, Error::RemoteClose(ref cause) if cause.kind() == std::io::ErrorKind::TimedOut)
-    );
+    assert!(matches!(error, Error::PartialRetained { .. }));
     assert!(error.to_string().contains("could not be closed"));
-    assert!(!destination.exists());
-    assert_eq!(std::fs::read_dir(directory).unwrap().count(), 0);
+    assert!(destination.is_file());
+    assert_eq!(std::fs::read_dir(directory).unwrap().count(), 1);
 }
 
 #[tokio::test]
-async fn denied_remote_cleanup_is_reported_instead_of_successful_cancellation() {
+async fn cancellation_retains_remote_partial_even_when_removal_is_denied() {
     let (_fixture, _control, browser) = connected_with(denied_remove).await;
     let source = directory().join("source.bin");
     tokio::fs::write(&source, vec![0x42; 1024 * 1024])
@@ -142,13 +139,7 @@ async fn denied_remote_cleanup_is_reported_instead_of_successful_cancellation() 
         events.recv().await,
         Some(TransferEvent::Progress { .. })
     ));
-    let error = upload.cancel_and_wait().await.unwrap_err();
-    assert!(matches!(error, Error::Cleanup));
-    assert!(
-        error
-            .to_string()
-            .contains("temporary .latch file may remain")
-    );
+    upload.cancel_and_wait().await.unwrap();
     assert!(
         browser
             .list("/")
@@ -156,6 +147,6 @@ async fn denied_remote_cleanup_is_reported_instead_of_successful_cancellation() 
             .unwrap()
             .entries
             .iter()
-            .any(|entry| entry.name.starts_with(".latch-"))
+            .any(|entry| entry.name == "cancelled.bin")
     );
 }

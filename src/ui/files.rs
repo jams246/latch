@@ -6,6 +6,7 @@ pub(super) mod breadcrumbs;
 mod copy_actions;
 pub(super) mod local;
 mod navigation;
+pub(super) mod operations;
 pub(super) mod pane;
 mod polling;
 pub(super) mod rows;
@@ -66,6 +67,7 @@ pub(super) struct Files {
     remote_breadcrumb_scroll: ScrollHandle,
     pub(super) breadcrumb_reveal: [bool; 2],
     pub transfer: Option<sftp::Transfer>,
+    metrics: Option<operations::Metrics>,
     browser: Option<Browser>,
     runtime: Arc<tokio::runtime::Runtime>,
     events: mpsc::Receiver<Result<RemoteResult, sftp::Error>>,
@@ -137,6 +139,7 @@ impl Files {
             remote_breadcrumb_scroll: ScrollHandle::new(),
             breadcrumb_reveal: [false; 2],
             transfer: None,
+            metrics: None,
             browser: None,
             runtime,
             events,
@@ -173,6 +176,7 @@ impl Files {
             operation.abort();
         }
         self.progress = None;
+        self.metrics = None;
         self.browser = None;
         cx.notify();
         self.transfer.take()

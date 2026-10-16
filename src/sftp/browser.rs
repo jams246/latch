@@ -82,7 +82,7 @@ impl Browser {
     }
 
     /// Spawns a transfer on the current Tokio runtime.
-    /// Keep its returned control alive; dropping it requests cancellation and cleanup.
+    /// Keep its returned control alive; dropping it cancels and retains copied data.
     /// Await [`Transfer::cancel_and_wait`] before closing the parent SSH transport.
     pub fn transfer(&self, direction: Direction, events: mpsc::Sender<TransferEvent>) -> Transfer {
         Transfer::spawn(self.session.clone(), Sources::File(direction), events)
@@ -90,7 +90,7 @@ impl Browser {
 
     /// Copies selected files and directory trees sequentially with shared cancellation.
     /// Existing destinations are preserved; links and special files are rejected.
-    /// Completed files remain available if a later item fails or copying is cancelled.
+    /// Completed files remain if a later item fails; cancellation also retains partial files.
     pub fn transfer_many(
         &self,
         directions: Vec<Direction>,
