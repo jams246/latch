@@ -1,6 +1,7 @@
 use super::{Latch, button, dialog_header};
 use gpui::{prelude::*, *};
 use latch::ssh::State;
+use std::time::Duration;
 
 #[cfg(test)]
 mod tests;
@@ -92,11 +93,36 @@ impl Latch {
                             .flex_col()
                             .gap_3()
                             .child(tab.name.clone())
-                            .child(div().text_color(rgb(colors.muted)).child(if failed {
-                                "Could not reconnect within 30 seconds. Close this tab to continue."
+                            .child(if failed {
+                                div()
+                                    .text_color(rgb(colors.muted))
+                                    .child("Unable to reconnect.")
+                                    .into_any_element()
                             } else {
-                                "The connection was interrupted. Trying to reconnect for up to 30 seconds…"
-                            }))
+                                div()
+                                    .id("reconnect-loading")
+                                    .debug_selector(|| "reconnect-loading".into())
+                                    .w(px(64.))
+                                    .h(px(4.))
+                                    .rounded_full()
+                                    .overflow_hidden()
+                                    .bg(rgb(colors.border))
+                                    .child(
+                                        div()
+                                            .w(px(16.))
+                                            .h_full()
+                                            .rounded_full()
+                                            .bg(rgb(colors.accent))
+                                            .with_animation(
+                                                "reconnect-loading-motion",
+                                                Animation::new(Duration::from_millis(1200))
+                                                    .repeat()
+                                                    .with_easing(bounce(ease_in_out)),
+                                                |bar, delta| bar.ml(px(delta * 48.)),
+                                            ),
+                                    )
+                                    .into_any_element()
+                            })
                             .when(failed, |view| {
                                 let tab_id = tab.id.clone();
                                 view.child(

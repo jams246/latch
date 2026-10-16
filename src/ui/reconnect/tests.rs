@@ -61,6 +61,7 @@ fn dialog_shows_close_only_after_failure_and_closes_its_tab(cx: &mut TestAppCont
     };
     draw(cx);
     assert!(cx.debug_bounds("reconnect-dialog").is_some());
+    assert!(cx.debug_bounds("reconnect-loading").is_some());
     assert!(cx.debug_bounds("close-reconnect").is_none());
     cx.simulate_keystrokes("enter escape");
     handle
