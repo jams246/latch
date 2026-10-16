@@ -58,6 +58,13 @@ impl Tab {
 }
 
 impl Latch {
+    pub(crate) fn save_window_size(&mut self, size: latch::storage::WindowSize) {
+        if let Err(error) = self.store.set_window_size(size) {
+            eprintln!("Cannot save window size: {error}");
+            self.error = Some(format!("Cannot save window size: {error}"));
+        }
+    }
+
     fn schedule_cleanup(
         &mut self,
         id: String,

@@ -157,17 +157,38 @@ impl Render for Latch {
                                     .flex()
                                     .flex_shrink_0()
                                     .items_center()
-                                    .gap_1()
+                                    .rounded_md()
+                                    .bg(rgb(if self.active == Some(index) {
+                                        0x315267
+                                    } else {
+                                        0x263c4d
+                                    }))
+                                    .child(
+                                        button(
+                                            SharedString::from(format!("close-{}", tab.id)),
+                                            "×",
+                                        )
+                                        .flex()
+                                        .items_center()
+                                        .justify_center()
+                                        .size(px(32.))
+                                        .p_0()
+                                        .bg(rgba(0))
+                                        .text_size(px(22.))
+                                        .text_color(rgb(0xffa69b))
+                                        .on_click(
+                                            cx.listener(move |this, _, window, cx| {
+                                                this.close_tab(index, window, cx)
+                                            }),
+                                        ),
+                                    )
                                     .child(
                                         button(
                                             SharedString::from(format!("tab-{}", tab.id)),
                                             tab.name.clone(),
                                         )
-                                        .bg(rgb(if self.active == Some(index) {
-                                            0x315267
-                                        } else {
-                                            0x263c4d
-                                        }))
+                                        .pl_0()
+                                        .bg(rgba(0))
                                         .on_click(
                                             cx.listener(move |this, _, window, cx| {
                                                 this.active = Some(index);
@@ -175,17 +196,6 @@ impl Render for Latch {
                                                     window.focus(&tab.visible_focus(cx));
                                                 }
                                                 cx.notify();
-                                            }),
-                                        ),
-                                    )
-                                    .child(
-                                        button(
-                                            SharedString::from(format!("close-{}", tab.id)),
-                                            "×",
-                                        )
-                                        .on_click(
-                                            cx.listener(move |this, _, window, cx| {
-                                                this.close_tab(index, window, cx)
                                             }),
                                         ),
                                     )

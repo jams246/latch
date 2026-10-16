@@ -58,10 +58,7 @@ impl Latch {
                                 })
                                 .child(button("disconnect", "Disconnect").on_click(cx.listener(
                                     move |this, _, window, cx| {
-                                        this.disconnect(index, cx);
-                                        if let Some(tab) = this.tabs.get(index) {
-                                            window.focus(&tab.visible_focus(cx));
-                                        }
+                                        this.close_tab(index, window, cx);
                                     },
                                 ))),
                         ),
