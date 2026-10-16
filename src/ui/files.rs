@@ -41,7 +41,7 @@ enum RemoteResult {
     FileLink(Browser, String),
 }
 
-type LocalResult = std::io::Result<(local::Directory, Option<String>)>;
+type LocalResult = std::io::Result<local::Directory>;
 
 pub(super) struct Files {
     pub(super) connection_name: String,
@@ -49,8 +49,6 @@ pub(super) struct Files {
     pub path: Entity<Input>,
     pub directory: Option<Directory>,
     pub local: Option<local::Directory>,
-    pub status: String,
-    pub local_status: String,
     pub busy: bool,
     pub local_busy: bool,
     pub local_sort: Sort,
@@ -64,8 +62,6 @@ pub(super) struct Files {
     action_sender: mpsc::Sender<actions::ActionResult>,
     action_task: Option<tokio::task::JoinHandle<()>>,
     action_busy: bool,
-    batch_copy: bool,
-    pub(super) action_status: [Option<String>; 2],
     local_breadcrumb_scroll: ScrollHandle,
     remote_breadcrumb_scroll: ScrollHandle,
     pub(super) breadcrumb_reveal: [bool; 2],
@@ -125,8 +121,6 @@ impl Files {
             path: cx.new(|cx| Input::new(".", false, cx)),
             directory: None,
             local: None,
-            status: "Opening SFTP…".into(),
-            local_status: "Loading local directory…".into(),
             busy: false,
             local_busy: false,
             local_sort: Sort::default(),
@@ -140,8 +134,6 @@ impl Files {
             action_sender,
             action_task: None,
             action_busy: false,
-            batch_copy: false,
-            action_status: Default::default(),
             local_breadcrumb_scroll: ScrollHandle::new(),
             remote_breadcrumb_scroll: ScrollHandle::new(),
             breadcrumb_reveal: [false; 2],

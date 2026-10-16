@@ -130,36 +130,18 @@ fn remaining_time_stays_readable() {
 }
 
 #[gpui::test]
-fn pane_headers_stay_aligned_with_a_status_in_either_pane(cx: &mut TestAppContext) {
-    for (local, remote, local_action, remote_action, busy) in [
-        ("Local warning", "", None, None, false),
-        ("", "Remote notice", None, None, false),
-        ("", "", Some("Local action"), None, false),
-        ("", "", None, Some("Remote action"), false),
-        ("", "", None, None, true),
-        ("", "", None, None, false),
-    ] {
+fn pane_headers_stay_aligned_without_notification_rows_while_loading(cx: &mut TestAppContext) {
+    for (local_busy, busy) in [(false, false), (true, false), (false, true), (true, true)] {
         let (handle, mut visual) = fixture(cx);
         handle
             .update(&mut visual, |files, _, _| {
-                files.local_status = local.into();
-                files.status = remote.into();
-                files.action_status = [
-                    local_action.map(str::to_string),
-                    remote_action.map(str::to_string),
-                ];
-                files.local_busy = false;
+                files.local_busy = local_busy;
                 files.busy = busy;
             })
             .unwrap();
         draw(handle, &mut visual);
-        let visible = !local.is_empty()
-            || !remote.is_empty()
-            || local_action.is_some()
-            || remote_action.is_some()
-            || busy;
-        assert_eq!(visual.debug_bounds("local-status").is_some(), visible);
-        assert_eq!(visual.debug_bounds("remote-status").is_some(), visible);
+        assert!(visual.debug_bounds("local-status").is_none());
+        assert!(visual.debug_bounds("remote-status").is_none());
         assert_eq!(
             visual.debug_bounds("local-column-0").unwrap().origin.y,
             visual.debug_bounds("remote-column-0").unwrap().origin.y

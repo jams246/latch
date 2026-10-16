@@ -1,12 +1,7 @@
 use super::{actions::Target, *};
 
 impl Files {
-    pub(super) fn copy_targets(
-        &mut self,
-        side: Side,
-        targets: Vec<Target>,
-        cx: &mut Context<Self>,
-    ) {
+    pub(super) fn copy_targets(&mut self, targets: Vec<Target>, cx: &mut Context<Self>) {
         if !self.actions_idle() || targets.is_empty() {
             return;
         }
@@ -19,15 +14,12 @@ impl Files {
         let directions = match result {
             Ok(directions) => directions,
             Err(error) => {
-                self.action_status[usize::from(side == Side::Remote)] = Some(error);
-                cx.notify();
+                eprintln!("Cannot copy selected items: {error}");
                 return;
             }
         };
         let Some(browser) = &self.browser else {
-            self.action_status[usize::from(side == Side::Remote)] =
-                Some("Refresh the server directory to reconnect before copying".into());
-            cx.notify();
+            eprintln!("Refresh the server directory to reconnect before copying");
             return;
         };
         let (events, progress) = tokio::sync::mpsc::channel(32);
@@ -35,9 +27,6 @@ impl Files {
         self.transfer = Some(browser.transfer_many_interactive(directions, events));
         self.metrics = Some(operations::Metrics::new(std::time::Instant::now()));
         self.progress = Some(progress);
-        self.batch_copy = true;
-        self.action_status = Default::default();
-        self.status = "Copying selected items…".into();
         cx.notify();
     }
 }

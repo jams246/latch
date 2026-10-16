@@ -83,12 +83,6 @@ fn failed_navigation_keeps_both_directories_and_history_positions(cx: &mut TestA
         assert!(!files.local_history.can_forward() && !files.remote_history.can_forward());
         assert!(!files.local_busy && !files.busy);
         assert!(files.pending_local_history.is_none() && files.pending_remote_history.is_none());
-        assert!(
-            files
-                .local_status
-                .starts_with("Cannot open local directory:")
-        );
-        assert_eq!(files.status, sftp::Error::InvalidPath.to_string());
     });
 }
 
@@ -101,7 +95,7 @@ fn successful_history_navigation_and_refresh_do_not_duplicate_paths(cx: &mut Tes
         files.pending_local_history = Some(0);
         files
             .local_sender
-            .send(Ok((local_directory("first"), None)))
+            .send(Ok(local_directory("first")))
             .unwrap();
         files.poll(cx);
         assert!(!files.local_history.can_back());
@@ -112,7 +106,7 @@ fn successful_history_navigation_and_refresh_do_not_duplicate_paths(cx: &mut Tes
 
         files
             .local_sender
-            .send(Ok((local_directory("first"), None)))
+            .send(Ok(local_directory("first")))
             .unwrap();
         files.poll(cx);
         assert!(!files.local_history.can_back());
@@ -124,7 +118,7 @@ fn successful_history_navigation_and_refresh_do_not_duplicate_paths(cx: &mut Tes
         files.pending_local_history = Some(1);
         files
             .local_sender
-            .send(Ok((local_directory("second"), None)))
+            .send(Ok(local_directory("second")))
             .unwrap();
         files.poll(cx);
         assert_eq!(
@@ -147,12 +141,10 @@ fn closing_ignores_late_directory_results_errors_and_navigation(cx: &mut TestApp
             entries: Vec::new(),
         });
         files.remote_history.commit("/current".into());
-        files.local_status = "Local ready".into();
-        files.status = "Remote ready".into();
         files.prepare_close(cx);
         files
             .local_sender
-            .send(Ok((local_directory("late"), None)))
+            .send(Ok(local_directory("late")))
             .unwrap();
         files.sender.send(Err(sftp::Error::NotConnected)).unwrap();
 
@@ -164,8 +156,6 @@ fn closing_ignores_late_directory_results_errors_and_navigation(cx: &mut TestApp
 
         assert_eq!(files.local.as_ref().unwrap().path, PathBuf::from("current"));
         assert_eq!(files.directory.as_ref().unwrap().path, "/current");
-        assert_eq!(files.local_status, "Local ready");
-        assert_eq!(files.status, "Remote ready");
         assert!(!files.local_history.can_back() && !files.remote_history.can_back());
         assert!(files.operation.is_none() && files.local_operation.is_none());
         assert!(files.closing);

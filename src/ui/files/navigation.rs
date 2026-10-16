@@ -25,9 +25,7 @@ impl Files {
         let events = self.sender.clone();
         self.busy = true;
         self.menu = None;
-        self.action_status[1] = None;
         self.pending_remote_history = history;
-        self.status = "Loading directory…".into();
         self.operation = Some(self.runtime.spawn(async move {
             let result = async {
                 let browser = match browser {
@@ -75,9 +73,7 @@ impl Files {
         let events = self.local_sender.clone();
         self.local_busy = true;
         self.menu = None;
-        self.action_status[0] = None;
         self.pending_local_history = history;
-        self.local_status = "Loading directory…".into();
         self.local_operation = Some(self.runtime.spawn_blocking(move || {
             let result = (|| {
                 let directory = match path {
@@ -91,10 +87,12 @@ impl Files {
                     }
                     None => local::list_initial(&config_directory, &connection_id)?,
                 };
-                let warning = local::remember(&config_directory, &connection_id, &directory.path)
-                    .err()
-                    .map(|error| format!("Cannot remember local directory: {error}"));
-                Ok((directory, warning))
+                if let Err(error) =
+                    local::remember(&config_directory, &connection_id, &directory.path)
+                {
+                    eprintln!("Cannot remember local directory: {error}");
+                }
+                Ok(directory)
             })();
             let _ = events.send(result);
         }));

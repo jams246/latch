@@ -29,7 +29,7 @@ impl Files {
         while let Ok(result) = self.local_events.try_recv() {
             self.local_busy = false;
             match result {
-                Ok((directory, warning)) => {
+                Ok(directory) => {
                     self.selections[0].clear();
                     self.menu = None;
                     let changed = self.local.as_ref().is_none_or(|d| d.path != directory.path);
@@ -38,7 +38,6 @@ impl Files {
                     } else {
                         self.local_history.commit(directory.path.clone());
                     }
-                    self.local_status = warning.unwrap_or_default();
                     self.local = Some(directory);
                     if changed {
                         self.reveal_breadcrumbs(Side::Local);
@@ -46,7 +45,7 @@ impl Files {
                 }
                 Err(error) => {
                     self.pending_local_history = None;
-                    self.local_status = format!("Cannot open local directory: {error}");
+                    eprintln!("Cannot open local directory: {error}");
                 }
             }
             cx.notify();
@@ -70,7 +69,6 @@ impl Files {
                     } else {
                         self.remote_history.commit(directory.path.clone());
                     }
-                    self.status.clear();
                     self.directory = Some(directory);
                     if changed {
                         self.reveal_breadcrumbs(Side::Remote);
@@ -80,13 +78,12 @@ impl Files {
                 Ok(RemoteResult::FileLink(browser, path)) => {
                     self.browser = Some(browser);
                     self.pending_remote_history = None;
-                    self.status = "Choose where to download the linked file".into();
                     let name = path.rsplit('/').next().unwrap_or("download").to_string();
                     self.download(path, &name, cx);
                 }
                 Err(error) => {
                     self.pending_remote_history = None;
-                    self.status = error.to_string();
+                    eprintln!("Cannot open server directory: {error}");
                     self.browser = None;
                 }
             }
@@ -103,9 +100,10 @@ impl Files {
                 if matches!(event, TransferEvent::Progress { .. }) {
                     latest = Some(event);
                 } else {
-                    let (status, terminal) = transfer_status(event);
-                    self.status = status;
-                    finished |= terminal;
+                    if matches!(&event, TransferEvent::Failed(_)) {
+                        self.browser = None;
+                    }
+                    finished |= transfer_finished(event);
                     cx.notify();
                 }
             }
@@ -137,17 +135,16 @@ impl Files {
             cx.notify();
         }
         self.poll_conflict(cx);
-        if let Some(event) = self
-            .transfer
-            .as_ref()
-            .and_then(sftp::Transfer::terminal_event)
+        if !finished
+            && let Some(event) = self
+                .transfer
+                .as_ref()
+                .and_then(sftp::Transfer::terminal_event)
         {
             if matches!(&event, TransferEvent::Failed(_)) {
                 self.browser = None;
             }
-            let (status, terminal) = transfer_status(event);
-            self.status = status;
-            finished |= terminal;
+            finished = transfer_finished(event);
             cx.notify();
         }
         if !finished
@@ -156,8 +153,7 @@ impl Files {
                 .as_ref()
                 .is_some_and(|progress| progress.is_closed())
         {
-            self.status =
-                "Transfer status was interrupted. Refresh the folder before retrying.".into();
+            eprintln!("Transfer status was interrupted. Refresh the folder before retrying.");
             self.browser = None;
             finished = true;
             cx.notify();
@@ -167,25 +163,19 @@ impl Files {
             self.progress = None;
             self.metrics = None;
             self.conflict = None;
-            let notice = (!self.status.is_empty()).then(|| self.status.clone());
             self.refresh(Side::Local, cx);
             self.refresh(Side::Remote, cx);
-            if let Some(notice) = notice {
-                self.action_status[1] = Some(notice.clone());
-                if self.batch_copy {
-                    self.action_status[0] = Some(notice);
-                }
-            }
-            self.batch_copy = false;
         }
     }
 }
 
-pub(super) fn transfer_status(event: TransferEvent) -> (String, bool) {
+pub(super) fn transfer_finished(event: TransferEvent) -> bool {
     match event {
-        TransferEvent::Progress { .. } => (String::new(), false),
-        TransferEvent::Completed => ("Transfer complete".into(), true),
-        TransferEvent::Cancelled => (String::new(), true),
-        TransferEvent::Failed(error) => (format!("{error} Refresh folder to reconnect."), true),
+        TransferEvent::Progress { .. } => false,
+        TransferEvent::Completed | TransferEvent::Cancelled => true,
+        TransferEvent::Failed(error) => {
+            eprintln!("SFTP transfer failed: {error} Refresh folder to reconnect.");
+            true
+        }
     }
 }

@@ -6,18 +6,14 @@ impl Files {
             return;
         }
         let Some(browser) = &self.browser else {
-            self.status = "Refresh the folder to reconnect before starting a transfer".into();
-            cx.notify();
+            eprintln!("Refresh the folder to reconnect before starting a transfer");
             return;
         };
         let (events, progress) = tokio::sync::mpsc::channel(32);
         let _guard = self.runtime.enter();
         self.transfer = Some(browser.transfer_interactive(direction, events));
         self.metrics = Some(operations::Metrics::new(std::time::Instant::now()));
-        self.batch_copy = false;
-        self.action_status = Default::default();
         self.progress = Some(progress);
-        self.status = "Starting transfer…".into();
         cx.notify();
     }
 
@@ -37,10 +33,7 @@ impl Files {
                 });
             }
             Ok(Err(error)) => {
-                let _ = this.update(cx, |this, cx| {
-                    this.status = format!("Cannot choose download file: {error}");
-                    cx.notify();
-                });
+                eprintln!("Cannot choose download file: {error}");
             }
             _ => (),
         })

@@ -87,7 +87,7 @@ impl Files {
             return;
         }
         if kind == ActionKind::Copy {
-            self.copy_targets(menu.side, menu.targets, cx);
+            self.copy_targets(menu.targets, cx);
             window.focus(&self.path.read(cx).focus);
             return;
         }

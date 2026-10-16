@@ -43,8 +43,6 @@ pub(super) fn fixture(cx: &mut TestAppContext) -> (WindowHandle<Files>, VisualTe
             files.local_sender = mpsc::channel().0;
             files.local_busy = false;
             files.busy = false;
-            files.local_status.clear();
-            files.status.clear();
         })
         .unwrap();
     let mut visual = VisualTestContext::from_window(*handle, cx);
