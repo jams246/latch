@@ -18,6 +18,7 @@ struct Fixture {
     entity: Entity<AuthDialog>,
     input: WeakEntity<Input>,
     reply: oneshot::Receiver<Option<ssh::Secret>>,
+    commands: mpsc::Receiver<ssh::Command>,
 }
 
 fn pending_dialog(cx: &mut TestAppContext, kind: SecretKind, session_kind: SessionKind) -> Fixture {
@@ -28,7 +29,7 @@ fn pending_dialog(cx: &mut TestAppContext, kind: SecretKind, session_kind: Sessi
     let runtime = Arc::new(tokio::runtime::Runtime::new().unwrap());
     let owner = cx
         .add_window(|window, cx| Latch::new(store, directory, runtime, window.window_handle(), cx));
-    let (commands, _) = mpsc::channel(4);
+    let (commands, command_receiver) = mpsc::channel(4);
     let (reply, response) = oneshot::channel();
     let dialog = cx.add_window(|window, cx| {
         // TestPlatform has no HWND; native owner disable/restore is tested separately.
@@ -112,6 +113,7 @@ fn pending_dialog(cx: &mut TestAppContext, kind: SecretKind, session_kind: Sessi
         entity,
         input,
         reply: response,
+        commands: command_receiver,
     }
 }
 
@@ -182,4 +184,47 @@ fn closing_pending_sftp_tab_releases_dialog_secret_and_reply(cx: &mut TestAppCon
         .update(cx, |app, window, cx| app.close_tab(0, window, cx))
         .unwrap();
     assert_dialog_released(&mut fixture, cx);
+}
+
+#[gpui::test]
+fn misrouted_host_prompt_cancels_without_trust_or_old_credentials(cx: &mut TestAppContext) {
+    let mut fixture = pending_dialog(cx, SecretKind::Password, SessionKind::Terminal);
+    let (reply, mut trust) = oneshot::channel();
+    fixture
+        .dialog
+        .update(cx, |dialog, window, cx| {
+            dialog.set_prompt(
+                Prompt::HostKey {
+                    host: "127.0.0.1".into(),
+                    port: 22,
+                    algorithm: "ssh-ed25519".into(),
+                    fingerprint: "synthetic".into(),
+                    reply,
+                },
+                window,
+                cx,
+            );
+            dialog.submit(window, cx);
+        })
+        .unwrap();
+    assert!(matches!(
+        trust.try_recv(),
+        Err(oneshot::error::TryRecvError::Closed)
+    ));
+    assert!(matches!(
+        fixture.reply.try_recv(),
+        Err(oneshot::error::TryRecvError::Closed)
+    ));
+    assert!(matches!(
+        fixture.commands.try_recv(),
+        Ok(ssh::Command::Disconnect)
+    ));
+    fixture.entity.read_with(cx, |dialog, _| {
+        assert!(dialog.prompt.is_none());
+        assert!(dialog.fields.is_empty());
+        assert!(dialog.modal.is_none());
+    });
+    assert!(fixture.input.upgrade().is_none());
+    assert!(fixture.dialog.root(cx).is_err());
+    assert_eq!(cx.windows().len(), 1);
 }

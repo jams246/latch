@@ -60,7 +60,8 @@ impl AuthDialog {
         });
         dialog.set_prompt(prompt, window, cx);
         match modal {
-            Ok(modal) => dialog.modal = Some(modal),
+            Ok(modal) if dialog.prompt.is_some() => dialog.modal = Some(modal),
+            Ok(_) => (),
             Err(error) => {
                 dialog.prompt = None;
                 dialog.fields.clear();
@@ -80,17 +81,9 @@ impl AuthDialog {
         self.busy = false;
         self.title.clone_from(&self.authentication_title);
         match &prompt {
-            Prompt::HostKey {
-                host,
-                port,
-                algorithm,
-                fingerprint,
-                ..
-            } => {
-                self.title = "Verify server identity".into();
-                self.detail = format!(
-                    "Unknown host {host}:{port}\n{algorithm}\n{fingerprint}\nVerify this fingerprint out of band before trusting."
-                );
+            Prompt::HostKey { .. } => {
+                self.cancel(window);
+                return;
             }
             Prompt::Secret { kind, error, .. } => {
                 let (label, detail) = match kind {
@@ -139,7 +132,7 @@ impl AuthDialog {
         };
         match prompt {
             Prompt::HostKey { reply, .. } => {
-                let _ = reply.send(true);
+                let _ = reply.send(false);
             }
             Prompt::Secret { reply, .. } => {
                 let secret = self

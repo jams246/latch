@@ -3,7 +3,6 @@ use super::*;
 impl Render for AuthDialog {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let palette = crate::ui::theme::CARBON;
-        let host = matches!(self.prompt, Some(Prompt::HostKey { .. }));
         let unlock = matches!(
             self.prompt,
             Some(Prompt::Secret {
@@ -83,8 +82,6 @@ impl Render for AuthDialog {
                                     "submit",
                                     if self.busy {
                                         "Authenticating…"
-                                    } else if host {
-                                        "Trust and Connect"
                                     } else if unlock {
                                         "Unlock"
                                     } else {
