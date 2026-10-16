@@ -58,6 +58,8 @@ impl Filesystem {
                     b"name,value\nSFTP,42\n".to_vec(),
                 ),
                 ("/large.bin".into(), vec![0x5a; 16 * 1024 * 1024]),
+                ("/socket".into(), Vec::new()),
+                ("/block-device".into(), Vec::new()),
             ]),
             directories: HashSet::new(),
             stall_close,
@@ -75,9 +77,14 @@ impl Filesystem {
             self.files
                 .get(&path)
                 .map(|file| {
+                    let permissions = match path.as_str() {
+                        "/socket" => 0o140777,
+                        "/block-device" => 0o060660,
+                        _ => 0o100644,
+                    };
                     attributes(
                         file.len() as u64,
-                        0o100644,
+                        permissions,
                         1_700_000_000 + file.len() as u32,
                     )
                 })

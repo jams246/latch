@@ -121,3 +121,22 @@ async fn resolve_link_rejects_symbolic_link_cycles() {
 
     assert!(browser.resolve_link("/loop-link").await.is_err());
 }
+
+#[tokio::test]
+async fn socket_and_block_device_modes_are_not_directories_or_links() {
+    let (_fixture, _control, browser) = connected().await;
+    let root = browser.list("/").await.unwrap();
+
+    for name in ["socket", "block-device"] {
+        let entry = root
+            .entries
+            .iter()
+            .find(|entry| entry.name == name)
+            .unwrap();
+        assert_eq!(
+            (entry.is_dir, entry.is_link, entry.size),
+            (false, false, Some(0))
+        );
+        assert_eq!(browser.resolve_link(&entry.path).await.unwrap(), None);
+    }
+}
