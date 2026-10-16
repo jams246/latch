@@ -1,4 +1,4 @@
-use super::{Latch, button};
+use super::{Latch, button, dialog_header};
 use gpui::{prelude::*, *};
 use latch::storage::Connection;
 
@@ -83,11 +83,10 @@ impl Latch {
                     .occlude()
                     .w(px(370.))
                     .max_w_full()
-                    .p_4()
-                    .gap_3()
                     .flex()
                     .flex_col()
                     .rounded_lg()
+                    .overflow_hidden()
                     .bg(rgb(0x1c2c3a))
                     .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
                         match event.keystroke.key.as_str() {
@@ -130,44 +129,40 @@ impl Latch {
                         }
                         cx.stop_propagation();
                     }))
-                    .child(div().text_lg().child("Delete connection?"))
-                    .child(format!("Delete \"{}\"?", dialog.connection.name))
-                    .child(format!(
-                        "{}@{}:{}",
-                        dialog.connection.username, dialog.connection.host, dialog.connection.port
-                    ))
+                    .child(dialog_header(format!("Delete {}", dialog.connection.name)))
                     .child(
                         div()
-                            .text_color(rgb(0xffa69b))
-                            .child("This cannot be undone."),
-                    )
-                    .children(
-                        dialog
-                            .error
-                            .iter()
-                            .map(|error| div().text_color(rgb(0xffa69b)).child(error.clone())),
-                    )
-                    .child(
-                        div()
+                            .p_4()
                             .flex()
-                            .gap_2()
-                            .justify_end()
-                            .child(
-                                button("cancel-connection-delete", "Cancel")
-                                    .track_focus(&dialog.cancel)
-                                    .debug_selector(|| "cancel-connection-delete".into())
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        this.close_connection_delete(window, cx)
-                                    })),
+                            .flex_col()
+                            .gap_3()
+                            .children(
+                                dialog.error.iter().map(|error| {
+                                    div().text_color(rgb(0xffa69b)).child(error.clone())
+                                }),
                             )
                             .child(
-                                button("confirm-connection-delete", "Delete")
-                                    .track_focus(&dialog.confirm)
-                                    .debug_selector(|| "confirm-connection-delete".into())
-                                    .text_color(rgb(0xff7777))
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        this.confirm_connection_delete(window, cx)
-                                    })),
+                                div()
+                                    .flex()
+                                    .gap_2()
+                                    .justify_end()
+                                    .child(
+                                        button("cancel-connection-delete", "Cancel")
+                                            .track_focus(&dialog.cancel)
+                                            .debug_selector(|| "cancel-connection-delete".into())
+                                            .on_click(cx.listener(|this, _, window, cx| {
+                                                this.close_connection_delete(window, cx)
+                                            })),
+                                    )
+                                    .child(
+                                        button("confirm-connection-delete", "Delete")
+                                            .track_focus(&dialog.confirm)
+                                            .debug_selector(|| "confirm-connection-delete".into())
+                                            .text_color(rgb(0xff7777))
+                                            .on_click(cx.listener(|this, _, window, cx| {
+                                                this.confirm_connection_delete(window, cx)
+                                            })),
+                                    ),
                             ),
                     ),
             )

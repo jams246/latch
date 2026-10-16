@@ -133,11 +133,10 @@ impl Files {
                     .occlude()
                     .w(px(520.))
                     .max_w_full()
-                    .p_4()
-                    .gap_3()
                     .flex()
                     .flex_col()
                     .rounded_lg()
+                    .overflow_hidden()
                     .bg(rgb(0x1c2c3a))
                     .on_key_down(cx.listener(move |this, event: &KeyDownEvent, window, cx| {
                         match event.keystroke.key.as_str() {
@@ -170,63 +169,70 @@ impl Files {
                         }
                         cx.stop_propagation();
                     }))
-                    .child(div().text_lg().child("Item exists at the destination"))
-                    .child(
-                        div()
-                            .text_sm()
-                            .child(format!("Source: {}", dialog.request.source)),
-                    )
-                    .child(
-                        div()
-                            .text_sm()
-                            .child(format!("Destination: {}", dialog.request.destination)),
-                    )
-                    .child(div().text_sm().text_color(rgb(0xa8c1d3)).child(
-                        "Replace overwrites the destination. Duplicate adds a number to the name.",
-                    ))
-                    .when(dialog.request.can_merge, |view| {
-                        view.child(
-                            div().text_sm().text_color(rgb(0xa8c1d3)).child(
-                                "Merge combines folders and numbers files that already exist.",
-                            ),
-                        )
-                    })
+                    .child(crate::ui::dialog_header("Item exists at the destination"))
                     .child(
                         div()
                             .flex()
-                            .gap_2()
-                            .children(CHOICES.into_iter().enumerate().map(
-                                |(index, (choice, label))| {
-                                    let enabled = dialog.enabled(choice);
-                                    button(("transfer-conflict-choice", index), label)
-                                        .debug_selector(move || {
-                                            format!("transfer-conflict-choice-{index}")
-                                        })
-                                        .track_focus(&dialog.options[index])
-                                        .flex_1()
-                                        .text_center()
-                                        .when(choice == ConflictChoice::Replace, |button| {
-                                            button.text_color(rgb(0xff7777))
-                                        })
-                                        .when(!enabled, |button| button.opacity(0.35).tab_index(-1))
+                            .flex_col()
+                            .gap_3()
+                            .p_4()
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .child(format!("Source: {}", dialog.request.source)),
+                            )
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .child(format!("Destination: {}", dialog.request.destination)),
+                            )
+                            .child(div().text_sm().text_color(rgb(0xa8c1d3)).child(
+                                "Replace overwrites the destination. Duplicate adds a number to the name.",
+                            ))
+                            .when(dialog.request.can_merge, |view| {
+                                view.child(
+                                    div().text_sm().text_color(rgb(0xa8c1d3)).child(
+                                        "Merge combines folders and numbers files that already exist.",
+                                    ),
+                                )
+                            })
+                            .child(
+                                div()
+                                    .flex()
+                                    .gap_2()
+                                    .children(CHOICES.into_iter().enumerate().map(
+                                        |(index, (choice, label))| {
+                                            let enabled = dialog.enabled(choice);
+                                            button(("transfer-conflict-choice", index), label)
+                                                .debug_selector(move || {
+                                                    format!("transfer-conflict-choice-{index}")
+                                                })
+                                                .track_focus(&dialog.options[index])
+                                                .flex_1()
+                                                .text_center()
+                                                .when(choice == ConflictChoice::Replace, |button| {
+                                                    button.text_color(rgb(0xff7777))
+                                                })
+                                                .when(!enabled, |button| button.opacity(0.35).tab_index(-1))
+                                                .on_click(cx.listener(move |this, _, window, cx| {
+                                                    cx.stop_propagation();
+                                                    if enabled {
+                                                        this.choose_conflict(id, choice, window, cx);
+                                                    }
+                                                }))
+                                        },
+                                    )),
+                            )
+                            .child(
+                                div().flex().justify_end().child(
+                                    button("cancel-transfer-conflict", "Cancel transfer")
+                                        .debug_selector(|| "cancel-transfer-conflict".into())
+                                        .track_focus(&dialog.cancel)
                                         .on_click(cx.listener(move |this, _, window, cx| {
-                                            cx.stop_propagation();
-                                            if enabled {
-                                                this.choose_conflict(id, choice, window, cx);
-                                            }
-                                        }))
-                                },
-                            )),
-                    )
-                    .child(
-                        div().flex().justify_end().child(
-                            button("cancel-transfer-conflict", "Cancel transfer")
-                                .debug_selector(|| "cancel-transfer-conflict".into())
-                                .track_focus(&dialog.cancel)
-                                .on_click(cx.listener(move |this, _, window, cx| {
-                                    this.cancel_conflict(id, window, cx);
-                                })),
-                        ),
+                                            this.cancel_conflict(id, window, cx);
+                                        })),
+                                ),
+                            ),
                     ),
             )
             .into_any_element()

@@ -135,6 +135,21 @@ pub fn button(id: impl Into<ElementId>, text: impl Into<SharedString>) -> Statef
         .child(text.into())
 }
 
+pub(super) fn dialog_header(title: impl Into<SharedString>) -> Div {
+    div()
+        .w_full()
+        .flex_shrink_0()
+        .px_4()
+        .py_3()
+        .rounded_t_lg()
+        .bg(rgb(0x263c4d))
+        .border_b_1()
+        .border_color(rgb(0x426079))
+        .text_lg()
+        .font_weight(FontWeight::SEMIBOLD)
+        .child(title.into())
+}
+
 pub fn options(title: &str, width: f32, height: f32, cx: &App) -> WindowOptions {
     WindowOptions {
         window_bounds: Some(WindowBounds::centered(size(px(width), px(height)), cx)),

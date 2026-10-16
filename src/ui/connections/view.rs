@@ -60,87 +60,97 @@ impl Latch {
             }))
             .child(
                 div()
-                    .id("editor-scroll")
                     .flex()
                     .flex_col()
-                    .gap_2()
-                    .p_5()
                     .w(px(510.))
                     .max_h_full()
-                    .overflow_y_scroll()
                     .rounded_lg()
+                    .overflow_hidden()
                     .bg(rgb(0x1c2c3a))
-                    .child(div().text_xl().mb_2().child(if editor.original.is_some() {
+                    .child(crate::ui::dialog_header(if editor.original.is_some() {
                         "Edit connection"
                     } else {
                         "Add connection"
                     }))
-                    .children(
-                        editor
-                            .fields
-                            .iter()
-                            .enumerate()
-                            .filter(|(i, _)| *i < 4 || editor.auth == 1)
-                            .map(|(i, field)| {
-                                div().flex().flex_col().gap_1().child(labels[i]).child(
-                                    div()
-                                        .flex()
-                                        .items_center()
-                                        .gap_2()
-                                        .child(div().flex_1().min_w_0().child(field.clone()))
-                                        .when(i == 4, |row| {
-                                            row.child(
-                                                button("browse-private-key", "Browse").on_click(
-                                                    cx.listener(|this, _, _, cx| {
-                                                        this.browse_key(cx)
-                                                    }),
-                                                ),
-                                            )
-                                        }),
-                                )
-                            }),
-                    )
-                    .child(div().mt_2().child("Authentication"))
-                    .child(
-                        div().flex().flex_wrap().gap_2().children(
-                            ["Password", "Key file", "SSH agent", "Challenge"]
-                                .into_iter()
-                                .enumerate()
-                                .map(|(index, label)| {
-                                    button(("auth-method", index), label)
-                                        .bg(rgb(if editor.auth == index {
-                                            0x276453
-                                        } else {
-                                            0x263c4d
-                                        }))
-                                        .on_click(cx.listener(move |this, _, _, cx| {
-                                            if let Some(editor) = &mut this.editor {
-                                                editor.auth = index;
-                                            }
-                                            cx.notify();
-                                        }))
-                                }),
-                        ),
-                    )
-                    .children(
-                        self.error
-                            .clone()
-                            .map(|error| div().text_color(rgb(0xffa69b)).child(error)),
-                    )
                     .child(
                         div()
+                            .id("editor-scroll")
                             .flex()
+                            .flex_col()
+                            .min_h_0()
                             .gap_2()
-                            .mt_3()
-                            .child(button("save", "Save connection").on_click(
-                                cx.listener(|this, _, window, cx| this.save_connection(window, cx)),
-                            ))
+                            .p_4()
+                            .overflow_y_scroll()
+                            .children(
+                                editor
+                                    .fields
+                                    .iter()
+                                    .enumerate()
+                                    .filter(|(i, _)| *i < 4 || editor.auth == 1)
+                                    .map(|(i, field)| {
+                                        div().flex().flex_col().gap_1().child(labels[i]).child(
+                                            div()
+                                                .flex()
+                                                .items_center()
+                                                .gap_2()
+                                                .child(
+                                                    div().flex_1().min_w_0().child(field.clone()),
+                                                )
+                                                .when(i == 4, |row| {
+                                                    row.child(
+                                                        button("browse-private-key", "Browse")
+                                                            .on_click(cx.listener(
+                                                                |this, _, _, cx| {
+                                                                    this.browse_key(cx)
+                                                                },
+                                                            )),
+                                                    )
+                                                }),
+                                        )
+                                    }),
+                            )
+                            .child(div().mt_2().child("Authentication"))
                             .child(
-                                button("cancel-edit", "Cancel")
-                                    .track_focus(&editor.cancel)
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        this.close_editor(window, cx);
-                                    })),
+                                div().flex().flex_wrap().gap_2().children(
+                                    ["Password", "Key file", "SSH agent", "Challenge"]
+                                        .into_iter()
+                                        .enumerate()
+                                        .map(|(index, label)| {
+                                            button(("auth-method", index), label)
+                                                .bg(rgb(if editor.auth == index {
+                                                    0x276453
+                                                } else {
+                                                    0x263c4d
+                                                }))
+                                                .on_click(cx.listener(move |this, _, _, cx| {
+                                                    if let Some(editor) = &mut this.editor {
+                                                        editor.auth = index;
+                                                    }
+                                                    cx.notify();
+                                                }))
+                                        }),
+                                ),
+                            )
+                            .children(
+                                self.error
+                                    .clone()
+                                    .map(|error| div().text_color(rgb(0xffa69b)).child(error)),
+                            )
+                            .child(
+                                div()
+                                    .flex()
+                                    .gap_2()
+                                    .mt_3()
+                                    .child(button("save", "Save connection").on_click(cx.listener(
+                                        |this, _, window, cx| this.save_connection(window, cx),
+                                    )))
+                                    .child(
+                                        button("cancel-edit", "Cancel")
+                                            .track_focus(&editor.cancel)
+                                            .on_click(cx.listener(|this, _, window, cx| {
+                                                this.close_editor(window, cx);
+                                            })),
+                                    ),
                             ),
                     ),
             )

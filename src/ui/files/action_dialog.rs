@@ -28,8 +28,8 @@ impl Files {
             .child(div().id("file-action-dialog")
                 .debug_selector(|| "file-action-dialog".into())
                 .track_focus(&dialog.focus).tab_group().occlude()
-                .w(px(370.)).max_w_full().p_4().gap_3().flex().flex_col()
-                .rounded_lg().bg(rgb(0x1c2c3a))
+                .w(px(370.)).max_w_full().flex().flex_col()
+                .rounded_lg().overflow_hidden().bg(rgb(0x1c2c3a))
                 .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
                     match event.keystroke.key.as_str() {
                         "escape" => this.close_action_ui(window, cx),
@@ -56,7 +56,8 @@ impl Files {
                     }
                     cx.stop_propagation();
                 }))
-                .child(div().text_lg().child(title))
+                .child(crate::ui::dialog_header(title))
+                .child(div().flex().flex_col().gap_3().p_4()
                 .when(dialog.kind == ActionKind::Delete, |view| view
                     .child(format!("{}: delete {subject}, including folder contents?", if dialog.side == super::pane::Side::Local { "Local computer" } else { "Connected server" }))
                     .child(div().text_color(rgb(0xffa69b)).child("This cannot be undone. Links are removed without deleting their targets.")))
@@ -71,7 +72,7 @@ impl Files {
                         .track_focus(&dialog.confirm)
                         .debug_selector(|| "confirm-file-action".into())
                         .when(dialog.kind == ActionKind::Delete, |button| button.text_color(rgb(0xff7777)))
-                        .on_click(cx.listener(|this, _, window, cx| this.submit_action(window, cx))))))
+                        .on_click(cx.listener(|this, _, window, cx| this.submit_action(window, cx)))))))
             .into_any_element()
     }
 }
