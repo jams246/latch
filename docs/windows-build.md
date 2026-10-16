@@ -1,15 +1,29 @@
 # Windows production build
 
-Run `make build:production` from the repository root.
+Install these tools on 64-bit Windows:
 
-Install the Rust MSVC toolchain, Visual Studio Build Tools with **Desktop development with C++**, and a Windows SDK. SQLCipher's vendored OpenSSL build requires native Windows Perl; Git's MSYS Perl is unsuitable.
+- Rust with the `x86_64-pc-windows-msvc` toolchain.
+- Visual Studio Build Tools with **Desktop development with C++**, x64 build tools, and a Windows SDK that includes `fxc.exe`.
+- GNU Make, available as `make` in your terminal.
 
-The Windows target uses Windows PowerShell's own module path, initializes installed Visual Studio tools, and discovers native Perl from `OPENSSL_SRC_PERL`, `PERL`, `PATH`, `C:\Strawberry\perl\bin\perl.exe`, or its per-user cache. This avoids incompatible module paths inherited from PowerShell 7 through Make. It verifies that Perl runs natively and includes the required core modules.
+Installing these tools may need administrator access. Building Latch and downloading Perl do not.
 
-If native Perl is missing, the first build downloads the official [Strawberry Perl 5.42.3.1 portable release](https://github.com/StrawberryPerl/Perl-Dist-Strawberry/releases/tag/SP_54231_64bit) (291 MiB), verifies its pinned SHA256 from [Strawberry's release metadata](https://strawberryperl.com/releases.json), and caches only `perl` and license files under `%LOCALAPPDATA%\Latch\BuildTools\StrawberryPerl-5.42.3.1`. The bundled compiler is excluded. Partial downloads are discarded; later builds reuse the verified runtime without downloading it again.
+From the project folder, run:
 
-For offline builds, install [Strawberry Perl](https://strawberryperl.com/) first or set `OPENSSL_SRC_PERL` to the full path of a complete portable installation's `perl.exe`. The build needs no administrator access and changes only its child process environment. The Make target uses a process-scoped `RemoteSigned` execution policy for the local build script; it does not change the system policy or global `PATH`.
+```powershell
+make build:production
+```
 
-OpenSSL and SQLCipher remain statically bundled. The application does not require Perl or separate OpenSSL/SQLCipher DLLs at runtime. Latch supports Windows only.
+Make finds the SDK's `fxc.exe` automatically. If needed, set `GPUI_FXC_PATH` to its full path before running Make.
 
-Windows MSVC release builds with debug information disabled omit the final PDB debugging-symbol file. This prevents repeated `LNK4099` warnings for OpenSSL's separate compiler PDB. Detailed production crash symbolization is unavailable in this mode. Development builds and release builds with debug information explicitly enabled retain normal symbol generation.
+The build sets up the Visual Studio tools and uses Windows PowerShell. It does not change your system settings or global `PATH`.
+
+OpenSSL needs native Windows Perl to build. Git's MSYS Perl will not work. The build checks `OPENSSL_SRC_PERL`, `PERL`, `PATH`, `C:\Strawberry\perl\bin\perl.exe`, then its saved Perl copy.
+
+If no suitable Perl is found, the build downloads [Strawberry Perl 5.42.3.1](https://github.com/StrawberryPerl/Perl-Dist-Strawberry/releases/tag/SP_54231_64bit) (291 MiB), checks its SHA256, and saves the Perl runtime and licenses under `%LOCALAPPDATA%\Latch\BuildTools\StrawberryPerl-5.42.3.1`. Later builds reuse it.
+
+For offline builds, install [Strawberry Perl](https://strawberryperl.com/) first or set `OPENSSL_SRC_PERL` to a complete installation's `perl.exe`. Cargo dependencies must also be downloaded in advance; run `cargo fetch --locked` while online.
+
+The built app is `target\release\latch.exe`. OpenSSL and SQLCipher are included; running Latch needs no Perl or separate OpenSSL/SQLCipher DLLs. Latch supports Windows only.
+
+Release builds omit the PDB debug-symbol file unless debug information is enabled. This avoids OpenSSL's `LNK4099` warnings but limits crash diagnosis. Development builds keep debug symbols.
