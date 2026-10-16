@@ -57,6 +57,7 @@ impl Latch {
                         }
                         if state == ssh::State::Connected
                             && !tab.closing
+                            && self.settings.is_none()
                             && active_id.as_ref() == Some(&tab.id)
                         {
                             let focus = tab.visible_focus(cx);

@@ -34,6 +34,7 @@ fn main() {
         }
     };
     Application::new().run(move |cx: &mut App| {
+        cx.set_global(store.terminal_theme());
         let window_size = store.window_size();
         let mut options = ui::options(
             "Lightweight Access Terminal & Connection Handler",

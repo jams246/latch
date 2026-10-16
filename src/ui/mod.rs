@@ -13,6 +13,8 @@ mod modal;
 mod picker;
 mod session_events;
 mod sessions;
+mod settings;
+mod sidebar;
 mod tabs;
 mod theme;
 mod transport;
@@ -40,6 +42,7 @@ pub struct Latch {
     error: Option<String>,
     editor: Option<connections::Editor>,
     connection_delete: Option<connection_delete::DeleteDialog>,
+    settings: Option<settings::Settings>,
     owner: AnyWindowHandle,
     cleanup_sender: std::sync::mpsc::Sender<lifecycle::Completion>,
     cleanup_events: std::sync::mpsc::Receiver<lifecycle::Completion>,
@@ -111,6 +114,7 @@ impl Latch {
             error: None,
             editor: None,
             connection_delete: None,
+            settings: None,
             owner,
             cleanup_sender,
             cleanup_events,

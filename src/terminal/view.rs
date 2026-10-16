@@ -1,12 +1,15 @@
 use std::{sync::Arc, time::Duration};
 
-use alacritty_terminal::term::TermMode;
+use alacritty_terminal::{
+    term::TermMode,
+    vte::ansi::{Color, NamedColor},
+};
 use gpui::{
     App, Bounds, ClipboardItem, Context, CursorStyle, FocusHandle, Focusable, KeyDownEvent,
     MouseButton, Pixels, Point, Render, Timer, Window, canvas, div, prelude::*, px, rgb,
 };
 
-use super::{TerminalState, input, paint};
+use super::{TerminalPalette, TerminalState, colors, input, paint};
 
 /// User input and size changes to forward to the tab's SSH session.
 pub enum TerminalInput {
@@ -122,6 +125,7 @@ impl Focusable for TerminalView {
 
 impl Render for TerminalView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let palette = TerminalPalette::current(cx).colors();
         let entity = cx.entity();
         let paint_entity = entity.clone();
         div()
@@ -132,7 +136,11 @@ impl Render for TerminalView {
             .track_focus(&self.focus)
             .key_context("Terminal")
             .cursor(CursorStyle::IBeam)
-            .bg(rgb(0x151820))
+            .bg(rgb(colors::resolve(
+                Color::Named(NamedColor::Background),
+                &self.state.colors(),
+                palette,
+            )))
             .on_key_down(cx.listener(Self::key_down))
             .on_mouse_down(
                 MouseButton::Left,

@@ -118,6 +118,10 @@ impl TerminalState {
         lock(&self.0).revision
     }
 
+    pub(super) fn colors(&self) -> Colors {
+        *lock(&self.0).term.colors()
+    }
+
     pub(super) fn mode(&self) -> TermMode {
         *lock(&self.0).term.mode()
     }

@@ -90,7 +90,9 @@ impl Latch {
         let (transport, transfer) = tab.detach(cx);
         self.schedule_cleanup(tab.id.clone(), transport, transfer);
         self.active = tabs::active_after_close(self.active, index, self.tabs.len());
-        if let Some(tab) = self.active.and_then(|active| self.tabs.get(active)) {
+        if self.settings.is_none()
+            && let Some(tab) = self.active.and_then(|active| self.tabs.get(active))
+        {
             window.focus(&tab.visible_focus(cx));
         }
         cx.notify();

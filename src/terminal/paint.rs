@@ -1,9 +1,12 @@
-use alacritty_terminal::{term::cell::Flags, vte::ansi::CursorShape};
+use alacritty_terminal::{
+    term::cell::Flags,
+    vte::ansi::{Color, CursorShape, NamedColor},
+};
 use gpui::{
     App, Bounds, FontWeight, Pixels, TextRun, Window, fill, font, point, px, rgb, rgba, size,
 };
 
-use super::{colors, state::Snapshot};
+use super::{TerminalPalette, colors, state::Snapshot};
 
 pub(super) const LINE_HEIGHT: Pixels = px(20.);
 const FONT_SIZE: Pixels = px(14.);
@@ -31,6 +34,7 @@ pub(super) fn paint(
     window: &mut Window,
     cx: &mut App,
 ) {
+    let palette = TerminalPalette::current(cx).colors();
     let mut row_text = String::new();
     let mut runs = Vec::new();
     let mut row = 0;
@@ -42,8 +46,8 @@ pub(super) fn paint(
         }
         let cell = &visible.cell;
         let flags = cell.flags;
-        let mut fg = colors::resolve(cell.fg, &snapshot.colors);
-        let mut bg = colors::resolve(cell.bg, &snapshot.colors);
+        let mut fg = colors::resolve(cell.fg, &snapshot.colors, palette);
+        let mut bg = colors::resolve(cell.bg, &snapshot.colors, palette);
         if flags.contains(Flags::INVERSE) {
             std::mem::swap(&mut fg, &mut bg);
         }
@@ -51,7 +55,7 @@ pub(super) fn paint(
             fg = (fg & 0xfefefe) >> 1;
         }
         if visible.selected {
-            bg = 0x365578;
+            bg = palette.selection;
         }
         let position = point(
             bounds.left() + width * visible.column as f32,
@@ -68,7 +72,9 @@ pub(super) fn paint(
                 ),
                 _ => cell_bounds,
             };
-            window.paint_quad(fill(cursor_bounds, rgba(0xd7dce570)));
+            let cursor =
+                colors::resolve(Color::Named(NamedColor::Cursor), &snapshot.colors, palette);
+            window.paint_quad(fill(cursor_bounds, rgba((cursor << 8) | 0x70)));
         }
         if flags.intersects(Flags::WIDE_CHAR_SPACER | Flags::LEADING_WIDE_CHAR_SPACER) {
             continue;
@@ -116,8 +122,13 @@ pub(super) fn paint(
         let run = TextRun {
             len: composition.len(),
             font: font("Cascadia Mono"),
-            color: rgb(0xffffff).into(),
-            background_color: Some(rgb(0x365578).into()),
+            color: rgb(colors::resolve(
+                Color::Named(NamedColor::Foreground),
+                &snapshot.colors,
+                palette,
+            ))
+            .into(),
+            background_color: Some(rgb(palette.selection).into()),
             underline: None,
             strikethrough: None,
         };

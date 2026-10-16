@@ -3,6 +3,7 @@
 mod model;
 mod persistence;
 mod portable;
+mod preferences;
 mod window;
 
 #[cfg(test)]
@@ -17,6 +18,7 @@ use std::{cmp::Ordering, collections::HashSet, io, path::PathBuf};
 use serde::{Deserialize, Serialize};
 
 pub use model::{AuthMethod, Connection, SortMode};
+pub use preferences::TerminalTheme;
 pub use window::WindowSize;
 
 #[derive(Clone, Default, Deserialize, Serialize)]
@@ -24,6 +26,8 @@ pub use window::WindowSize;
 struct Configuration {
     connections: Vec<Connection>,
     sort_mode: SortMode,
+    #[serde(default)]
+    terminal_theme: TerminalTheme,
     #[serde(skip_serializing_if = "Option::is_none")]
     window_size: Option<WindowSize>,
 }
