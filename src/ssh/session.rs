@@ -1,12 +1,12 @@
 use std::{sync::Arc, time::Duration};
 
-use russh::{Channel, ChannelMsg, client};
+mod setup;
+
+use russh::ChannelMsg;
 use tokio::sync::mpsc;
 
-use super::{
-    Command, ConnectionConfig, Error, Event, Prompt, SftpStream, State, host::Client,
-    socket::SocketGuard,
-};
+use super::{Command, ConnectionConfig, Error, Event, Prompt, State};
+use setup::{Established, establish, open_sftp};
 
 /// Owns one tab's transport task; dropping it aborts pending work and closes its socket.
 pub struct SessionControl {
@@ -28,8 +28,33 @@ pub fn spawn(
     prompts: mpsc::Sender<Prompt>,
     events: mpsc::Sender<Event>,
 ) -> SessionControl {
+    spawn_mode(config, prompts, events, true)
+}
+
+/// Starts an authenticated transport without requesting a PTY or shell.
+/// After [`State::Connected`], open SFTP with [`Command::OpenSftp`].
+pub fn spawn_sftp(
+    config: ConnectionConfig,
+    prompts: mpsc::Sender<Prompt>,
+    events: mpsc::Sender<Event>,
+) -> SessionControl {
+    spawn_mode(config, prompts, events, false)
+}
+
+fn spawn_mode(
+    config: ConnectionConfig,
+    prompts: mpsc::Sender<Prompt>,
+    events: mpsc::Sender<Event>,
+    request_shell: bool,
+) -> SessionControl {
     let (commands, receiver) = mpsc::channel(128);
-    let task = tokio::spawn(run(config, receiver, prompts, events));
+    let task = tokio::spawn(run_session(
+        config,
+        receiver,
+        prompts,
+        events,
+        request_shell,
+    ));
     SessionControl { commands, task }
 }
 
@@ -37,11 +62,21 @@ pub fn spawn(
 /// Closing the command channel cancels the attempt; callers must abort the task on drop.
 pub async fn run(
     config: ConnectionConfig,
-    mut commands: mpsc::Receiver<Command>,
+    commands: mpsc::Receiver<Command>,
     prompts: mpsc::Sender<Prompt>,
     events: mpsc::Sender<Event>,
 ) {
-    let result = serve(&config, &mut commands, &prompts, &events).await;
+    run_session(config, commands, prompts, events, true).await;
+}
+
+async fn run_session(
+    config: ConnectionConfig,
+    mut commands: mpsc::Receiver<Command>,
+    prompts: mpsc::Sender<Prompt>,
+    events: mpsc::Sender<Event>,
+    request_shell: bool,
+) {
+    let result = serve(&config, &mut commands, &prompts, &events, request_shell).await;
     match result {
         Ok(()) | Err(Error::Cancelled) => {
             let _ = events.send(Event::Status(State::Disconnected)).await;
@@ -58,6 +93,7 @@ async fn serve(
     commands: &mut mpsc::Receiver<Command>,
     prompts: &mpsc::Sender<Prompt>,
     events: &mpsc::Sender<Event>,
+    request_shell: bool,
 ) -> Result<(), Error> {
     if config.host.is_empty()
         || config
@@ -67,8 +103,7 @@ async fn serve(
         || config.port == 0
         || config.username.is_empty()
         || config.username.contains('\0')
-        || config.cols == 0
-        || config.rows == 0
+        || (request_shell && (config.cols == 0 || config.rows == 0))
     {
         return Err(Error::InvalidConfig);
     }
@@ -76,10 +111,19 @@ async fn serve(
         .send(Event::Status(State::Connecting))
         .await
         .map_err(|_| Error::Cancelled)?;
-    let setup = tokio::time::timeout(Duration::from_secs(180), establish(config, prompts, events));
+    let setup = tokio::time::timeout(
+        Duration::from_secs(180),
+        establish(config, prompts, events, request_shell),
+    );
     tokio::pin!(setup);
     let mut size = (config.cols, config.rows);
-    let (handle, mut shell, initial, _socket_guard) = loop {
+    let Established {
+        handle,
+        mut shell,
+        initial,
+        _socket_guard,
+        mut disconnected,
+    } = loop {
         tokio::select! {
             result = &mut setup => break result.map_err(|_| Error::Timeout)??,
             command = commands.recv() => match command {
@@ -90,7 +134,9 @@ async fn serve(
             }
         }
     };
-    if size != (config.cols, config.rows) {
+    if size != (config.cols, config.rows)
+        && let Some(shell) = &shell
+    {
         shell.window_change(size.0, size.1, 0, 0).await?;
     }
     events
@@ -108,9 +154,11 @@ async fn serve(
     loop {
         tokio::select! {
             command = commands.recv() => match command {
-                Some(Command::Input(data)) => shell.data(data.as_slice()).await?,
+                Some(Command::Input(data)) => {
+                    if let Some(shell) = &shell { shell.data(data.as_slice()).await?; }
+                }
                 Some(Command::Resize { cols, rows }) if cols > 0 && rows > 0 => {
-                    shell.window_change(cols, rows, 0, 0).await?;
+                    if let Some(shell) = &shell { shell.window_change(cols, rows, 0, 0).await?; }
                 }
                 Some(Command::OpenSftp(reply)) => {
                     let handle = handle.clone();
@@ -124,7 +172,8 @@ async fn serve(
                 _ => (),
             },
             _ = channel_requests.join_next(), if !channel_requests.is_empty() => (),
-            message = shell.wait() => match message {
+            _ = disconnected.changed(), if shell.is_none() => return Err(Error::Transport),
+            message = async { shell.as_mut()?.wait().await }, if shell.is_some() => match message {
                 Some(ChannelMsg::Data { data }) | Some(ChannelMsg::ExtendedData { data, .. }) => {
                     events.send(Event::Output(data.to_vec())).await.map_err(|_| Error::Cancelled)?;
                 }
@@ -136,80 +185,14 @@ async fn serve(
             }
         }
     }
-    let _ = shell.close().await;
-    handle
-        .disconnect(russh::Disconnect::ByApplication, "Session closed", "en")
-        .await?;
+    if let Some(shell) = shell {
+        let _ = shell.close().await;
+    }
+    tokio::time::timeout(
+        Duration::from_secs(5),
+        handle.disconnect(russh::Disconnect::ByApplication, "Session closed", "en"),
+    )
+    .await
+    .map_err(|_| Error::Timeout)??;
     Ok(())
-}
-
-async fn establish(
-    config: &ConnectionConfig,
-    prompts: &mpsc::Sender<Prompt>,
-    events: &mpsc::Sender<Event>,
-) -> Result<
-    (
-        client::Handle<Client>,
-        Channel<client::Msg>,
-        Vec<u8>,
-        SocketGuard,
-    ),
-    Error,
-> {
-    let (cancel, cancelled) = tokio::sync::watch::channel(false);
-    let (closed, mut disconnected) = tokio::sync::watch::channel(false);
-    let _cancel_on_drop = super::host::CancelOnDrop(cancel);
-    let client = Client {
-        host: config.host.clone(),
-        port: config.port,
-        path: config.known_hosts.clone(),
-        prompts: prompts.clone(),
-        cancel: cancelled,
-        closed: closed.clone(),
-        disconnected: disconnected.clone(),
-    };
-    let settings = client::Config {
-        keepalive_interval: Some(Duration::from_secs(30)),
-        keepalive_max: 3,
-        ..Default::default()
-    };
-    let (socket, guard) = super::socket::connect(&config.host, config.port, closed).await?;
-    let mut handle = client::connect_stream(Arc::new(settings), socket, client).await?;
-    events
-        .send(Event::Status(State::Authenticating))
-        .await
-        .map_err(|_| Error::Cancelled)?;
-    tokio::select! {
-        result = super::auth::authenticate(&mut handle, config, prompts) => result?,
-        _ = disconnected.changed() => return Err(Error::Transport),
-    }
-    let mut shell = handle.channel_open_session().await?;
-    shell
-        .request_pty(true, "xterm-256color", config.cols, config.rows, 0, 0, &[])
-        .await?;
-    let mut initial = await_success(&mut shell).await?;
-    shell.request_shell(true).await?;
-    initial.extend(await_success(&mut shell).await?);
-    Ok((handle, shell, initial, guard))
-}
-
-async fn await_success(channel: &mut Channel<client::Msg>) -> Result<Vec<u8>, Error> {
-    let mut initial = Vec::new();
-    loop {
-        match channel.wait().await {
-            Some(ChannelMsg::Success) => return Ok(initial),
-            Some(ChannelMsg::Data { data }) => initial.extend_from_slice(&data),
-            Some(ChannelMsg::Failure | ChannelMsg::Close | ChannelMsg::Eof) | None => {
-                return Err(Error::ChannelRejected);
-            }
-            _ => (),
-        }
-    }
-}
-
-async fn open_sftp(handle: &client::Handle<Client>) -> Result<SftpStream, Error> {
-    let mut channel = handle.channel_open_session().await?;
-    channel.request_subsystem(true, "sftp").await?;
-    await_success(&mut channel).await?;
-    Ok(channel.into_stream())
 }

@@ -83,7 +83,7 @@ pub enum TransferEvent {
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// The parent SSH tab no longer provides an authenticated channel.
-    #[error("SFTP channel unavailable. Connect the terminal and try again.")]
+    #[error("SFTP channel unavailable. Reconnect and try again.")]
     NotConnected,
     /// Opening the SFTP channel took too long.
     #[error("SFTP timed out. Check the connection and try again.")]

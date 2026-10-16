@@ -13,7 +13,7 @@ use tokio::sync::{mpsc, oneshot};
 use zeroize::Zeroizing;
 
 pub use error::Error;
-pub use session::{SessionControl, run, spawn};
+pub use session::{SessionControl, run, spawn, spawn_sftp};
 
 /// A short-lived authentication response that clears its owned string on drop.
 pub type Secret = Zeroizing<String>;
@@ -33,7 +33,7 @@ pub enum AuthMethod {
     KeyboardInteractive,
 }
 
-/// Non-secret settings for one independently owned terminal connection attempt.
+/// Non-secret settings for one independently owned SSH connection attempt.
 #[derive(Clone, Debug)]
 pub struct ConnectionConfig {
     /// Connection label associated with authentication UI.
@@ -49,21 +49,23 @@ pub struct ConnectionConfig {
     /// Dedicated OpenSSH-compatible file containing trusted public host keys.
     pub known_hosts: PathBuf,
     /// Initial terminal column count; later resize commands replace this value.
+    /// Ignored by [`spawn_sftp`].
     pub cols: u32,
     /// Initial terminal row count; later resize commands replace this value.
+    /// Ignored by [`spawn_sftp`].
     pub rows: u32,
 }
 
 /// Connection lifecycle reported to the UI without authentication secrets.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum State {
-    /// No remote terminal session is active.
+    /// No remote SSH session is active.
     Disconnected,
     /// Establishing the transport and verifying the host identity.
     Connecting,
     /// The verified host is awaiting authentication.
     Authenticating,
-    /// Authentication, remote PTY allocation, and shell startup succeeded.
+    /// Authentication and any requested PTY and shell startup succeeded.
     Connected,
     /// The attempt terminated with a sanitized error.
     Failed,
@@ -185,5 +187,7 @@ mod tests_auth;
 mod tests_key_formats;
 #[cfg(test)]
 mod tests_lifecycle;
+#[cfg(test)]
+mod tests_sftp;
 #[cfg(test)]
 mod tests_timeouts;

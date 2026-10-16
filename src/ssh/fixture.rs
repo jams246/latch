@@ -20,6 +20,8 @@ pub(crate) struct Counts {
     pub challenge_responses: AtomicUsize,
     pub active: AtomicUsize,
     pub ptys: AtomicUsize,
+    pub shells: AtomicUsize,
+    pub subsystems: AtomicUsize,
     pub resizes: AtomicUsize,
     pub agent_forwarding: AtomicUsize,
 }
@@ -48,6 +50,18 @@ impl Fixture {
     }
 
     pub async fn start_with(reject_shell: bool, subsystem: Option<Subsystem>) -> Self {
+        Self::start_options(reject_shell, false, subsystem).await
+    }
+
+    pub async fn start_sftp(subsystem: Subsystem) -> Self {
+        Self::start_options(true, true, Some(subsystem)).await
+    }
+
+    async fn start_options(
+        reject_shell: bool,
+        reject_pty: bool,
+        subsystem: Option<Subsystem>,
+    ) -> Self {
         use server::Server as _;
         let socket = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
         let port = socket.local_addr().unwrap().port();
@@ -61,6 +75,7 @@ impl Fixture {
         let mut server = Factory {
             counts: counts.clone(),
             reject_shell,
+            reject_pty,
             subsystem,
         };
         let (ready, receiver) = tokio::sync::oneshot::channel();
@@ -89,6 +104,7 @@ impl Drop for Fixture {
 struct Factory {
     counts: Arc<Counts>,
     reject_shell: bool,
+    reject_pty: bool,
     subsystem: Option<Subsystem>,
 }
 
@@ -99,6 +115,7 @@ impl server::Server for Factory {
         Handler {
             counts: self.counts.clone(),
             reject_shell: self.reject_shell,
+            reject_pty: self.reject_pty,
             channels: HashMap::new(),
             subsystem: self.subsystem,
         }

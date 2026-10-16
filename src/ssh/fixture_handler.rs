@@ -9,6 +9,7 @@ use std::{
 pub(super) struct Handler {
     pub(super) counts: Arc<Counts>,
     pub(super) reject_shell: bool,
+    pub(super) reject_pty: bool,
     pub(super) channels: HashMap<ChannelId, Channel<server::Msg>>,
     pub(super) subsystem: Option<Subsystem>,
 }
@@ -112,6 +113,7 @@ impl server::Handler for Handler {
         name: &str,
         session: &mut server::Session,
     ) -> Result<(), Self::Error> {
+        self.counts.subsystems.fetch_add(1, Ordering::SeqCst);
         if name == "sftp"
             && let Some(subsystem) = self.subsystem
             && let Some(channel_stream) = self.channels.remove(&channel)
@@ -138,7 +140,11 @@ impl server::Handler for Handler {
         if cols > 0 && rows > 0 {
             self.counts.ptys.fetch_add(1, Ordering::SeqCst);
         }
-        session.channel_success(channel)?;
+        if self.reject_pty {
+            session.channel_failure(channel)?;
+        } else {
+            session.channel_success(channel)?;
+        }
         Ok(())
     }
 
@@ -147,6 +153,7 @@ impl server::Handler for Handler {
         channel: ChannelId,
         session: &mut server::Session,
     ) -> Result<(), Self::Error> {
+        self.counts.shells.fetch_add(1, Ordering::SeqCst);
         if self.reject_shell {
             session.channel_failure(channel)?;
         } else {

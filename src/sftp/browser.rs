@@ -6,7 +6,7 @@ use tokio::sync::{mpsc, oneshot};
 use super::{Direction, Directory, Entry, Error, Transfer, TransferEvent};
 use crate::ssh::Command;
 
-/// A reusable SFTP channel sharing an already authenticated terminal transport.
+/// A reusable SFTP channel sharing an already authenticated SSH transport.
 #[derive(Clone)]
 pub struct Browser {
     pub(super) session: Arc<SftpSession>,
