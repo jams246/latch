@@ -170,9 +170,36 @@ fn duplicate_ids_and_invalid_connection_fields_are_rejected() {
 }
 
 #[test]
-fn omitted_port_defaults_to_22() {
-    let mut value = serde_json::to_value(sample()).unwrap();
-    value.as_object_mut().unwrap().remove("port");
-    let connection: Connection = serde_json::from_value(value).unwrap();
-    assert_eq!(connection.port, 22);
+fn imported_connections_require_port_and_usage_count() {
+    for field in ["port", "successful_shells"] {
+        let mut value: serde_json::Value =
+            serde_json::from_slice(&empty_snapshot().export_json().unwrap()).unwrap();
+        value["configuration"]["connections"] = serde_json::json!([sample()]);
+        value["configuration"]["connections"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove(field);
+        assert_eq!(
+            Store::parse_import(&serde_json::to_vec(&value).unwrap())
+                .err()
+                .unwrap()
+                .kind(),
+            io::ErrorKind::InvalidData,
+            "missing {field}"
+        );
+    }
+}
+
+#[test]
+fn imported_window_size_requires_maximized_state() {
+    let mut value: serde_json::Value =
+        serde_json::from_slice(&empty_snapshot().export_json().unwrap()).unwrap();
+    value["configuration"]["window_size"] = serde_json::json!({"width": 1120., "height": 720.});
+    assert_eq!(
+        Store::parse_import(&serde_json::to_vec(&value).unwrap())
+            .err()
+            .unwrap()
+            .kind(),
+        io::ErrorKind::InvalidData
+    );
 }

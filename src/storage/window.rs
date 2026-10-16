@@ -13,7 +13,6 @@ pub struct WindowSize {
     /// Height of the window before maximizing.
     pub height: f32,
     /// Whether the window should reopen maximized.
-    #[serde(default)]
     pub maximized: bool,
 }
 

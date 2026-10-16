@@ -43,15 +43,13 @@ pub struct Connection {
     pub name: String,
     /// Hostname or IP address, without a port or URL scheme.
     pub host: String,
-    /// SSH port, defaulting to 22 when omitted from configuration.
-    #[serde(default = "default_port")]
+    /// SSH port.
     pub port: u16,
     /// SSH account name.
     pub username: String,
     /// Preferred authentication method, containing no secrets.
     pub auth: AuthMethod,
     /// Number of successfully started, user-initiated terminal shells.
-    #[serde(default)]
     pub successful_shells: u64,
 }
 
@@ -62,7 +60,7 @@ impl Connection {
             id: Uuid::new_v4().to_string(),
             name,
             host,
-            port: default_port(),
+            port: 22,
             username,
             auth,
             successful_shells: 0,
@@ -94,8 +92,4 @@ impl Connection {
         }
         Ok(())
     }
-}
-
-const fn default_port() -> u16 {
-    22
 }

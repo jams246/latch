@@ -25,7 +25,7 @@ pub enum TerminalTheme {
 }
 
 impl Store {
-    /// Returns the saved terminal theme, or Classic for older settings.
+    /// Returns the saved terminal theme.
     pub fn terminal_theme(&self) -> TerminalTheme {
         self.configuration.terminal_theme
     }
