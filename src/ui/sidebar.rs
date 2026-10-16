@@ -2,8 +2,19 @@ use super::{Latch, button, picker::filter_connections};
 use gpui::{prelude::*, *};
 use latch::storage::SortMode;
 
+#[cfg(test)]
+mod tests;
+
 impl Latch {
     pub(super) fn connections_sidebar(&self, cx: &mut Context<Self>) -> Div {
+        if self.sidebar_collapsed {
+            return div()
+                .flex()
+                .flex_col()
+                .size_full()
+                .child(div().flex_1())
+                .child(self.sidebar_toggle(cx));
+        }
         let colors = super::theme::CARBON;
         let sort = self.store.sort_mode();
         let search = self.connection_search.read(cx).value.to_string();
@@ -34,6 +45,7 @@ impl Latch {
         }
         rows.extend(connections.iter().map(|c| self.row(c, "all", cx)));
         div()
+            .debug_selector(|| "connections-sidebar".into())
             .flex()
             .flex_col()
             .size_full()
@@ -116,10 +128,86 @@ impl Latch {
                     .child("No matching connections")
             }))
             .child(
-                button("settings-open", "Settings")
-                    .debug_selector(|| "settings-open".into())
+                div()
+                    .flex()
+                    .gap_2()
                     .flex_shrink_0()
-                    .on_click(cx.listener(|this, _, window, cx| this.open_settings(window, cx))),
+                    .child(
+                        button("settings-open", "Settings")
+                            .debug_selector(|| "settings-open".into())
+                            .flex_1()
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.open_settings(window, cx);
+                            })),
+                    )
+                    .child(self.sidebar_toggle(cx)),
             )
+    }
+
+    fn sidebar_toggle(&self, cx: &mut Context<Self>) -> Stateful<Div> {
+        let colors = super::theme::CARBON;
+        let label = if self.sidebar_collapsed {
+            "Expand sidebar"
+        } else {
+            "Collapse sidebar"
+        };
+        button("sidebar-toggle", "")
+            .debug_selector(|| "sidebar-toggle".into())
+            .track_focus(&self.sidebar_toggle_focus)
+            .size(px(32.))
+            .flex_shrink_0()
+            .p_0()
+            .flex()
+            .items_center()
+            .justify_center()
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .w(px(18.))
+                    .h(px(16.))
+                    .rounded(px(2.))
+                    .border_1()
+                    .border_color(rgb(colors.text))
+                    .child(
+                        div()
+                            .w(px(5.))
+                            .h_full()
+                            .border_r_1()
+                            .border_color(rgb(colors.text)),
+                    )
+                    .child(
+                        div()
+                            .flex_1()
+                            .text_center()
+                            .line_height(px(12.))
+                            .child(if self.sidebar_collapsed { "›" } else { "‹" }),
+                    ),
+            )
+            .tooltip(move |_, cx| cx.new(|_| SidebarTooltip(label)).into())
+            .on_click(cx.listener(|this, _, window, cx| {
+                this.sidebar_collapsed = !this.sidebar_collapsed;
+                this.tab_reveal_key = None;
+                window.focus(&this.sidebar_toggle_focus);
+                cx.notify();
+            }))
+    }
+}
+
+struct SidebarTooltip(&'static str);
+
+impl Render for SidebarTooltip {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        let colors = super::theme::CARBON;
+        div()
+            .px_2()
+            .py_1()
+            .rounded_md()
+            .bg(rgb(colors.control))
+            .border_1()
+            .border_color(rgb(colors.border))
+            .text_color(rgb(colors.text))
+            .text_sm()
+            .child(self.0)
     }
 }

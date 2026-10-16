@@ -54,7 +54,13 @@ impl Latch {
             .active
             .and_then(|index| self.tabs.get(index))
             .map(|tab| tab.visible_focus(cx))
-            .unwrap_or_else(|| self.connection_search.read(cx).focus.clone());
+            .unwrap_or_else(|| {
+                if self.sidebar_collapsed {
+                    self.sidebar_toggle_focus.clone()
+                } else {
+                    self.connection_search.read(cx).focus.clone()
+                }
+            });
         window.focus(&focus);
         cx.notify();
     }

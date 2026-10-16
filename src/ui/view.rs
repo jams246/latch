@@ -4,6 +4,7 @@ use gpui::{prelude::*, *};
 impl Render for Latch {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = super::theme::CARBON;
+        let collapsed = self.sidebar_collapsed && self.settings.is_none();
         let (sidebar, body) = if self.settings.is_some() {
             (self.settings_sidebar(cx), self.settings_page(cx))
         } else {
@@ -38,9 +39,11 @@ impl Render for Latch {
             .font_family("Segoe UI")
             .child(
                 div()
+                    .id("sidebar")
+                    .debug_selector(|| "sidebar".into())
                     .flex()
                     .flex_col()
-                    .w(px(310.))
+                    .w(px(if collapsed { 60. } else { 310. }))
                     .flex_shrink_0()
                     .p_3()
                     .gap_3()
@@ -49,7 +52,14 @@ impl Render for Latch {
                     .border_color(rgb(colors.border))
                     .child(sidebar),
             )
-            .child(div().flex_1().min_w_0().min_h_0().child(body))
+            .child(
+                div()
+                    .debug_selector(|| "workspace".into())
+                    .flex_1()
+                    .min_w_0()
+                    .min_h_0()
+                    .child(body),
+            )
             .when(self.editor.is_some(), |view| {
                 view.child(self.editor_view(cx))
             })
