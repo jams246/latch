@@ -1,8 +1,10 @@
 //! SFTP directory browsing and cancellable transfers over an authenticated SSH tab.
 
 mod browser;
+mod operations;
 mod transfer;
 mod transfer_files;
+mod transfer_trees;
 
 #[cfg(test)]
 mod tests;
@@ -13,11 +15,15 @@ mod tests_filesystem;
 #[cfg(test)]
 mod tests_lifecycle;
 #[cfg(test)]
+mod tests_operations;
+#[cfg(test)]
 mod tests_progress;
 #[cfg(test)]
 mod tests_races;
 #[cfg(test)]
 pub(crate) mod tests_server;
+#[cfg(test)]
+mod tests_trees;
 
 use std::{io, path::PathBuf};
 
@@ -53,14 +59,14 @@ pub struct Directory {
 /// Transfer source and destination. Existing destinations are never overwritten.
 #[derive(Clone, Debug)]
 pub enum Direction {
-    /// Copy a local regular file to a new remote path.
+    /// Copy a local regular file or directory tree to a new remote path.
     Upload {
         /// Local source file.
         local: PathBuf,
         /// New remote destination file.
         remote: String,
     },
-    /// Copy a remote file to a new local path.
+    /// Copy a remote regular file or directory tree to a new local path.
     Download {
         /// Remote source file.
         remote: String,
@@ -102,9 +108,12 @@ pub enum Error {
     /// A destination file already exists.
     #[error("Existing destination was preserved. Choose a new filename.")]
     DestinationExists,
-    /// The source or destination is not a valid file path.
-    #[error("Choose a regular source file and a valid destination filename.")]
+    /// The source, destination, or entry name is not a valid path.
+    #[error("Choose a valid source path and a valid destination name.")]
     InvalidPath,
+    /// A copy source is a symbolic link or a special file.
+    #[error("Links and special files cannot be copied. No link target was followed.")]
+    UnsupportedCopySource,
     /// A temporary file could not be removed after a failure.
     #[error(
         "Transfer cleanup failed. A temporary .latch file may remain in the destination folder."

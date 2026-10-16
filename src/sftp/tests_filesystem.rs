@@ -15,6 +15,8 @@ const LINKS: &[(&str, &str)] = &[
 
 pub(super) struct Filesystem {
     pub files: HashMap<String, Vec<u8>>,
+    pub folders: HashSet<String>,
+    pub links: HashMap<String, String>,
     pub directories: HashSet<String>,
     pub stall_close: bool,
     pub deny_remove: bool,
@@ -61,6 +63,11 @@ impl Filesystem {
                 ("/socket".into(), Vec::new()),
                 ("/block-device".into(), Vec::new()),
             ]),
+            folders: FOLDERS.iter().map(|path| (*path).into()).collect(),
+            links: LINKS
+                .iter()
+                .map(|(path, target)| ((*path).into(), (*target).into()))
+                .collect(),
             directories: HashSet::new(),
             stall_close,
             deny_remove,
@@ -69,9 +76,9 @@ impl Filesystem {
 
     pub fn attrs(&self, path: &str) -> Result<FileAttributes, StatusCode> {
         let path = normalized(path);
-        if FOLDERS.contains(&path.as_str()) {
+        if self.folders.contains(&path) {
             Ok(attributes(4096, 0o040755, 1_690_000_000))
-        } else if let Some((_, target)) = LINKS.iter().find(|(link, _)| *link == path) {
+        } else if let Some(target) = self.links.get(&path) {
             Ok(attributes(target.len() as u64, 0o120777, 1_710_000_000))
         } else {
             self.files
@@ -95,10 +102,10 @@ impl Filesystem {
     pub fn resolved(&self, path: &str) -> Result<String, StatusCode> {
         let mut path = normalized(path);
         for _ in 0..32 {
-            let Some((link, target)) = LINKS.iter().find(|(link, _)| {
-                path == *link
+            let Some((link, target)) = self.links.iter().find(|(link, _)| {
+                path == **link
                     || path
-                        .strip_prefix(link)
+                        .strip_prefix(link.as_str())
                         .is_some_and(|rest| rest.starts_with('/'))
             }) else {
                 self.attrs(&path)?;
@@ -121,10 +128,10 @@ impl Filesystem {
         } else {
             format!("{directory}/")
         };
-        FOLDERS
+        self.folders
             .iter()
-            .copied()
-            .chain(LINKS.iter().map(|(path, _)| *path))
+            .map(String::as_str)
+            .chain(self.links.keys().map(String::as_str))
             .chain(self.files.keys().map(String::as_str))
             .filter_map(|path| {
                 let name = path.strip_prefix(&prefix)?;
@@ -132,5 +139,33 @@ impl Filesystem {
             })
             .map(|(path, name)| self.attrs(path).map(|attrs| File::new(name, attrs)))
             .collect()
+    }
+
+    pub fn rename_path(&mut self, old: &str, new: &str) -> Result<(), StatusCode> {
+        self.attrs(old)?;
+        if self.attrs(new).is_ok() {
+            return Err(StatusCode::Failure);
+        }
+        let prefix = format!("{old}/");
+        let paths: Vec<_> = self
+            .folders
+            .iter()
+            .chain(self.files.keys())
+            .chain(self.links.keys())
+            .filter(|path| path.as_str() == old || path.starts_with(&prefix))
+            .cloned()
+            .collect();
+        for path in paths {
+            let destination = format!("{new}{}", &path[old.len()..]);
+            if let Some(content) = self.files.remove(&path) {
+                self.files.insert(destination, content);
+            } else if let Some(target) = self.links.remove(&path) {
+                self.links.insert(destination, target);
+            } else {
+                self.folders.remove(&path);
+                self.folders.insert(destination);
+            }
+        }
+        Ok(())
     }
 }

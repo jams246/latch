@@ -155,11 +155,7 @@ impl russh_sftp::server::Handler for Filesystem {
 
     async fn rename(&mut self, id: u32, old: String, new: String) -> Result<Status, Self::Error> {
         let (old, new) = (normalized(&old), normalized(&new));
-        if self.files.contains_key(&new) {
-            return Err(StatusCode::Failure);
-        }
-        let content = self.files.remove(&old).ok_or(StatusCode::NoSuchFile)?;
-        self.files.insert(new, content);
+        self.rename_path(&old, &new)?;
         Ok(status(id))
     }
 
@@ -167,9 +163,35 @@ impl russh_sftp::server::Handler for Filesystem {
         if self.deny_remove {
             return Err(StatusCode::PermissionDenied);
         }
-        self.files
-            .remove(&normalized(&path))
-            .ok_or(StatusCode::NoSuchFile)?;
+        let path = normalized(&path);
+        if self.files.remove(&path).is_none() && self.links.remove(&path).is_none() {
+            return Err(StatusCode::NoSuchFile);
+        }
+        Ok(status(id))
+    }
+
+    async fn mkdir(
+        &mut self,
+        id: u32,
+        path: String,
+        _: FileAttributes,
+    ) -> Result<Status, Self::Error> {
+        let path = normalized(&path);
+        if self.attrs(&path).is_ok() {
+            return Err(StatusCode::Failure);
+        }
+        self.folders.insert(path);
+        Ok(status(id))
+    }
+
+    async fn rmdir(&mut self, id: u32, path: String) -> Result<Status, Self::Error> {
+        let path = normalized(&path);
+        if self.deny_remove || !self.entries(&path)?.is_empty() {
+            return Err(StatusCode::PermissionDenied);
+        }
+        if !self.folders.remove(&path) {
+            return Err(StatusCode::NoSuchFile);
+        }
         Ok(status(id))
     }
 }

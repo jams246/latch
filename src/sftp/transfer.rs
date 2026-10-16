@@ -9,7 +9,13 @@ use tokio::{
 use super::{
     Direction, Error, TransferEvent,
     transfer_files::{download, upload},
+    transfer_trees::copy_many,
 };
+
+pub(super) enum Sources {
+    File(Direction),
+    Selection(Vec<Direction>),
+}
 
 /// Cooperative transfer cancellation, including cleanup when its owning tab closes.
 /// Await [`Self::cancel_and_wait`] before releasing its parent SSH transport.
@@ -22,18 +28,21 @@ pub struct Transfer {
 impl Transfer {
     pub(super) fn spawn(
         session: Arc<SftpSession>,
-        direction: Direction,
+        sources: Sources,
         events: mpsc::Sender<TransferEvent>,
     ) -> Self {
         let (cancel, mut cancelled) = watch::channel(false);
         let (terminal_tx, terminal) = watch::channel(None);
         let task = tokio::spawn(async move {
-            let result = match direction {
-                Direction::Upload { local, remote } => {
+            let result = match sources {
+                Sources::File(Direction::Upload { local, remote }) => {
                     upload(&session, &local, &remote, &mut cancelled, &events).await
                 }
-                Direction::Download { remote, local } => {
+                Sources::File(Direction::Download { remote, local }) => {
                     download(&session, &remote, &local, &mut cancelled, &events).await
+                }
+                Sources::Selection(directions) => {
+                    copy_many(&session, directions, &mut cancelled, &events).await
                 }
             };
             let event = match &result {

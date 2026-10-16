@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use super::{
     Error, TransferEvent,
+    operations::ensure_new,
     transfer::{check_cancel, copy},
 };
 
@@ -38,9 +39,7 @@ pub(super) async fn upload(
     if !metadata.is_file() {
         return Err(Error::InvalidPath);
     }
-    if session.try_exists(remote).await? {
-        return Err(Error::DestinationExists);
-    }
+    ensure_new(session, remote).await?;
     let temporary = remote_temporary(remote);
     let mut destination = session
         .open_with_flags(

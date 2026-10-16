@@ -4,6 +4,7 @@ use russh_sftp::client::SftpSession;
 use tokio::sync::{mpsc, oneshot};
 
 use super::{Direction, Directory, Entry, Error, Transfer, TransferEvent};
+use super::{operations::read_directory, transfer::Sources};
 use crate::ssh::Command;
 
 /// A reusable SFTP channel sharing an already authenticated SSH transport.
@@ -44,14 +45,7 @@ impl Browser {
     /// open a new browser before retrying.
     pub async fn list(&self, path: &str) -> Result<Directory, Error> {
         let path = self.session.canonicalize(path).await?;
-        let directory = match self.session.read_dir(path.clone()).await {
-            Ok(directory) => directory,
-            Err(error) => {
-                // Closing the SFTP channel also releases a directory handle on read failure.
-                let _ = self.session.close().await;
-                return Err(error.into());
-            }
-        };
+        let directory = read_directory(&self.session, &path).await?;
         let mut entries: Vec<_> = directory
             .map(|entry| {
                 let metadata = entry.metadata();
@@ -91,6 +85,17 @@ impl Browser {
     /// Keep its returned control alive; dropping it requests cancellation and cleanup.
     /// Await [`Transfer::cancel_and_wait`] before closing the parent SSH transport.
     pub fn transfer(&self, direction: Direction, events: mpsc::Sender<TransferEvent>) -> Transfer {
-        Transfer::spawn(self.session.clone(), direction, events)
+        Transfer::spawn(self.session.clone(), Sources::File(direction), events)
+    }
+
+    /// Copies selected files and directory trees sequentially with shared cancellation.
+    /// Existing destinations are preserved; links and special files are rejected.
+    /// Completed files remain available if a later item fails or copying is cancelled.
+    pub fn transfer_many(
+        &self,
+        directions: Vec<Direction>,
+        events: mpsc::Sender<TransferEvent>,
+    ) -> Transfer {
+        Transfer::spawn(self.session.clone(), Sources::Selection(directions), events)
     }
 }
