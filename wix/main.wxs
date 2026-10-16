@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" Name="Latch" Language="1033" Version="$(var.Version)"
+           Manufacturer="jams246" UpgradeCode="20D39C6E-DD7A-4311-9D13-0649A3409632">
+    <Package Id="*" InstallerVersion="500" Compressed="yes" InstallScope="perUser"
+             InstallPrivileges="limited" Description="Latch SSH and SFTP client" />
+    <MajorUpgrade Schedule="afterInstallInitialize" AllowSameVersionUpgrades="yes"
+                  DowngradeErrorMessage="A newer version of Latch is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+    <Condition Message="Latch requires Windows 10 version 1703 or later (64-bit).">
+      Installed OR (VersionNT64 AND CURRENTWINDOWSBUILD &gt;= 15063)
+    </Condition>
+    <Property Id="CURRENTWINDOWSBUILD">
+      <RegistrySearch Id="WindowsBuildNumber" Root="HKLM"
+                      Key="SOFTWARE\Microsoft\Windows NT\CurrentVersion"
+                      Name="CurrentBuildNumber" Type="raw" Win64="yes" />
+    </Property>
+    <Icon Id="LatchIcon" SourceFile="assets/latch.ico" />
+    <Property Id="ARPPRODUCTICON" Value="LatchIcon" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/jams246/latch" />
+    <Property Id="INSTALLFOLDER" Secure="yes">
+      <RegistrySearch Id="PreviousInstallFolder" Root="HKCU" Key="Software\Latch\Installer"
+                      Name="InstallFolder" Type="raw" Win64="yes" />
+    </Property>
+    <WixVariable Id="WixUILicenseRtf" Value="$(var.CargoTargetDir)\wix\license.rtf" />
+    <UIRef Id="WixUI_Minimal" />
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="LocalAppDataFolder">
+        <Directory Id="ProgramsFolder" Name="Programs">
+          <Directory Id="INSTALLFOLDER" Name="Latch">
+            <!-- Profiles live beside the executable. Never remove unowned files. -->
+            <Component Id="Application" Guid="125F432C-6380-430D-A3DE-E9EDAB4C371D" Win64="yes">
+              <File Id="LatchExe" Source="$(var.CargoTargetBinDir)\latch.exe" KeyPath="no" />
+              <File Id="License" Source="LICENSE" Name="LICENSE.txt" />
+              <File Id="VisualCppRuntime" Source="$(var.CargoTargetDir)\wix\vcruntime140.dll" />
+              <RegistryValue Root="HKCU" Key="Software\Latch\Installer" Name="InstallFolder"
+                             Type="string" Value="[INSTALLFOLDER]" KeyPath="yes" />
+              <RemoveFolder Id="RemoveInstallFolder" On="uninstall" />
+              <RemoveFolder Id="RemoveProgramsFolder" Directory="ProgramsFolder" On="uninstall" />
+            </Component>
+          </Directory>
+        </Directory>
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Component Id="StartMenuShortcut" Guid="8A7AB3B2-7AD9-428D-BEA0-A4FF7F62D572" Win64="yes">
+          <Shortcut Id="LatchShortcut" Name="Latch" Target="[INSTALLFOLDER]latch.exe"
+                    WorkingDirectory="INSTALLFOLDER" Icon="LatchIcon" />
+          <RegistryValue Root="HKCU" Key="Software\Latch\Installer" Name="StartMenuShortcut"
+                         Type="integer" Value="1" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </Directory>
+    <Feature Id="Latch" Title="Latch" Level="1">
+      <ComponentRef Id="Application" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+  </Product>
+</Wix>
