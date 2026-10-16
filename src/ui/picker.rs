@@ -2,6 +2,21 @@ use super::{Latch, button};
 use gpui::{prelude::*, *};
 use latch::storage::Connection;
 
+pub(super) fn filter_connections<'a>(
+    mut connections: Vec<&'a Connection>,
+    search: &str,
+) -> Vec<&'a Connection> {
+    let search = search.trim().to_lowercase();
+    if !search.is_empty() {
+        connections.retain(|connection| {
+            [&connection.name, &connection.host, &connection.username]
+                .iter()
+                .any(|value| value.to_lowercase().contains(&search))
+        });
+    }
+    connections
+}
+
 impl Latch {
     pub(super) fn row(
         &self,
@@ -63,5 +78,60 @@ impl Latch {
                     ),
             )
             .into_any_element()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::filter_connections;
+    use latch::storage::{AuthMethod, Connection};
+
+    fn connection(name: &str, host: &str, username: &str) -> Connection {
+        Connection::new(
+            name.into(),
+            host.into(),
+            username.into(),
+            AuthMethod::Password,
+        )
+    }
+
+    #[test]
+    fn search_matches_name_host_and_username_without_case_sensitivity() {
+        let connections = [
+            connection("Production", "database.example", "alice"),
+            connection("Backup", "PRODUCTION.example", "bob"),
+            connection("Archive", "archive.example", "production-admin"),
+            connection("Local", "localhost", "carol"),
+        ];
+        assert_eq!(
+            filter_connections(connections.iter().collect(), "  PrOdUcTiOn  ")
+                .iter()
+                .map(|connection| connection.name.as_str())
+                .collect::<Vec<_>>(),
+            ["Production", "Backup", "Archive"]
+        );
+    }
+
+    #[test]
+    fn search_preserves_existing_order_and_intentional_duplicates() {
+        let first = connection("Zulu", "shared.example", "alice");
+        let second = connection("Alpha", "shared.example", "bob");
+        let excluded = connection("Other", "other.example", "carol");
+        assert_eq!(
+            filter_connections(vec![&first, &excluded, &second, &first], "shared"),
+            [&first, &second, &first]
+        );
+    }
+
+    #[test]
+    fn empty_search_shows_all_connections() {
+        let connection = connection("Production", "server.example", "alice");
+        assert_eq!(filter_connections(vec![&connection], "  "), [&connection]);
+    }
+
+    #[test]
+    fn unmatched_search_returns_no_connections() {
+        let connection = connection("Production", "server.example", "alice");
+        assert!(filter_connections(vec![&connection], "missing").is_empty());
     }
 }

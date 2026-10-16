@@ -1,4 +1,4 @@
-use super::{Latch, button};
+use super::{Latch, button, picker::filter_connections};
 use gpui::{prelude::*, *};
 use latch::storage::SortMode;
 
@@ -30,6 +30,9 @@ impl Render for Latch {
             }
         }
         let sort = self.store.sort_mode();
+        let search = self.connection_search.read(cx).value.to_string();
+        let connections = filter_connections(self.store.sorted(), &search);
+        let no_matches = connections.is_empty() && !self.store.connections().is_empty();
         let mut rows = Vec::new();
         if sort == SortMode::FrequentAndName {
             rows.push(
@@ -40,8 +43,7 @@ impl Render for Latch {
                     .into_any_element(),
             );
             rows.extend(
-                self.store
-                    .frequent()
+                filter_connections(self.store.frequent(), &search)
                     .iter()
                     .map(|c| self.row(c, "frequent", cx)),
             );
@@ -54,7 +56,7 @@ impl Render for Latch {
                     .into_any_element(),
             );
         }
-        rows.extend(self.store.sorted().iter().map(|c| self.row(c, "all", cx)));
+        rows.extend(connections.iter().map(|c| self.row(c, "all", cx)));
         let content = self.workspace(cx);
         div()
             .id("latch")
@@ -83,6 +85,15 @@ impl Render for Latch {
                             .child(button("add", "+ Add").on_click(
                                 cx.listener(|this, _, window, cx| this.edit(None, window, cx)),
                             )),
+                    )
+                    .child(
+                        div()
+                            .id("connection-search")
+                            .flex()
+                            .flex_col()
+                            .gap_1()
+                            .child(div().text_xs().child("Search connections"))
+                            .child(self.connection_search.clone()),
                     )
                     .child(
                         div().flex().gap_1().text_xs().children(
@@ -122,6 +133,11 @@ impl Render for Latch {
                         div()
                             .text_color(rgb(0xa8c1d3))
                             .child("No saved connections")
+                    }))
+                    .children(no_matches.then(|| {
+                        div()
+                            .text_color(rgb(0xa8c1d3))
+                            .child("No matching connections")
                     })),
             )
             .child(

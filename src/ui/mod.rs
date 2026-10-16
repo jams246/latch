@@ -23,6 +23,7 @@ use std::{path::PathBuf, sync::Arc};
 
 pub struct Latch {
     store: Store,
+    connection_search: Entity<input::Input>,
     directory: PathBuf,
     runtime: Arc<tokio::runtime::Runtime>,
     tabs: Vec<Tab>,
@@ -74,8 +75,12 @@ impl Latch {
         })
         .detach();
         let (cleanup_sender, cleanup_events) = std::sync::mpsc::channel();
+        let connection_search = cx.new(|cx| input::Input::new("", false, cx));
+        cx.observe(&connection_search, |_, _, cx| cx.notify())
+            .detach();
         Self {
             store,
+            connection_search,
             directory,
             runtime,
             tabs: Vec::new(),
