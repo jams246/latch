@@ -5,17 +5,13 @@ use latch::storage::SortMode;
 impl Render for Latch {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let reveal_key = self.active.and_then(|index| {
-            self.tabs.get(index).map(|tab| {
-                (
-                    tab.terminal.entity_id(),
-                    index,
-                    window.viewport_size().width,
-                )
-            })
+            self.tabs
+                .get(index)
+                .map(|tab| (tab.id.clone(), index, window.viewport_size().width))
         });
         if self.tab_reveal_key != reveal_key {
-            self.tab_reveal_key = reveal_key;
-            if let Some((_, index, _)) = reveal_key {
+            if let Some((_, index, _)) = &reveal_key {
+                let index = *index;
                 self.tab_scroll.scroll_to_item(index);
                 let entity = cx.weak_entity();
                 // GPUI's scroll handle receives the resized viewport during prepaint.
@@ -28,6 +24,7 @@ impl Render for Latch {
                     });
                 });
             }
+            self.tab_reveal_key = reveal_key;
         }
         let sort = self.store.sort_mode();
         let search = self.connection_search.read(cx).value.to_string();

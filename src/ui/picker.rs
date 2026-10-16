@@ -1,4 +1,4 @@
-use super::{Latch, button};
+use super::{Latch, SessionKind, button};
 use gpui::{prelude::*, *};
 use latch::storage::Connection;
 
@@ -25,6 +25,7 @@ impl Latch {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let connect = connection.clone();
+        let sftp = connection.clone();
         let edit = connection.clone();
         let id = connection.id.clone();
         div()
@@ -52,11 +53,19 @@ impl Latch {
                     .child(
                         button(
                             SharedString::from(format!("connect-{section}-{id}")),
-                            "Connect",
+                            "Terminal",
                         )
                         .on_click(cx.listener(
-                            move |this, _, window, cx| this.connect(connect.clone(), window, cx),
+                            move |this, _, window, cx| {
+                                this.connect(connect.clone(), SessionKind::Terminal, window, cx)
+                            },
                         )),
+                    )
+                    .child(
+                        button(SharedString::from(format!("sftp-{section}-{id}")), "SFTP")
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                this.connect(sftp.clone(), SessionKind::Sftp, window, cx)
+                            })),
                     )
                     .child(
                         button(SharedString::from(format!("edit-{section}-{id}")), "Edit")

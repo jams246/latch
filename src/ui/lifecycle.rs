@@ -1,7 +1,7 @@
 use gpui::*;
 use latch::{sftp::Transfer, ssh};
 
-use super::{Latch, Tab, tabs, transport::Transport};
+use super::{Latch, Tab, TabContent, tabs, transport::Transport};
 
 pub(super) struct Completion {
     id: String,
@@ -29,12 +29,13 @@ fn begin_disconnect(state: &mut ssh::State, closing: &mut bool, has_transport: b
 
 impl Tab {
     pub(super) fn visible_focus(&self, cx: &App) -> FocusHandle {
-        if self.show_files
-            && let Some(files) = &self.files
-        {
-            return files.read(cx).path.focus_handle(cx);
+        match &self.content {
+            TabContent::Terminal(terminal) => terminal.focus_handle(cx),
+            TabContent::Sftp {
+                files: Some(files), ..
+            } => files.read(cx).path.focus_handle(cx),
+            TabContent::Sftp { focus, .. } => focus.clone(),
         }
-        self.terminal.focus_handle(cx)
     }
 
     fn detach(&mut self, cx: &mut App) -> (Option<Transport>, Option<Transfer>) {
@@ -42,11 +43,12 @@ impl Tab {
         if let Some(dialog) = self.dialog.take() {
             let _ = dialog.update(cx, |dialog, window, _| dialog.close(window));
         }
-        let transfer = self
-            .files
-            .take()
-            .and_then(|files| files.update(cx, |files, cx| files.prepare_close(cx)));
-        self.show_files = false;
+        let transfer = match &mut self.content {
+            TabContent::Sftp { files, .. } => files
+                .take()
+                .and_then(|files| files.update(cx, |files, cx| files.prepare_close(cx))),
+            TabContent::Terminal(_) => None,
+        };
         let transport = self.transport.take();
         if let Some(transport) = &transport {
             transport.stop_input();

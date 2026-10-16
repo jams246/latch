@@ -1,4 +1,4 @@
-use super::{Latch, auth_dialog::AuthDialog, options};
+use super::{Latch, TabContent, auth_dialog::AuthDialog, options};
 use gpui::*;
 use latch::ssh;
 
@@ -20,12 +20,26 @@ impl Latch {
                         if matches!(state, ssh::State::Failed | ssh::State::Disconnected) {
                             disconnected.push(tab.id.clone());
                         }
-                        if state == ssh::State::Connected && !tab.counted {
-                            tab.counted = true;
-                            if let Err(error) =
-                                self.store.record_successful_shell(&tab.connection_id)
-                            {
-                                self.error = Some(format!("Cannot save usage: {error}"));
+                        if state == ssh::State::Connected && !tab.closing {
+                            match &mut tab.content {
+                                TabContent::Terminal(_) if !tab.counted => {
+                                    tab.counted = true;
+                                    if let Err(error) =
+                                        self.store.record_successful_shell(&tab.connection.id)
+                                    {
+                                        self.error = Some(format!("Cannot save usage: {error}"));
+                                    }
+                                }
+                                TabContent::Sftp { files, .. } if files.is_none() => {
+                                    if let Some(transport) = &tab.transport {
+                                        let commands = transport.commands.clone();
+                                        let runtime = self.runtime.clone();
+                                        *files = Some(cx.new(|cx| {
+                                            super::files::Files::new(commands, runtime, cx)
+                                        }));
+                                    }
+                                }
+                                _ => (),
                             }
                         }
                         if matches!(

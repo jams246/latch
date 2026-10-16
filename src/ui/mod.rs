@@ -18,7 +18,11 @@ mod view;
 mod workspace;
 
 use gpui::*;
-use latch::{ssh, storage::Store, terminal::TerminalView};
+use latch::{
+    ssh,
+    storage::{Connection, Store},
+    terminal::TerminalView,
+};
 use std::{path::PathBuf, sync::Arc};
 
 pub struct Latch {
@@ -29,7 +33,7 @@ pub struct Latch {
     tabs: Vec<Tab>,
     active: Option<usize>,
     tab_scroll: ScrollHandle,
-    tab_reveal_key: Option<(EntityId, usize, Pixels)>,
+    tab_reveal_key: Option<(String, usize, Pixels)>,
     error: Option<String>,
     editor: Option<connections::Editor>,
     owner: AnyWindowHandle,
@@ -41,20 +45,32 @@ pub struct Latch {
 
 struct Tab {
     id: String,
-    connection_id: String,
+    connection: Connection,
     name: String,
     destination: String,
     state: ssh::State,
     error: Option<String>,
     counted: bool,
     transport: Option<transport::Transport>,
-    terminal: Entity<TerminalView>,
+    content: TabContent,
     dialog: Option<WindowHandle<auth_dialog::AuthDialog>>,
     events: std::sync::mpsc::Receiver<ssh::Event>,
     prompts: tokio::sync::mpsc::Receiver<ssh::Prompt>,
-    files: Option<Entity<files::Files>>,
-    show_files: bool,
     closing: bool,
+}
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum SessionKind {
+    Terminal,
+    Sftp,
+}
+
+enum TabContent {
+    Terminal(Entity<TerminalView>),
+    Sftp {
+        files: Option<Entity<files::Files>>,
+        focus: FocusHandle,
+    },
 }
 
 impl Latch {

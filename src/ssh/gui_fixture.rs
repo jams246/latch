@@ -38,6 +38,15 @@ async fn gui_server() {
         .unwrap();
     }
     let mut store = Store::load(directory.join("latch.json")).unwrap();
+    std::fs::write(
+        directory.join("known_hosts"),
+        format!(
+            "[127.0.0.1]:{} {}\n",
+            fixture.port,
+            key(1).public_key().to_openssh().unwrap()
+        ),
+    )
+    .unwrap();
     for (name, auth) in [
         ("Alpha Password", AuthMethod::Password),
         (

@@ -1,11 +1,11 @@
 //! Programmatic GPUI lifecycle coverage, separate from native HWND modality tests.
 
 use super::{AuthDialog, Input};
-use crate::ui::{Latch, Tab};
+use crate::ui::{Latch, SessionKind, Tab, TabContent};
 use gpui::{AppContext, Entity, TestAppContext, WeakEntity, WindowHandle};
 use latch::{
     ssh::{self, Prompt, SecretKind},
-    storage::Store,
+    storage::{AuthMethod, Connection, Store},
     terminal::TerminalState,
     terminal::TerminalView,
 };
@@ -20,7 +20,7 @@ struct Fixture {
     reply: oneshot::Receiver<Option<ssh::Secret>>,
 }
 
-fn pending_dialog(cx: &mut TestAppContext, kind: SecretKind) -> Fixture {
+fn pending_dialog(cx: &mut TestAppContext, kind: SecretKind, session_kind: SessionKind) -> Fixture {
     let directory = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join(".verification/latch-plan/gpui-lifecycle")
         .join(uuid::Uuid::new_v4().to_string());
@@ -67,25 +67,36 @@ fn pending_dialog(cx: &mut TestAppContext, kind: SecretKind) -> Fixture {
     });
     owner
         .update(cx, |app, _, cx| {
-            let terminal =
-                cx.new(|cx| TerminalView::new(TerminalState::new(80, 24), Arc::new(|_| {}), cx));
+            let content =
+                match session_kind {
+                    SessionKind::Terminal => TabContent::Terminal(cx.new(|cx| {
+                        TerminalView::new(TerminalState::new(80, 24), Arc::new(|_| {}), cx)
+                    })),
+                    SessionKind::Sftp => TabContent::Sftp {
+                        files: None,
+                        focus: cx.focus_handle(),
+                    },
+                };
             let (_, events) = std::sync::mpsc::channel();
             let (_, prompts) = mpsc::channel(1);
             app.tabs.push(Tab {
                 id: "pending-fixture-tab".into(),
-                connection_id: "synthetic-connection".into(),
+                connection: Connection::new(
+                    "Synthetic".into(),
+                    "127.0.0.1".into(),
+                    "synthetic".into(),
+                    AuthMethod::Password,
+                ),
                 name: "Synthetic pending tab".into(),
                 destination: "synthetic@127.0.0.1:1".into(),
                 state: ssh::State::Authenticating,
                 error: None,
                 counted: false,
                 transport: None,
-                terminal,
+                content,
                 dialog: Some(dialog),
                 events,
                 prompts,
-                files: None,
-                show_files: false,
                 closing: false,
             });
             app.active = Some(0);
@@ -127,7 +138,7 @@ fn assert_dialog_released(fixture: &mut Fixture, cx: &mut TestAppContext) {
 
 #[gpui::test]
 fn closing_pending_tab_releases_dialog_secret_and_reply(cx: &mut TestAppContext) {
-    let mut fixture = pending_dialog(cx, SecretKind::Password);
+    let mut fixture = pending_dialog(cx, SecretKind::Password, SessionKind::Terminal);
     fixture
         .owner
         .update(cx, |app, window, cx| app.close_tab(0, window, cx))
@@ -142,6 +153,7 @@ fn shutdown_releases_pending_passphrase_before_main_window_can_close(cx: &mut Te
         SecretKind::KeyPassphrase {
             path: ".verification/latch-plan/synthetic-encrypted-key".into(),
         },
+        SessionKind::Terminal,
     );
     assert!(
         !fixture
@@ -158,4 +170,14 @@ fn shutdown_releases_pending_passphrase_before_main_window_can_close(cx: &mut Te
         })
         .unwrap();
     assert!(cx.windows().is_empty());
+}
+
+#[gpui::test]
+fn closing_pending_sftp_tab_releases_dialog_secret_and_reply(cx: &mut TestAppContext) {
+    let mut fixture = pending_dialog(cx, SecretKind::Password, SessionKind::Sftp);
+    fixture
+        .owner
+        .update(cx, |app, window, cx| app.close_tab(0, window, cx))
+        .unwrap();
+    assert_dialog_released(&mut fixture, cx);
 }
