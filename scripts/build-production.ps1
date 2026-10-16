@@ -23,20 +23,8 @@ if (!(Get-Command cl.exe -ErrorAction SilentlyContinue) -or
 
 $env:LC_ALL = 'C'
 $env:LANG = 'C'
-$perlCandidates = @($env:OPENSSL_SRC_PERL, $env:PERL) +
-    @(Get-Command perl.exe -CommandType Application -All -ErrorAction SilentlyContinue | ForEach-Object Source) +
-    @('C:\Strawberry\perl\bin\perl.exe', (Join-Path $env:LOCALAPPDATA 'Latch\BuildTools\StrawberryPerl\perl\bin\perl.exe'))
-$nativePerl = $null
-foreach ($candidate in $perlCandidates) {
-    if (!$candidate -or !(Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
-    & $candidate -e 'exit($^O ne q(MSWin32))'
-    if ($LASTEXITCODE -eq 0) { $nativePerl = $candidate; break }
-}
-if (!$nativePerl) {
-    throw 'Install native Strawberry Perl or set OPENSSL_SRC_PERL to its perl.exe. See docs/windows-build.md.'
-}
-& $nativePerl -MIPC::Cmd -MLocale::Maketext::Simple -e 'exit(0)'
-if ($LASTEXITCODE -ne 0) { throw 'Native Perl is missing required core modules. Install a complete Strawberry Perl runtime.' }
+. (Join-Path $PSScriptRoot 'native-perl.ps1')
+$nativePerl = Get-NativePerl
 if (!(Get-Command cl.exe -ErrorAction SilentlyContinue) -or
     !(Get-Command nmake.exe -ErrorAction SilentlyContinue)) {
     throw 'The Visual Studio environment does not provide cl.exe and nmake.exe.'
