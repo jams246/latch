@@ -5,10 +5,13 @@ impl Files {
         if self.closing {
             return;
         }
+        self.poll_actions(cx);
         while let Ok(result) = self.local_events.try_recv() {
             self.local_busy = false;
             match result {
                 Ok((directory, warning)) => {
+                    self.selections[0].clear();
+                    self.menu = None;
                     let changed = self.local.as_ref().is_none_or(|d| d.path != directory.path);
                     if let Some(index) = self.pending_local_history.take() {
                         self.local_history.commit_at(index, directory.path.clone());
@@ -33,6 +36,8 @@ impl Files {
             self.busy = false;
             match result {
                 Ok(RemoteResult::Directory(browser, directory)) => {
+                    self.selections[1].clear();
+                    self.menu = None;
                     let changed = self
                         .directory
                         .as_ref()
@@ -109,6 +114,21 @@ impl Files {
         if finished {
             self.transfer = None;
             self.progress = None;
+            let notice = if self.batch_copy && self.status != "Transfer complete" {
+                format!(
+                    "{} Completed items remain in the target directory.",
+                    self.status
+                )
+            } else {
+                self.status.clone()
+            };
+            self.refresh(Side::Local, cx);
+            self.refresh(Side::Remote, cx);
+            self.action_status[1] = Some(notice.clone());
+            if self.batch_copy {
+                self.action_status[0] = Some(notice);
+            }
+            self.batch_copy = false;
         }
     }
 }

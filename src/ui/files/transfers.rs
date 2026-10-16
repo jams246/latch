@@ -2,7 +2,7 @@ use super::*;
 
 impl Files {
     fn start_transfer(&mut self, direction: Direction, cx: &mut Context<Self>) {
-        if self.closing || self.transfer.is_some() {
+        if self.closing || self.action_busy || self.transfer.is_some() {
             return;
         }
         let Some(browser) = &self.browser else {
@@ -13,13 +13,15 @@ impl Files {
         let (events, progress) = tokio::sync::mpsc::channel(32);
         let _guard = self.runtime.enter();
         self.transfer = Some(browser.transfer(direction, events));
+        self.batch_copy = false;
+        self.action_status = Default::default();
         self.progress = Some(progress);
         self.status = "Starting transfer…".into();
         cx.notify();
     }
 
     pub(in crate::ui) fn upload(&mut self, cx: &mut Context<Self>) {
-        if self.busy || self.transfer.is_some() {
+        if self.busy || self.action_busy || self.dialog.is_some() || self.transfer.is_some() {
             return;
         }
         let Some(directory) = &self.directory else {
@@ -56,7 +58,7 @@ impl Files {
     }
 
     pub(in crate::ui) fn download(&mut self, remote: String, name: &str, cx: &mut Context<Self>) {
-        if self.busy || self.transfer.is_some() {
+        if self.busy || self.action_busy || self.dialog.is_some() || self.transfer.is_some() {
             return;
         }
         let directory = self

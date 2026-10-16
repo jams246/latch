@@ -11,7 +11,7 @@ use std::{
     sync::{Arc, mpsc},
 };
 
-fn fixture(cx: &mut TestAppContext) -> (WindowHandle<Files>, VisualTestContext) {
+pub(super) fn fixture(cx: &mut TestAppContext) -> (WindowHandle<Files>, VisualTestContext) {
     let config = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join(".verification/dual-pane/ui-interaction")
         .join(uuid::Uuid::new_v4().to_string());
@@ -50,7 +50,7 @@ fn fixture(cx: &mut TestAppContext) -> (WindowHandle<Files>, VisualTestContext) 
     (handle, visual)
 }
 
-fn draw(handle: WindowHandle<Files>, cx: &mut VisualTestContext) {
+pub(super) fn draw(handle: WindowHandle<Files>, cx: &mut VisualTestContext) {
     let root = handle.root(cx).unwrap();
     cx.draw(point(px(0.), px(0.)), size(px(1200.), px(700.)), |_, _| {
         root.into_any_element()

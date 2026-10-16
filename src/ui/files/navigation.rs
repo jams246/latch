@@ -12,13 +12,20 @@ impl Files {
         history: Option<usize>,
         cx: &mut Context<Self>,
     ) {
-        if self.busy || self.closing || self.transfer.is_some() {
+        if self.busy
+            || self.closing
+            || self.action_busy
+            || self.dialog.is_some()
+            || self.transfer.is_some()
+        {
             return;
         }
         let browser = self.browser.clone();
         let commands = self.commands.clone();
         let events = self.sender.clone();
         self.busy = true;
+        self.menu = None;
+        self.action_status[1] = None;
         self.pending_remote_history = history;
         self.status = "Loading directory…".into();
         self.operation = Some(self.runtime.spawn(async move {
@@ -55,12 +62,19 @@ impl Files {
         history: Option<usize>,
         cx: &mut Context<Self>,
     ) {
-        if self.local_busy || self.closing {
+        if self.local_busy
+            || self.closing
+            || self.action_busy
+            || self.dialog.is_some()
+            || self.transfer.is_some()
+        {
             return;
         }
         let config_directory = self.config_directory.clone();
         let events = self.local_sender.clone();
         self.local_busy = true;
+        self.menu = None;
+        self.action_status[0] = None;
         self.pending_local_history = history;
         self.local_status = "Loading directory…".into();
         self.local_operation = Some(self.runtime.spawn_blocking(move || {
@@ -153,6 +167,25 @@ impl Files {
             Side::Remote => {
                 let path = self.directory.as_ref().map_or(".", |d| d.path.as_str());
                 self.navigate(path.to_string(), cx);
+            }
+        }
+    }
+
+    pub(in crate::ui) fn navigate_parent(&mut self, side: Side, cx: &mut Context<Self>) {
+        match side {
+            Side::Local => {
+                if let Some(path) = self
+                    .local
+                    .as_ref()
+                    .and_then(|directory| directory.path.parent())
+                {
+                    self.navigate_local(path.to_path_buf(), cx);
+                }
+            }
+            Side::Remote => {
+                if let Some(directory) = &self.directory {
+                    self.navigate(format!("{}/..", directory.path.trim_end_matches('/')), cx);
+                }
             }
         }
     }
