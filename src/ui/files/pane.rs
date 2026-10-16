@@ -41,7 +41,7 @@ impl Sort {
     }
 
     pub(in crate::ui) fn compare(self, left: &Entry, right: &Entry) -> Ordering {
-        if self.column == Column::Name && left.is_dir != right.is_dir {
+        if left.is_dir != right.is_dir {
             return right.is_dir.cmp(&left.is_dir);
         }
         let order = match self.column {
