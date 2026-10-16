@@ -4,6 +4,8 @@ mod rows;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_parallel;
 
 use std::{fs, io, path::Path};
 

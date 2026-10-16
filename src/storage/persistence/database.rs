@@ -1,9 +1,11 @@
-use std::{fmt::Write, io, path::Path, time::Duration};
+use std::{fmt::Write, io, path::Path, sync::Mutex, time::Duration};
 
 use rusqlite::{Connection, OpenFlags, config::DbConfig};
 use zeroize::Zeroizing;
 
 use super::{invalid, key};
+
+static CIPHER_SETTINGS_INITIALIZED: Mutex<bool> = Mutex::new(false);
 
 pub(super) fn open(path: &Path) -> io::Result<Connection> {
     open_for_write(path, false)
@@ -20,17 +22,24 @@ pub(super) fn open_for_write(path: &Path, create: bool) -> io::Result<Connection
     if create {
         flags |= OpenFlags::SQLITE_OPEN_CREATE;
     }
-    let connection = Connection::open_with_flags(path, flags).map_err(error)?;
+    let connection = {
+        // SQLCipher initializes global logging on first open; its log setter is not thread-safe.
+        let mut initialized = CIPHER_SETTINGS_INITIALIZED.lock().map_err(|_| invalid())?;
+        let connection = Connection::open_with_flags(path, flags).map_err(error)?;
+        if !*initialized {
+            connection
+                .execute_batch("PRAGMA cipher_log='off'; PRAGMA cipher_memory_security=ON;")
+                .map_err(error)?;
+            *initialized = true;
+        }
+        connection
+    };
     // Apply schema protections before reading potentially modified database content.
     connection
         .set_db_config(DbConfig::SQLITE_DBCONFIG_DEFENSIVE, true)
         .map_err(error)?;
     connection
         .set_db_config(DbConfig::SQLITE_DBCONFIG_TRUSTED_SCHEMA, false)
-        .map_err(error)?;
-    // SQLCipher's Windows allocator recursively logs allocation failures through itself.
-    connection
-        .execute_batch("PRAGMA cipher_log='off'; PRAGMA cipher_memory_security=ON;")
         .map_err(error)?;
     connection.execute_batch(&statement).map_err(error)?;
     let cipher: String = connection
