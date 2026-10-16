@@ -102,14 +102,17 @@ impl Latch {
                                 div()
                                     .id("reconnect-loading")
                                     .debug_selector(|| "reconnect-loading".into())
-                                    .w(px(64.))
+                                    .relative()
+                                    .w_full()
                                     .h(px(4.))
                                     .rounded_full()
                                     .overflow_hidden()
                                     .bg(rgb(colors.border))
                                     .child(
                                         div()
-                                            .w(px(16.))
+                                            .absolute()
+                                            .top_0()
+                                            .w(relative(0.25))
                                             .h_full()
                                             .rounded_full()
                                             .bg(rgb(colors.accent))
@@ -118,7 +121,7 @@ impl Latch {
                                                 Animation::new(Duration::from_millis(1200))
                                                     .repeat()
                                                     .with_easing(bounce(ease_in_out)),
-                                                |bar, delta| bar.ml(px(delta * 48.)),
+                                                |bar, delta| bar.left(relative(delta * 0.75)),
                                             ),
                                     )
                                     .into_any_element()
