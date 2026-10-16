@@ -38,4 +38,5 @@ pub(in crate::ui::files) struct ActionDialog {
 pub(in crate::ui::files) struct ActionResult {
     pub side: Side,
     pub result: Result<(), String>,
+    pub connection_lost: bool,
 }

@@ -10,6 +10,7 @@ mod navigation;
 pub(super) mod operations;
 pub(super) mod pane;
 mod polling;
+mod recovery;
 pub(super) mod rows;
 pub(super) mod selection;
 #[cfg(test)]
@@ -24,6 +25,8 @@ mod tests_interaction;
 mod tests_navigation;
 #[cfg(test)]
 mod tests_preferences;
+#[cfg(test)]
+mod tests_recovery;
 #[cfg(test)]
 mod tests_refresh;
 mod transfers;
@@ -69,6 +72,7 @@ pub(super) struct Files {
     action_sender: mpsc::Sender<actions::ActionResult>,
     action_task: Option<tokio::task::JoinHandle<()>>,
     action_busy: bool,
+    action_side: Option<Side>,
     local_breadcrumb_scroll: ScrollHandle,
     remote_breadcrumb_scroll: ScrollHandle,
     pub(super) breadcrumb_reveal: [bool; 2],
@@ -91,6 +95,10 @@ pub(super) struct Files {
     pending_local_history: Option<usize>,
     pending_remote_history: Option<usize>,
     closing: bool,
+    reconnecting: bool,
+    reconnect_refresh: bool,
+    cleanup_events: mpsc::Receiver<sftp::Error>,
+    cleanup_sender: mpsc::Sender<sftp::Error>,
 }
 
 impl Drop for Files {
@@ -117,6 +125,7 @@ impl Files {
         let (sender, events) = mpsc::channel();
         let (local_sender, local_events) = mpsc::channel();
         let (action_sender, action_events) = mpsc::channel();
+        let (cleanup_sender, cleanup_events) = mpsc::channel();
         cx.spawn(async move |this, cx| {
             loop {
                 Timer::after(std::time::Duration::from_millis(30)).await;
@@ -148,6 +157,7 @@ impl Files {
             action_sender,
             action_task: None,
             action_busy: false,
+            action_side: None,
             local_breadcrumb_scroll: ScrollHandle::new(),
             remote_breadcrumb_scroll: ScrollHandle::new(),
             breadcrumb_reveal: [false; 2],
@@ -170,6 +180,10 @@ impl Files {
             pending_local_history: None,
             pending_remote_history: None,
             closing: false,
+            reconnecting: false,
+            reconnect_refresh: false,
+            cleanup_events,
+            cleanup_sender,
         };
         files.navigate(".".into(), cx);
         files.load_local(None, false, None, cx);

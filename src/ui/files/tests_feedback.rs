@@ -99,6 +99,7 @@ fn action_error_survives_refresh_and_banner_can_be_dismissed(cx: &mut TestAppCon
                 .send(ActionResult {
                     side: Side::Local,
                     result: Err("Partial deletion: some items remain".into()),
+                    connection_lost: false,
                 })
                 .unwrap();
             files.poll(cx);

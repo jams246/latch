@@ -2,7 +2,7 @@ use super::*;
 
 impl Files {
     fn start_transfer(&mut self, direction: Direction, cx: &mut Context<Self>) {
-        if self.closing || self.action_busy || self.transfer.is_some() {
+        if self.closing || self.reconnecting || self.action_busy || self.transfer.is_some() {
             return;
         }
         let Some(browser) = &self.browser else {

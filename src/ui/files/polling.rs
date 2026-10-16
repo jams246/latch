@@ -25,6 +25,7 @@ impl Files {
         if self.closing {
             return;
         }
+        self.poll_recovery(cx);
         self.poll_actions(cx);
         while let Ok(result) = self.local_events.try_recv() {
             self.local_busy = false;
@@ -92,10 +93,14 @@ impl Files {
                     self.download(path, &name, cx);
                 }
                 Err(error) => {
+                    let connection_lost = recovery::connection_error(&error);
                     self.pending_remote_history = None;
                     self.directory_errors[1] =
                         Some(format!("Cannot open server directory: {error}"));
                     self.browser = None;
+                    if connection_lost {
+                        self.request_reconnect(cx);
+                    }
                 }
             }
             cx.notify();
@@ -104,6 +109,7 @@ impl Files {
     }
 
     fn poll_transfer(&mut self, cx: &mut Context<Self>) {
+        let connection_lost = self.browser.as_ref().is_some_and(Browser::is_closed);
         let mut finished = false;
         let mut latest = None;
         if let Some(progress) = &mut self.progress {
@@ -175,6 +181,9 @@ impl Files {
             self.progress = None;
             self.metrics = None;
             self.conflict = None;
+            if connection_lost {
+                self.request_reconnect(cx);
+            }
             self.refresh(Side::Local, cx);
             self.refresh(Side::Remote, cx);
         }

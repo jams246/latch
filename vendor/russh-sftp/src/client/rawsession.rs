@@ -285,6 +285,11 @@ impl RawSftpSession {
         Ok(self.tx.send(Bytes::new())?)
     }
 
+    /// Whether the channel reader and writer have stopped.
+    pub fn is_closed(&self) -> bool {
+        self.tx.is_closed()
+    }
+
     pub async fn init(&self) -> SftpResult<Version> {
         let result = self.request(None, Init::default().into()).await?;
         if let Packet::Version(version) = result {

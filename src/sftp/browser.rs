@@ -14,6 +14,11 @@ pub struct Browser {
 }
 
 impl Browser {
+    /// Whether this browser's SFTP channel has stopped, including while idle.
+    pub fn is_closed(&self) -> bool {
+        self.session.is_closed()
+    }
+
     /// Opens an SFTP channel without authenticating again or increasing shell usage.
     ///
     /// # Errors
@@ -129,5 +134,29 @@ impl Browser {
             Sources::Interactive(directions),
             events,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::tests::connected;
+    use std::time::Duration;
+
+    #[tokio::test]
+    async fn idle_browser_detects_channel_closure_without_a_new_request() {
+        let (_fixture, control, browser) = connected().await;
+        assert!(!browser.is_closed());
+        control
+            .commands
+            .send(crate::ssh::Command::Disconnect)
+            .await
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while !browser.is_closed() {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
     }
 }

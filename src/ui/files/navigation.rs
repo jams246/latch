@@ -62,6 +62,7 @@ impl Files {
     ) {
         if self.local_busy
             || self.closing
+            || self.reconnecting
             || self.action_busy
             || self.dialog.is_some()
             || self.transfer.is_some()

@@ -5,6 +5,7 @@ pub(super) use state::*;
 impl Files {
     pub(super) fn actions_idle(&self) -> bool {
         !self.closing
+            && !self.reconnecting
             && !self.busy
             && !self.local_busy
             && !self.action_busy

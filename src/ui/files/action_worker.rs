@@ -16,7 +16,9 @@ impl Files {
         let commands = self.commands.clone();
         let sender = self.action_sender.clone();
         self.action_busy = true;
+        self.action_side = Some(side);
         self.action_task = Some(self.runtime.spawn(async move {
+            let mut connection_lost = false;
             let result = match dialog.parent {
                 Target::Local(parent) => tokio::task::spawn_blocking(move || match kind {
                     ActionKind::Rename => match dialog.targets.first() {
@@ -46,9 +48,10 @@ impl Files {
                     async {
                         let browser = match browser {
                             Some(browser) => browser,
-                            None => Browser::connect(&commands)
-                                .await
-                                .map_err(|error| error.to_string())?,
+                            None => Browser::connect(&commands).await.map_err(|error| {
+                                connection_lost = recovery::connection_error(&error);
+                                error.to_string()
+                            })?,
                         };
                         match kind {
                             ActionKind::Rename => match dialog.targets.first() {
@@ -71,7 +74,10 @@ impl Files {
                                 return Err("Invalid file action".into());
                             }
                         }
-                        .map_err(|error| error.to_string())
+                        .map_err(|error| {
+                            connection_lost = recovery::connection_error(&error);
+                            error.to_string()
+                        })
                     }
                     .await
                 }
@@ -83,7 +89,11 @@ impl Files {
                     error
                 }
             });
-            let _ = sender.send(ActionResult { side, result });
+            let _ = sender.send(ActionResult {
+                side,
+                result,
+                connection_lost,
+            });
         }));
         cx.notify();
     }
@@ -91,12 +101,16 @@ impl Files {
     pub(super) fn poll_actions(&mut self, cx: &mut Context<Self>) {
         while let Ok(event) = self.action_events.try_recv() {
             self.action_busy = false;
+            self.action_side = None;
             self.action_task = None;
             if let Err(error) = event.result {
                 if event.side == Side::Remote {
                     self.browser = None;
                 }
                 self.error = Some(format!("File action failed: {error}"));
+            }
+            if event.connection_lost {
+                self.request_reconnect(cx);
             }
             self.refresh(event.side, cx);
             cx.notify();
