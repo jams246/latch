@@ -3461,6 +3461,7 @@ version = "0.1.0"
 dependencies = [
  "alacritty_terminal",
  "anyhow",
+ "embed-resource",
  "futures",
  "gpui",
  "raw-window-handle",
