@@ -3,7 +3,7 @@ mod icons;
 #[cfg(test)]
 mod interaction_tests;
 mod row;
-mod values;
+pub(super) mod values;
 
 use super::{Files, pane::Side};
 use gpui::{prelude::*, *};

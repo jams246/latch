@@ -1,7 +1,4 @@
-use super::{
-    button,
-    files::{Files, pane::Side},
-};
+use super::files::{Files, pane::Side};
 use gpui::{prelude::*, *};
 
 impl Render for Files {
@@ -19,6 +16,19 @@ impl Render for Files {
                 });
             }
         }
+        let show_status = self.transfer.is_none()
+            && [
+                (&self.local_status, self.local_busy),
+                (&self.status, self.busy),
+            ]
+            .into_iter()
+            .enumerate()
+            .any(|(index, (status, busy))| {
+                busy || !self.action_status[index]
+                    .as_ref()
+                    .unwrap_or(status)
+                    .is_empty()
+            });
         div()
             .relative()
             .flex()
@@ -27,33 +37,28 @@ impl Render for Files {
             .p_3()
             .gap_3()
             .bg(rgb(0x15232f))
-            .when(self.transfer.is_some(), |view| {
-                view.child(
-                    button("cancel-transfer", "Cancel transfer").on_click(cx.listener(
-                        |this, _, _, _| {
-                            if let Some(transfer) = &this.transfer {
-                                transfer.cancel();
-                            }
-                        },
-                    )),
-                )
-            })
             .child(
                 div()
                     .flex()
                     .flex_1()
                     .min_h_0()
                     .gap_3()
-                    .child(self.render_files_pane(Side::Local, cx))
-                    .child(self.render_files_pane(Side::Remote, cx)),
+                    .child(self.render_files_pane(Side::Local, show_status, cx))
+                    .child(self.render_files_pane(Side::Remote, show_status, cx)),
             )
+            .child(self.operations_bar(cx))
             .child(self.render_context_menu(window, cx))
             .child(self.render_action_dialog(window, cx))
     }
 }
 
 impl Files {
-    fn render_files_pane(&self, side: Side, cx: &mut Context<Self>) -> Stateful<Div> {
+    fn render_files_pane(
+        &self,
+        side: Side,
+        show_status: bool,
+        cx: &mut Context<Self>,
+    ) -> Stateful<Div> {
         let (title, status, busy) = match side {
             Side::Local => ("Local computer", &self.local_status, self.local_busy),
             Side::Remote => ("Connected server", &self.status, self.busy),
@@ -80,17 +85,23 @@ impl Files {
             .child(div().text_lg().child(title))
             .child(self.breadcrumbs(side, cx))
             .child(self.address_row(side, cx))
-            .child(
-                div()
-                    .text_xs()
-                    .text_color(rgb(0xa8c1d3))
-                    .truncate()
-                    .child(if busy {
-                        "Loading…".into()
-                    } else {
-                        status.clone()
-                    }),
-            )
+            .when(show_status, |pane| {
+                pane.child(
+                    div()
+                        .id("pane-status")
+                        .debug_selector(move || format!("{}-status", side.id()))
+                        .h(px(18.))
+                        .flex_shrink_0()
+                        .text_xs()
+                        .text_color(rgb(0xa8c1d3))
+                        .truncate()
+                        .child(if busy {
+                            "Loading…".into()
+                        } else {
+                            status.clone()
+                        }),
+                )
+            })
             .child(
                 div()
                     .id("table")
@@ -102,9 +113,5 @@ impl Files {
                     .child(self.columns(side, cx))
                     .child(self.file_rows(side, cx)),
             )
-            .child(div().text_xs().text_color(rgb(0xa8c1d3)).child(match side {
-                Side::Local => "Double-click folders or links to open. Dates in UTC.",
-                Side::Remote => "\u{a0}",
-            }))
     }
 }
