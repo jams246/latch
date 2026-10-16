@@ -25,7 +25,7 @@ impl Transport {
         session: ssh::SessionControl,
         events: mpsc::Receiver<ssh::Event>,
         input: mpsc::UnboundedReceiver<TerminalInput>,
-        state: impl Into<Option<TerminalState>>,
+        state: Option<TerminalState>,
         runtime: &tokio::runtime::Runtime,
     ) -> (Self, sync::Receiver<ssh::Event>) {
         let commands = session.commands.clone();
@@ -34,7 +34,7 @@ impl Transport {
         let router = runtime.spawn(route(
             events,
             input,
-            state.into(),
+            state,
             commands.clone(),
             ui_events,
             accepting_input.clone(),

@@ -19,23 +19,18 @@ impl Files {
                     .entries
                     .iter()
                     .enumerate()
-                    .map(|(index, entry)| (index, &entry.metadata, entry.icon.as_ref()))
+                    .map(|(index, entry)| (index, &entry.metadata))
                     .collect()
             }),
             Side::Remote => self.directory.as_ref().map_or_else(Vec::new, |directory| {
-                directory
-                    .entries
-                    .iter()
-                    .enumerate()
-                    .map(|(index, entry)| (index, entry, None))
-                    .collect()
+                directory.entries.iter().enumerate().collect()
             }),
         };
         let sort = match side {
             Side::Local => self.local_sort,
             Side::Remote => self.remote_sort,
         };
-        rows.retain(|(_, entry, _)| !matches!(entry.name.as_str(), "." | ".."));
+        rows.retain(|(_, entry)| !matches!(entry.name.as_str(), "." | ".."));
         rows.sort_by(|left, right| sort.compare(left.1, right.1));
         self.ordered[usize::from(side == Side::Remote)] = rows.iter().map(|row| row.0).collect();
     }
