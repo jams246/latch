@@ -3,6 +3,10 @@ name = "latch"
 version = "0.1.0"
 edition = "2024"
 
+[workspace]
+members = ["vendor/stacksafe-macro"]
+default-members = [".", "vendor/stacksafe-macro"]
+
 [build-dependencies]
 embed-resource = "3.0.12"
 
@@ -27,3 +31,7 @@ windows = { version = "0.61.3", features = ["Win32_Foundation", "Win32_UI_Window
 gpui = { version = "0.2.2", features = ["test-support"] }
 tokio = { version = "1", features = ["test-util"] }
 futures = "0.3"
+
+[patch.crates-io]
+# Replace the unmaintained diagnostic dependency without changing stack growth.
+stacksafe-macro = { path = "vendor/stacksafe-macro" }
