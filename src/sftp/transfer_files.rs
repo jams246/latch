@@ -1,6 +1,9 @@
 use std::path::{Path, PathBuf};
 
-use russh_sftp::{client::SftpSession, protocol::OpenFlags};
+use russh_sftp::{
+    client::SftpSession,
+    protocol::{OpenFlags, StatusCode},
+};
 use tokio::{
     fs::{self, File, OpenOptions},
     sync::watch,
@@ -12,6 +15,7 @@ use super::{
     operations::ensure_new,
     transfer::{check_cancel, copy, wait_running},
     transfer_progress::Reporter,
+    transfer_publish::Replacement,
 };
 
 struct LocalTemporary {
@@ -34,6 +38,7 @@ pub(super) async fn upload(
     cancel: &mut watch::Receiver<bool>,
     paused: &mut watch::Receiver<bool>,
     progress: &mut Reporter,
+    replacement: Option<&Replacement>,
 ) -> Result<(), Error> {
     validate_remote(remote)?;
     wait_running(cancel, paused).await?;
@@ -42,7 +47,9 @@ pub(super) async fn upload(
     if !metadata.is_file() {
         return Err(Error::InvalidPath);
     }
-    ensure_new(session, remote).await?;
+    if replacement.is_none() {
+        ensure_new(session, remote).await?;
+    }
     let temporary = remote_temporary(remote);
     let mut destination = session
         .open_with_flags(
@@ -62,6 +69,9 @@ pub(super) async fn upload(
     let closed = destination.close().await.map_err(Error::RemoteClose);
     if matches!(result, Err(Error::Cancelled)) || check_cancel(cancel).is_err() {
         closed.map_err(|error| retained(&temporary, error))?;
+        if replacement.is_some() {
+            return Err(retained(&temporary, Error::DestinationExists));
+        }
         session
             .rename(&temporary, remote)
             .await
@@ -71,13 +81,28 @@ pub(super) async fn upload(
     let result = async {
         closed?;
         result?;
-        // Standard SFTP rename rejects an existing destination instead of replacing it.
-        session.rename(&temporary, remote).await?;
+        if let Some(replacement) = replacement {
+            replacement
+                .publish_remote(session, &temporary, remote, cancel, paused)
+                .await?;
+        } else {
+            // Standard SFTP rename rejects an existing destination instead of replacing it.
+            session.rename(&temporary, remote).await?;
+        }
         Ok(())
     }
     .await;
-    if result.is_err() && session.remove_file(&temporary).await.is_err() {
-        return Err(Error::Cleanup);
+    if matches!(result, Err(Error::Cancelled)) {
+        return Err(retained(&temporary, Error::DestinationExists));
+    }
+    if result.is_err() {
+        match session.remove_file(&temporary).await {
+            Ok(()) => (),
+            Err(russh_sftp::client::error::Error::Status(status))
+                if replacement.is_some() && status.status_code == StatusCode::NoSuchFile => {}
+            Err(_) if matches!(result, Err(Error::ReplacementRetained { .. })) => return result,
+            Err(_) => return Err(Error::Cleanup),
+        }
     }
     result
 }
@@ -89,11 +114,13 @@ pub(super) async fn download(
     cancel: &mut watch::Receiver<bool>,
     paused: &mut watch::Receiver<bool>,
     progress: &mut Reporter,
+    replacement: Option<&Replacement>,
 ) -> Result<(), Error> {
     validate_remote(remote)?;
     wait_running(cancel, paused).await?;
     match fs::symlink_metadata(local).await {
-        Ok(_) => return Err(Error::DestinationExists),
+        Ok(_) if replacement.is_none() => return Err(Error::DestinationExists),
+        Ok(_) => (),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
         Err(error) => return Err(error.into()),
     }
@@ -125,6 +152,10 @@ pub(super) async fn download(
         temporary.armed = false;
         let path = temporary.path.to_string_lossy();
         synced.map_err(|error| retained(&path, error))?;
+        if replacement.is_some() {
+            closed.map_err(|error| retained(&path, error))?;
+            return Err(retained(&path, Error::DestinationExists));
+        }
         publish_local(&temporary.path, local)
             .await
             .map_err(|error| retained(&path, error))?;
@@ -138,12 +169,31 @@ pub(super) async fn download(
         closed?;
         result?;
         synced?;
-        publish_local(&temporary.path, local).await?;
+        if let Some(replacement) = replacement {
+            replacement
+                .publish_local(&temporary.path, local, cancel, paused)
+                .await?;
+        } else {
+            publish_local(&temporary.path, local).await?;
+        }
         Ok(())
     }
     .await;
-    if fs::remove_file(&temporary.path).await.is_err() {
-        return Err(Error::Cleanup);
+    if matches!(result, Err(Error::Cancelled)) {
+        temporary.armed = false;
+        return Err(retained(
+            &temporary.path.to_string_lossy(),
+            Error::DestinationExists,
+        ));
+    }
+    if replacement.is_none() || result.is_err() {
+        match fs::remove_file(&temporary.path).await {
+            Ok(()) => (),
+            Err(error) if replacement.is_some() && error.kind() == std::io::ErrorKind::NotFound => {
+            }
+            Err(_) if matches!(result, Err(Error::ReplacementRetained { .. })) => return result,
+            Err(_) => return Err(Error::Cleanup),
+        }
     }
     temporary.armed = false;
     result
@@ -183,48 +233,4 @@ fn remote_temporary(path: &str) -> String {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn cancelled_download_guard_preserves_partial_when_dropped() {
-        let path = crate::sftp::tests::directory().join(".latch-cancelled.part");
-        std::fs::write(&path, b"Partial data").unwrap();
-        let (cancel, cancelled) = watch::channel(false);
-        let temporary = LocalTemporary {
-            path: path.clone(),
-            armed: true,
-            cancel: cancelled,
-        };
-        cancel.send(true).unwrap();
-        drop(temporary);
-        assert_eq!(std::fs::read(path).unwrap(), b"Partial data");
-    }
-
-    #[tokio::test]
-    async fn aborted_download_task_removes_its_local_temporary_file() {
-        let path = crate::sftp::tests::directory().join(".latch-aborted.part");
-        let (_cancel, cancelled) = watch::channel(false);
-        let temporary = LocalTemporary {
-            path: path.clone(),
-            armed: true,
-            cancel: cancelled,
-        };
-        let (ready, receiver) = tokio::sync::oneshot::channel();
-        let task = tokio::spawn(async move {
-            let _temporary = temporary;
-            let _file = OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&_temporary.path)
-                .await
-                .unwrap();
-            ready.send(()).unwrap();
-            std::future::pending::<()>().await;
-        });
-        receiver.await.unwrap();
-        task.abort();
-        assert!(task.await.unwrap_err().is_cancelled());
-        assert!(!path.exists());
-    }
-}
+mod tests;
