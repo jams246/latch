@@ -13,8 +13,7 @@ function Get-NativePerl {
     $cachedPerl = Join-Path $cache 'perl\bin\perl.exe'
     $candidates = @($env:OPENSSL_SRC_PERL, $env:PERL) +
         @(Get-Command perl.exe -CommandType Application -All -ErrorAction SilentlyContinue | ForEach-Object Source) +
-        @('C:\Strawberry\perl\bin\perl.exe', $cachedPerl,
-            (Join-Path $cacheRoot 'StrawberryPerl\perl\bin\perl.exe'))
+        @('C:\Strawberry\perl\bin\perl.exe', $cachedPerl)
     foreach ($candidate in $candidates) {
         if (Test-NativePerl $candidate) { return $candidate }
     }
