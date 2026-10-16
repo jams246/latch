@@ -3,9 +3,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use super::{Configuration, Store, files, locking, recovery, validate};
+use super::{Configuration, Store, files, locking, pair, recovery, validate};
 
-pub(super) const DATA_DIRECTORY: &str = "latch-data";
+pub(super) const LEGACY_DIRECTORY: &str = "latch-data";
 pub(super) const DATABASE: &str = "latch.db";
 
 impl Store {
@@ -19,46 +19,34 @@ impl Store {
         if files::exists(&directory.join(recovery::MARKER))? {
             return Err(recovery::interrupted());
         }
-        let active = directory.join(DATA_DIRECTORY);
         let mut import_warnings = Vec::new();
-        if !files::exists(&active)? {
-            for entry in fs::read_dir(directory)? {
-                let name = entry?.file_name();
-                let name = name.to_string_lossy();
-                if name.starts_with("latch-data.stage-") || name.starts_with("latch-data.archive-")
-                {
+        if !pair::present(directory)? {
+            let old = directory.join(LEGACY_DIRECTORY);
+            if files::exists(&old)? {
+                pair::require(&old)?;
+                let configuration = Self::load(old.join(DATABASE))?.configuration;
+                recovery::publish(&old, directory, &configuration)?;
+            } else {
+                if pair::leftovers(directory)? {
                     return Err(recovery::interrupted());
                 }
+                let (configuration, source, warnings) =
+                    legacy_configuration(directory, roaming_directory)?;
+                import_warnings = warnings;
+                let stage = recovery::stage(directory, &configuration)?;
+                if let Some(source) = source {
+                    copy_host_trust(&source, directory)?;
+                }
+                recovery::publish(&stage, directory, &configuration)?;
             }
-            let (configuration, source, warnings) =
-                legacy_configuration(directory, roaming_directory)?;
-            import_warnings = warnings;
-            let stage = recovery::stage(directory, &configuration)?;
-            if let Some(source) = source {
-                copy_host_trust(&source, directory)?;
-            }
-            fs::rename(stage, &active)?;
         }
-        require_pair(&active)?;
-        let mut store = Self::load(active.join(DATABASE))?;
+        pair::require(directory)?;
+        let mut store = Self::load(directory.join(DATABASE))?;
         store._lock = Some(lock);
         store.warnings = legacy_warnings(directory, roaming_directory);
         store.warnings.extend(import_warnings);
         Ok(store)
     }
-}
-
-pub(super) fn require_pair(active: &Path) -> io::Result<()> {
-    if !fs::symlink_metadata(active)?.is_dir()
-        || !active.join(DATABASE).is_file()
-        || !active.join("key.dpapi").is_file()
-    {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "Encrypted profile is incomplete; import a JSON backup to recover",
-        ));
-    }
-    Ok(())
 }
 
 fn legacy_configuration(

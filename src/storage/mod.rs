@@ -4,6 +4,7 @@ mod files;
 mod local_directories;
 mod locking;
 mod model;
+mod pair;
 mod persistence;
 mod portable;
 mod preferences;
@@ -11,6 +12,8 @@ mod recovery;
 mod snapshot;
 mod window;
 
+#[cfg(test)]
+mod tests_flat_migration;
 #[cfg(test)]
 mod tests_persistence;
 #[cfg(test)]

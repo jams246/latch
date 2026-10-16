@@ -36,7 +36,7 @@ fn roaming_configuration_and_host_trust_migrate_without_changing_originals() {
     fs::write(roaming.join("known_hosts"), b"synthetic known host").unwrap();
     let original = fs::read(&legacy).unwrap();
     let migrated = Store::load_portable(&portable, Some(&roaming)).unwrap();
-    assert_eq!(migrated.path, portable.join("latch-data/latch.db"));
+    assert_eq!(migrated.path, portable.join("latch.db"));
     assert_eq!(migrated.connections()[0].name, "Roaming server");
     assert_eq!(migrated.connections()[0].successful_shells, 1);
     assert_eq!(migrated.sort_mode(), SortMode::FrequentAndName);
@@ -126,8 +126,14 @@ fn fresh_portable_profile_creates_only_encrypted_pair_and_lock() {
     let portable = directory("fresh-portable");
     let mut store = Store::load_portable(&portable, None).unwrap();
     store.set_sort_mode(SortMode::MostUsed).unwrap();
-    assert!(portable.join("latch-data/latch.db").exists());
-    assert!(portable.join("latch-data/key.dpapi").exists());
+    assert!(portable.join("latch.db").exists());
+    assert!(portable.join("key.dpapi").exists());
+    assert!(!portable.join("latch-data").exists());
+    assert!(
+        !fs::read_dir(&portable)
+            .unwrap()
+            .any(|entry| entry.unwrap().path().is_dir())
+    );
     assert!(!portable.join("latch.json").exists());
     assert!(!portable.join("connections.json").exists());
 }
