@@ -1,0 +1,143 @@
+#[cfg(windows)]
+mod native;
+#[cfg(test)]
+mod tests;
+
+use std::{
+    fs,
+    io::{self, Write},
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::UNIX_EPOCH,
+};
+
+pub(in crate::ui) struct Entry {
+    pub metadata: latch::sftp::Entry,
+    pub path: PathBuf,
+    pub icon: Option<Arc<gpui::RenderImage>>,
+}
+
+pub(in crate::ui) struct Directory {
+    pub path: PathBuf,
+    pub entries: Vec<Entry>,
+    pub drives: Vec<PathBuf>,
+}
+
+pub(super) fn list(path: &Path) -> io::Result<Directory> {
+    #[cfg(windows)]
+    let _apartment = native::Apartment::new()?;
+    let path = canonicalize(path)?;
+    let mut entries = Vec::new();
+    for item in fs::read_dir(&path)? {
+        let item = item?;
+        let path = item.path();
+        let metadata = match fs::symlink_metadata(&path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error),
+        };
+        let is_link = metadata.file_type().is_symlink() || is_shortcut(&path);
+        let is_dir = metadata.is_dir()
+            || (metadata.file_type().is_symlink()
+                && fs::metadata(&path).is_ok_and(|target| target.is_dir()));
+        #[cfg(windows)]
+        let icon = native::icon(&path, is_dir, is_link);
+        #[cfg(not(windows))]
+        let icon = None;
+        entries.push(Entry {
+            metadata: latch::sftp::Entry {
+                name: item.file_name().to_string_lossy().into_owned(),
+                path: path.to_string_lossy().into_owned(),
+                is_dir,
+                is_link,
+                modified: metadata
+                    .modified()
+                    .ok()
+                    .and_then(|date| date.duration_since(UNIX_EPOCH).ok())
+                    .map(|date| date.as_secs()),
+                size: (!is_dir).then_some(metadata.len()),
+            },
+            path,
+            icon,
+        });
+    }
+    #[cfg(windows)]
+    let drives = native::drives();
+    #[cfg(not(windows))]
+    let drives = vec![PathBuf::from("/")];
+    Ok(Directory {
+        path,
+        entries,
+        drives,
+    })
+}
+
+pub(super) fn initial_path(config_directory: &Path) -> PathBuf {
+    fs::read(config_directory.join("sftp-local-directory.json"))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<PathBuf>(&bytes).ok())
+        .filter(|path| path.is_dir())
+        .or_else(|| {
+            std::env::var_os("USERPROFILE")
+                .or_else(|| std::env::var_os("HOME"))
+                .map(PathBuf::from)
+                .filter(|path| path.is_dir())
+        })
+        .or_else(|| std::env::current_dir().ok())
+        .unwrap_or_else(|| PathBuf::from(if cfg!(windows) { "C:\\" } else { "/" }))
+}
+
+pub(super) fn remember(config_directory: &Path, path: &Path) -> io::Result<()> {
+    let bytes = serde_json::to_vec(path).map_err(io::Error::other)?;
+    fs::create_dir_all(config_directory)?;
+    let destination = config_directory.join("sftp-local-directory.json");
+    let temporary = destination.with_extension(format!("{}.tmp", uuid::Uuid::new_v4()));
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temporary)?;
+    let result = (|| {
+        file.write_all(&bytes)?;
+        file.sync_all()?;
+        drop(file);
+        fs::rename(&temporary, destination)
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(temporary);
+    }
+    result
+}
+
+pub(super) fn follow_link(path: &Path) -> io::Result<PathBuf> {
+    #[cfg(windows)]
+    let target = if is_shortcut(path) {
+        native::resolve_shortcut(path)?
+    } else {
+        path.to_path_buf()
+    };
+    #[cfg(not(windows))]
+    let target = path.to_path_buf();
+    let target = canonicalize(&target)?;
+    if fs::metadata(&target)?.is_dir() {
+        Ok(target)
+    } else {
+        target
+            .parent()
+            .map(Path::to_path_buf)
+            .ok_or_else(|| io::Error::other("The link target has no parent directory"))
+    }
+}
+
+fn is_shortcut(path: &Path) -> bool {
+    cfg!(windows)
+        && path
+            .extension()
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("lnk"))
+}
+
+fn canonicalize(path: &Path) -> io::Result<PathBuf> {
+    let canonical = fs::canonicalize(path)?;
+    #[cfg(windows)]
+    let canonical = native::display_path(&canonical);
+    Ok(canonical)
+}

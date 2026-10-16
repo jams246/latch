@@ -3461,9 +3461,11 @@ version = "0.1.0"
 dependencies = [
  "alacritty_terminal",
  "anyhow",
+ "chrono",
  "embed-resource",
  "futures",
  "gpui",
+ "image",
  "raw-window-handle",
  "russh",
  "russh-sftp",
