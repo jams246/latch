@@ -1,4 +1,6 @@
 $ErrorActionPreference = 'Stop'
+# Make can pass PowerShell 7 module paths to Windows PowerShell.
+$env:PSModulePath = [IO.Path]::Combine($PSHOME, 'Modules')
 
 if (!(Get-Command cl.exe -ErrorAction SilentlyContinue) -or
     !(Get-Command nmake.exe -ErrorAction SilentlyContinue)) {
