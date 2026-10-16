@@ -1,8 +1,10 @@
 _latch_shell=$1
 _latch_restore=$2
 _latch_umask=$(umask)
+_latch_base=${TMPDIR:-/tmp}
+case $_latch_base in /*) ;; *) _latch_base=/tmp ;; esac
 umask 077
-_latch_tmp=$(mktemp -d "${TMPDIR:-/tmp}/latch-shell.XXXXXXXX") || {
+_latch_tmp=$(mktemp -d "$_latch_base/latch-shell.XXXXXXXX") || {
     umask "$_latch_umask"
     exec "$_latch_shell" -l -i
 }
