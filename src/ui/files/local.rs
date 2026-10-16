@@ -23,6 +23,31 @@ pub(in crate::ui) struct Directory {
     pub drives: Vec<PathBuf>,
 }
 
+pub(super) fn list_initial(config_directory: &Path) -> io::Result<Directory> {
+    let mut candidates = vec![initial_path(config_directory)];
+    candidates.extend(home_directory());
+    candidates.extend(std::env::current_dir().ok());
+    #[cfg(windows)]
+    candidates.extend(native::drives());
+    candidates.push(PathBuf::from(if cfg!(windows) { "C:\\" } else { "/" }));
+    list_first_available(candidates)
+}
+
+fn list_first_available(candidates: Vec<PathBuf>) -> io::Result<Directory> {
+    let mut seen = std::collections::HashSet::new();
+    let mut error = io::Error::new(io::ErrorKind::NotFound, "No local directory is available");
+    for path in candidates
+        .into_iter()
+        .filter(|path| seen.insert(path.clone()))
+    {
+        match list(&path) {
+            Ok(directory) => return Ok(directory),
+            Err(failure) => error = failure,
+        }
+    }
+    Err(error)
+}
+
 pub(super) fn list(path: &Path) -> io::Result<Directory> {
     #[cfg(windows)]
     let _apartment = native::Apartment::new()?;
@@ -31,7 +56,7 @@ pub(super) fn list(path: &Path) -> io::Result<Directory> {
     for item in fs::read_dir(&path)? {
         let item = item?;
         let path = item.path();
-        let metadata = match fs::symlink_metadata(&path) {
+        let metadata = match item.metadata() {
             Ok(metadata) => metadata,
             Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
             Err(error) => return Err(error),
@@ -77,14 +102,16 @@ pub(super) fn initial_path(config_directory: &Path) -> PathBuf {
         .ok()
         .and_then(|bytes| serde_json::from_slice::<PathBuf>(&bytes).ok())
         .filter(|path| path.is_dir())
-        .or_else(|| {
-            std::env::var_os("USERPROFILE")
-                .or_else(|| std::env::var_os("HOME"))
-                .map(PathBuf::from)
-                .filter(|path| path.is_dir())
-        })
+        .or_else(home_directory)
         .or_else(|| std::env::current_dir().ok())
         .unwrap_or_else(|| PathBuf::from(if cfg!(windows) { "C:\\" } else { "/" }))
+}
+
+fn home_directory() -> Option<PathBuf> {
+    std::env::var_os("USERPROFILE")
+        .or_else(|| std::env::var_os("HOME"))
+        .map(PathBuf::from)
+        .filter(|path| path.is_dir())
 }
 
 pub(super) fn remember(config_directory: &Path, path: &Path) -> io::Result<()> {

@@ -150,19 +150,25 @@ pub(in crate::ui::files::local) fn icon(
     let icon = Icon(information.hIcon);
     let mut surface = Surface::new()?;
     let mut pixels = surface.draw(icon.0, DI_NORMAL)?;
-    if pixels.chunks_exact(4).all(|pixel| pixel[3] == 0) {
+    if pixels.as_chunks::<4>().0.iter().all(|pixel| pixel[3] == 0) {
         let mask = surface.draw(icon.0, DI_MASK)?;
-        for (pixel, mask) in pixels.chunks_exact_mut(4).zip(mask.chunks_exact(4)) {
+        for (pixel, mask) in pixels
+            .as_chunks_mut::<4>()
+            .0
+            .iter_mut()
+            .zip(mask.as_chunks::<4>().0)
+        {
             pixel[3] = if mask[0] == 0 { 255 } else { 0 };
         }
     } else {
         // DrawIconEx supplies premultiplied pixels; GPUI expects straight BGRA channels.
-        for pixel in pixels.chunks_exact_mut(4) {
+        for pixel in pixels.as_chunks_mut::<4>().0 {
             let alpha = u32::from(pixel[3]);
-            if alpha > 0 {
-                for channel in &mut pixel[..3] {
-                    *channel = (u32::from(*channel) * 255 / alpha).min(255) as u8;
-                }
+            for channel in &mut pixel[..3] {
+                *channel = (u32::from(*channel) * 255)
+                    .checked_div(alpha)
+                    .unwrap_or(0)
+                    .min(255) as u8;
             }
         }
     }

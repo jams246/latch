@@ -52,6 +52,21 @@ fn unavailable_remembered_directory_falls_back_to_an_existing_directory() {
     assert!(selected.is_dir());
 }
 
+#[test]
+fn initial_listing_skips_unusable_candidates_until_a_directory_can_be_read() {
+    let directory = fixture("initial-fallback");
+    let file = directory.join("file.txt");
+    fs::write(&file, b"sample").unwrap();
+    let listing = list_first_available(vec![
+        directory.join("missing"),
+        file.clone(),
+        file,
+        directory.clone(),
+    ])
+    .unwrap();
+    assert_eq!(listing.path, directory);
+}
+
 #[cfg(windows)]
 fn shortcut(path: &Path, target: &Path) {
     use windows::{
@@ -107,7 +122,9 @@ fn windows_listing_supplies_native_file_icons_and_available_drives() {
     assert!(
         icon.as_bytes(0)
             .unwrap()
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .any(|pixel| pixel[3] > 0)
     );
     assert!(!listing.drives.is_empty());
