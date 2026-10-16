@@ -37,7 +37,7 @@ async fn gui_server() {
         )
         .unwrap();
     }
-    let mut store = Store::load(directory.join("connections.json")).unwrap();
+    let mut store = Store::load(directory.join("latch.json")).unwrap();
     for (name, auth) in [
         ("Alpha Password", AuthMethod::Password),
         (

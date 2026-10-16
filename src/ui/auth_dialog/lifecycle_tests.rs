@@ -24,7 +24,7 @@ fn pending_dialog(cx: &mut TestAppContext, kind: SecretKind) -> Fixture {
     let directory = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join(".verification/latch-plan/gpui-lifecycle")
         .join(uuid::Uuid::new_v4().to_string());
-    let store = Store::load(directory.join("connections.json")).unwrap();
+    let store = Store::load(directory.join("latch.json")).unwrap();
     let runtime = Arc::new(tokio::runtime::Runtime::new().unwrap());
     let owner = cx
         .add_window(|window, cx| Latch::new(store, directory, runtime, window.window_handle(), cx));
