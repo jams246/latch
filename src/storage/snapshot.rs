@@ -40,21 +40,13 @@ impl Store {
     /// Maximum size accepted for a plaintext JSON settings backup.
     pub const MAX_SNAPSHOT_BYTES: usize = 16 * 1024 * 1024;
 
-    /// Parses a complete backup without modifying the current profile.
+    /// Parses a version 1 backup without modifying the current profile.
     ///
     /// # Errors
     /// Rejects oversized, unsupported, malformed, or invalid backups.
     pub fn parse_import(bytes: &[u8]) -> io::Result<ImportSnapshot> {
         if bytes.len() > Self::MAX_SNAPSHOT_BYTES {
             return Err(invalid_backup());
-        }
-        let value: serde_json::Value =
-            serde_json::from_slice(bytes).map_err(|_| invalid_backup())?;
-        if value.get("format_version").is_none() {
-            let configuration: Configuration =
-                serde_json::from_slice(bytes).map_err(|_| invalid_backup())?;
-            validate(&configuration)?;
-            return Ok(ImportSnapshot(configuration));
         }
         let snapshot: Snapshot = serde_json::from_slice(bytes).map_err(|_| invalid_backup())?;
         if snapshot.format_version != 1 {
@@ -132,11 +124,6 @@ impl Store {
         }
         files::atomic_write(path, bytes)
     }
-
-    /// Reports retained unencrypted legacy settings files.
-    pub fn warnings(&self) -> &[String] {
-        &self.warnings
-    }
 }
 
 impl ImportSnapshot {
@@ -191,7 +178,7 @@ fn protected(root: &Path, path: &Path) -> bool {
         .next()
         .unwrap_or_default()
         .trim_end_matches([' ', '.']);
-    first.starts_with("latch-data")
+    first.starts_with("latch-stage-")
         || [
             portable::DATABASE,
             "key.dpapi",

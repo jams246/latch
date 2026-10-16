@@ -6,17 +6,10 @@ use crate::storage::{
 };
 
 #[test]
-fn older_configuration_defaults_terminal_theme_without_rewriting_file() {
-    let store = store("legacy-terminal-theme");
-    fs::create_dir_all(store.path.parent().unwrap()).unwrap();
-    let original = br#"{"connections":[],"sort_mode":"most_used"}"#;
-    let directory = store.path.parent().unwrap();
-    let legacy = directory.join("latch.json");
-    fs::write(&legacy, original).unwrap();
-    let restored = Store::load_portable(directory, None).unwrap();
-    assert_eq!(restored.terminal_theme(), TerminalTheme::Classic);
-    assert_eq!(restored.sort_mode(), SortMode::MostUsed);
-    assert_eq!(fs::read(legacy).unwrap(), original);
+fn fresh_settings_default_to_classic_terminal_theme() {
+    let store = store("default-terminal-theme");
+    assert_eq!(store.terminal_theme(), TerminalTheme::Classic);
+    assert!(!store.path.exists());
 }
 
 #[test]
@@ -89,16 +82,20 @@ fn locked_configuration_preserves_saved_terminal_theme_and_file() {
 }
 
 #[test]
-fn invalid_terminal_theme_is_rejected_without_rewriting_file() {
-    let store = store("invalid-terminal-theme");
-    fs::create_dir_all(store.path.parent().unwrap()).unwrap();
-    let original = br#"{"terminal_theme":"unknown"}"#;
-    let directory = store.path.parent().unwrap();
-    let legacy = directory.join("latch.json");
-    fs::write(&legacy, original).unwrap();
+fn invalid_imported_terminal_theme_is_rejected_without_changing_settings() {
+    let mut store = store("invalid-terminal-theme");
+    store.set_terminal_theme(TerminalTheme::Carbon).unwrap();
+    let original = fs::read(&store.path).unwrap();
+    let mut snapshot: serde_json::Value =
+        serde_json::from_slice(&store.export_json().unwrap()).unwrap();
+    snapshot["configuration"]["terminal_theme"] = "unknown".into();
     assert_eq!(
-        Store::load_portable(directory, None).err().unwrap().kind(),
+        Store::parse_import(&serde_json::to_vec(&snapshot).unwrap())
+            .err()
+            .unwrap()
+            .kind(),
         std::io::ErrorKind::InvalidData
     );
-    assert_eq!(fs::read(legacy).unwrap(), original);
+    assert_eq!(store.terminal_theme(), TerminalTheme::Carbon);
+    assert_eq!(fs::read(&store.path).unwrap(), original);
 }

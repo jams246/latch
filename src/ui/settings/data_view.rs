@@ -26,9 +26,6 @@ impl Latch {
             .child(div().text_color(rgb(CARBON.muted)).child(
                 "Exports are unencrypted JSON. They contain connection details, settings and key-file paths, but no passwords or private keys. Keep them somewhere safe.",
             ))
-            .children(self.store.warnings().iter().map(|warning| {
-                div().text_color(rgb(CARBON.danger)).child(warning.clone())
-            }))
             .child(
                 button("settings-export", "Export data")
                     .debug_selector(|| "settings-export".into())

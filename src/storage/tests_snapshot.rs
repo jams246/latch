@@ -55,21 +55,30 @@ fn complete_snapshot_round_trip_preserves_counts_paths_and_all_preferences() {
 }
 
 #[test]
-fn legacy_import_defaults_missing_preferences_and_rejects_unknown_fields() {
-    let mut imported = store("legacy-import");
+fn versioned_import_replaces_all_metadata_with_empty_preferences() {
+    let mut imported = store("empty-import");
     imported.upsert(sample()).unwrap();
     imported
-        .replace_import(Store::parse_import(br#"{"connections":[]}"#).unwrap())
+        .replace_import(super::tests_persistence::empty_snapshot())
         .unwrap();
     assert!(imported.connections().is_empty());
     assert_eq!(imported.sort_mode(), SortMode::Name);
     assert_eq!(imported.terminal_theme(), TerminalTheme::Classic);
     assert!(imported.configuration.local_directories.is_empty());
-    assert!(Store::parse_import(br#"{"password":"synthetic-secret"}"#).is_err());
 }
 
 #[test]
-fn unknown_version_and_invalid_connections_never_fall_back_to_legacy() {
+fn unversioned_configuration_is_rejected() {
+    for bytes in [b"{}".as_slice(), br#"{"connections":[]}"#.as_slice()] {
+        assert_eq!(
+            Store::parse_import(bytes).err().unwrap().kind(),
+            io::ErrorKind::InvalidData
+        );
+    }
+}
+
+#[test]
+fn unknown_version_and_invalid_connections_are_rejected() {
     let original = store("invalid-import");
     let mut value: serde_json::Value =
         serde_json::from_slice(&original.export_json().unwrap()).unwrap();
@@ -138,7 +147,7 @@ fn settings_that_cannot_fit_export_limit_are_rejected_before_commit() {
 #[test]
 fn exports_protect_internal_files_and_allow_user_backup_destination() {
     let directory = super::tests_portable::directory("export-targets");
-    let original = Store::load_portable(&directory, None).unwrap();
+    let original = Store::load_profile(&directory).unwrap();
     let bytes = original.export_json().unwrap();
     for name in [
         "latch.db",
@@ -151,10 +160,8 @@ fn exports_protect_internal_files_and_allow_user_backup_destination() {
         "latch.db-journal.archive-synthetic",
         "latch.db-wal.archive-synthetic",
         "latch.db-shm.archive-synthetic",
-        "latch-data/latch.db",
-        "latch-data/key.dpapi",
-        "latch-data.stage-synthetic/latch.db",
-        "latch-data.archive-synthetic/key.dpapi",
+        "latch-stage-synthetic/latch.db",
+        "latch-stage-synthetic/key.dpapi",
         "latch.profile.lock",
         "latch-recovery.pending",
         "known_hosts",
@@ -232,7 +239,7 @@ fn failed_import_preserves_configuration_and_wrapped_key() {
         .unwrap();
     assert!(
         original
-            .replace_import(Store::parse_import(b"{}").unwrap())
+            .replace_import(super::tests_persistence::empty_snapshot())
             .is_err()
     );
     assert!(original.configuration == previous);

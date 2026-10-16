@@ -90,7 +90,7 @@ impl Recovery {
                     return Ok(None);
                 }
                 runtime
-                    .spawn_blocking(move || Store::recover_portable(&directory, snapshot))
+                    .spawn_blocking(move || Store::recover_profile(&directory, snapshot))
                     .await?
                     .map(Some)
                     .map_err(Into::into)

@@ -115,7 +115,6 @@ impl Latch {
         let connection_search = cx.new(|cx| input::Input::new("", false, cx));
         cx.observe(&connection_search, |_, _, cx| cx.notify())
             .detach();
-        let error = (!store.warnings().is_empty()).then(|| store.warnings().join("\n"));
         Self {
             store,
             connection_search,
@@ -126,7 +125,7 @@ impl Latch {
             tab_scroll: ScrollHandle::new(),
             tab_drag: tabs::TabDrag::default(),
             tab_reveal_key: None,
-            error,
+            error: None,
             editor: None,
             connection_delete: None,
             settings: None,

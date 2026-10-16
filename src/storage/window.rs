@@ -49,7 +49,7 @@ impl WindowSize {
 }
 
 impl Store {
-    /// Returns the saved main-window size, or the initial size for older settings.
+    /// Returns the saved main-window size, or the initial size for fresh settings.
     pub fn window_size(&self) -> WindowSize {
         self.configuration.window_size.unwrap_or_default()
     }
@@ -92,16 +92,10 @@ mod tests {
     }
 
     #[test]
-    fn older_configuration_defaults_window_size_without_rewriting_file() {
-        let store = store("legacy-window-size");
-        fs::create_dir_all(store.path.parent().unwrap()).unwrap();
-        let original = br#"{"connections":[],"sort_mode":"most_used"}"#;
-        let directory = store.path.parent().unwrap();
-        let legacy = directory.join("latch.json");
-        fs::write(&legacy, original).unwrap();
-        let restored = Store::load_portable(directory, None).unwrap();
-        assert_eq!(restored.window_size(), WindowSize::default());
-        assert_eq!(fs::read(legacy).unwrap(), original);
+    fn fresh_settings_default_to_initial_window_size() {
+        let store = store("default-window-size");
+        assert_eq!(store.window_size(), WindowSize::default());
+        assert!(!store.path.exists());
     }
 
     #[test]
@@ -128,18 +122,21 @@ mod tests {
     }
 
     #[test]
-    fn invalid_configured_dimensions_are_rejected_without_rewriting_file() {
-        let store = store("invalid-configured-window-size");
-        fs::create_dir_all(store.path.parent().unwrap()).unwrap();
-        let original = br#"{"window_size":{"width":1,"height":720}}"#;
-        let directory = store.path.parent().unwrap();
-        let legacy = directory.join("latch.json");
-        fs::write(&legacy, original).unwrap();
+    fn invalid_imported_dimensions_are_rejected_without_changing_settings() {
+        let mut store = store("invalid-imported-window-size");
+        store.set_window_size(WindowSize::default()).unwrap();
+        let original = fs::read(&store.path).unwrap();
+        let mut snapshot: serde_json::Value =
+            serde_json::from_slice(&store.export_json().unwrap()).unwrap();
+        snapshot["configuration"]["window_size"]["width"] = 1.into();
         assert_eq!(
-            Store::load_portable(directory, None).err().unwrap().kind(),
+            Store::parse_import(&serde_json::to_vec(&snapshot).unwrap())
+                .err()
+                .unwrap()
+                .kind(),
             io::ErrorKind::InvalidData
         );
-        assert_eq!(fs::read(legacy).unwrap(), original);
+        assert_eq!(fs::read(&store.path).unwrap(), original);
     }
 
     #[test]
