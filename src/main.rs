@@ -4,14 +4,22 @@ mod ui;
 
 use gpui::*;
 use latch::storage::Store;
-use std::{path::PathBuf, sync::Arc};
+use std::{io, path::PathBuf, sync::Arc};
 
 fn main() {
-    let directory = std::env::var_os("LATCH_CONFIG_DIR")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("APPDATA").map(|path| PathBuf::from(path).join("Latch")))
-        .unwrap_or_else(|| PathBuf::from(".latch"));
-    let store = match Store::load(directory.join("connections.json")) {
+    let directory = match configuration_directory() {
+        Ok(directory) => directory,
+        Err(error) => {
+            eprintln!("Cannot locate Latch settings: {error}");
+            return;
+        }
+    };
+    let roaming_directory = if std::env::var_os("LATCH_CONFIG_DIR").is_none() {
+        std::env::var_os("APPDATA").map(|path| PathBuf::from(path).join("Latch"))
+    } else {
+        None
+    };
+    let store = match Store::load_portable(&directory, roaming_directory.as_deref()) {
         Ok(store) => store,
         Err(error) => {
             eprintln!("Cannot load Latch connections: {error}");
@@ -26,7 +34,12 @@ fn main() {
         }
     };
     Application::new().run(move |cx: &mut App| {
-        let mut options = ui::options("Latch", 1120., 720., cx);
+        let mut options = ui::options(
+            "Lightweight Access Terminal & Connection Handler",
+            1120.,
+            720.,
+            cx,
+        );
         options.window_min_size = Some(size(px(720.), px(480.)));
         if let Err(error) = cx.open_window(options, |window, cx| {
             let owner = window.window_handle();
@@ -47,4 +60,14 @@ fn main() {
             cx.quit();
         }
     });
+}
+
+fn configuration_directory() -> io::Result<PathBuf> {
+    if let Some(directory) = std::env::var_os("LATCH_CONFIG_DIR") {
+        return Ok(PathBuf::from(directory));
+    }
+    std::env::current_exe()?
+        .parent()
+        .map(std::path::Path::to_path_buf)
+        .ok_or_else(|| io::Error::other("The executable has no parent directory"))
 }

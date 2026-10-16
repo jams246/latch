@@ -8,7 +8,7 @@ pub(super) fn store(tag: &str) -> Store {
     Store::load(path(tag)).unwrap()
 }
 
-fn path(tag: &str) -> PathBuf {
+pub(super) fn path(tag: &str) -> PathBuf {
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let repository = manifest
         .ancestors()
@@ -21,7 +21,7 @@ fn path(tag: &str) -> PathBuf {
     repository
         .join(".verification/latch-plan/storage")
         .join(format!("{tag}-{}", Uuid::new_v4()))
-        .join("connections.json")
+        .join("latch.json")
 }
 
 fn sample() -> Connection {

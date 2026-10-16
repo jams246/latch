@@ -9,14 +9,18 @@ use uuid::Uuid;
 use super::Configuration;
 
 pub(super) fn read(path: &Path) -> io::Result<Configuration> {
+    Ok(read_existing(path)?.unwrap_or_default())
+}
+
+pub(super) fn read_existing(path: &Path) -> io::Result<Option<Configuration>> {
     let bytes = match fs::read(path) {
         Ok(bytes) => bytes,
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            return Ok(Configuration::default());
+            return Ok(None);
         }
         Err(error) => return Err(error),
     };
-    serde_json::from_slice(&bytes).map_err(|_| {
+    serde_json::from_slice(&bytes).map(Some).map_err(|_| {
         io::Error::new(
             io::ErrorKind::InvalidData,
             "Connection configuration is invalid; the original file was preserved",

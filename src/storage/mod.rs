@@ -2,9 +2,12 @@
 
 mod model;
 mod persistence;
+mod portable;
 
 #[cfg(test)]
 mod tests_persistence;
+#[cfg(test)]
+mod tests_portable;
 #[cfg(test)]
 mod tests_sorting;
 
