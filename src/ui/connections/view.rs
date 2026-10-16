@@ -31,10 +31,7 @@ impl Latch {
                                 .fields
                                 .iter()
                                 .any(|field| field.read(cx).focus.is_focused(window))
-                        }) =>
-                    {
-                        this.save_connection(window, cx)
-                    }
+                        }) => {}
                     "escape" => {
                         this.close_editor(window, cx);
                     }
@@ -43,9 +40,23 @@ impl Latch {
                             editor.cycle_focus(event.keystroke.modifiers.shift, window, cx);
                         }
                     }
-                    _ => (),
+                    _ => return,
                 }
                 cx.stop_propagation();
+            }))
+            .on_key_up(cx.listener(|this, event: &KeyUpEvent, window, cx| {
+                if event.keystroke.key == "enter"
+                    && this.editor.as_ref().is_some_and(|editor| {
+                        editor
+                            .fields
+                            .iter()
+                            .any(|field| field.read(cx).focus.is_focused(window))
+                    })
+                {
+                    // Submit on release so restored button focus cannot activate Add again.
+                    this.save_connection(window, cx);
+                    cx.stop_propagation();
+                }
             }))
             .child(
                 div()

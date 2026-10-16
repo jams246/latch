@@ -1,3 +1,5 @@
+#[cfg(test)]
+mod tests;
 mod view;
 
 use super::{Latch, button, input::Input};
