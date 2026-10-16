@@ -14,6 +14,13 @@ fn fixture(cx: &mut TestAppContext) -> (WindowHandle<Latch>, Connection) {
     let directory = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join(".verification/app-updates/sftp-tabs")
         .join(uuid::Uuid::new_v4().to_string());
+    let local = directory.join("local");
+    std::fs::create_dir_all(&local).unwrap();
+    std::fs::write(
+        directory.join("sftp-local-directory.json"),
+        serde_json::to_vec(&local).unwrap(),
+    )
+    .unwrap();
     let mut store = Store::load(directory.join("latch.json")).unwrap();
     let connection = Connection::new(
         "Synthetic server".into(),
@@ -103,7 +110,8 @@ fn closing_terminal_keeps_sftp_tab_and_focuses_its_path(cx: &mut TestAppContext)
             let (mut sftp, _) = synthetic_tab(connection, SessionKind::Sftp, cx);
             let id = sftp.id.clone();
             let (commands, _) = tokio::sync::mpsc::channel(1);
-            let files = cx.new(|cx| Files::new(commands, app.runtime.clone(), cx));
+            let files =
+                cx.new(|cx| Files::new(commands, app.runtime.clone(), app.directory.clone(), cx));
             let path_focus = files.read(cx).path.focus_handle(cx);
             let TabContent::Sftp { files: slot, .. } = &mut sftp.content else {
                 panic!("Expected SFTP tab");

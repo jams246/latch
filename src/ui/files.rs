@@ -1,3 +1,15 @@
+pub(super) mod breadcrumbs;
+pub(super) mod local;
+mod navigation;
+pub(super) mod pane;
+mod polling;
+pub(super) mod rows;
+#[cfg(test)]
+mod tests;
+#[cfg(test)]
+mod tests_interaction;
+#[cfg(test)]
+mod tests_navigation;
 mod transfers;
 
 use super::input::Input;
@@ -6,30 +18,57 @@ use latch::{
     sftp::{self, Browser, Direction, Directory, TransferEvent},
     ssh,
 };
+use pane::{History, Side, Sort};
 use std::{
     path::PathBuf,
     sync::{Arc, mpsc},
 };
 
+enum RemoteResult {
+    Directory(Browser, Directory),
+    FileLink(Browser, String),
+}
+
+type LocalResult = std::io::Result<(local::Directory, Option<String>)>;
+
 pub(super) struct Files {
     pub path: Entity<Input>,
     pub directory: Option<Directory>,
+    pub local: Option<local::Directory>,
     pub status: String,
+    pub local_status: String,
     pub busy: bool,
+    pub local_busy: bool,
+    pub local_sort: Sort,
+    pub remote_sort: Sort,
+    pub local_history: History<PathBuf>,
+    pub remote_history: History<String>,
+    local_breadcrumb_scroll: ScrollHandle,
+    remote_breadcrumb_scroll: ScrollHandle,
+    pub(super) breadcrumb_reveal: [bool; 2],
     pub transfer: Option<sftp::Transfer>,
     browser: Option<Browser>,
     runtime: Arc<tokio::runtime::Runtime>,
-    events: mpsc::Receiver<Result<(Browser, Directory), sftp::Error>>,
-    sender: mpsc::Sender<Result<(Browser, Directory), sftp::Error>>,
+    events: mpsc::Receiver<Result<RemoteResult, sftp::Error>>,
+    sender: mpsc::Sender<Result<RemoteResult, sftp::Error>>,
+    local_events: mpsc::Receiver<LocalResult>,
+    local_sender: mpsc::Sender<LocalResult>,
     progress: Option<tokio::sync::mpsc::Receiver<TransferEvent>>,
     operation: Option<tokio::task::JoinHandle<()>>,
+    local_operation: Option<tokio::task::JoinHandle<()>>,
     commands: tokio::sync::mpsc::Sender<ssh::Command>,
+    config_directory: PathBuf,
+    pending_local_history: Option<usize>,
+    pending_remote_history: Option<usize>,
     closing: bool,
 }
 
 impl Drop for Files {
     fn drop(&mut self) {
-        if let Some(task) = &self.operation {
+        for task in [&self.operation, &self.local_operation]
+            .into_iter()
+            .flatten()
+        {
             task.abort();
         }
     }
@@ -39,20 +78,11 @@ impl Files {
     pub fn new(
         commands: tokio::sync::mpsc::Sender<ssh::Command>,
         runtime: Arc<tokio::runtime::Runtime>,
+        config_directory: PathBuf,
         cx: &mut Context<Self>,
     ) -> Self {
         let (sender, events) = mpsc::channel();
-        let result_tx = sender.clone();
-        let opening_commands = commands.clone();
-        let operation = runtime.spawn(async move {
-            let result = async {
-                let browser = Browser::connect(&opening_commands).await?;
-                let directory = browser.list(".").await?;
-                Ok((browser, directory))
-            }
-            .await;
-            let _ = result_tx.send(result);
-        });
+        let (local_sender, local_events) = mpsc::channel();
         cx.spawn(async move |this, cx| {
             loop {
                 Timer::after(std::time::Duration::from_millis(30)).await;
@@ -62,162 +92,54 @@ impl Files {
             }
         })
         .detach();
-        Self {
+        let mut files = Self {
             path: cx.new(|cx| Input::new(".", false, cx)),
             directory: None,
+            local: None,
             status: "Opening SFTP…".into(),
-            busy: true,
+            local_status: "Loading local directory…".into(),
+            busy: false,
+            local_busy: false,
+            local_sort: Sort::default(),
+            remote_sort: Sort::default(),
+            local_history: History::default(),
+            remote_history: History::default(),
+            local_breadcrumb_scroll: ScrollHandle::new(),
+            remote_breadcrumb_scroll: ScrollHandle::new(),
+            breadcrumb_reveal: [false; 2],
             transfer: None,
             browser: None,
             runtime,
             events,
             sender,
+            local_events,
+            local_sender,
             progress: None,
-            operation: Some(operation),
+            operation: None,
+            local_operation: None,
             commands,
+            config_directory,
+            pending_local_history: None,
+            pending_remote_history: None,
             closing: false,
-        }
-    }
-
-    fn poll(&mut self, cx: &mut Context<Self>) {
-        if self.closing {
-            return;
-        }
-        while let Ok(result) = self.events.try_recv() {
-            self.busy = false;
-            match result {
-                Ok((browser, directory)) => {
-                    self.path.update(cx, |input, cx| {
-                        input.take(cx);
-                        input.replace(0..0, &directory.path, cx);
-                    });
-                    self.status = format!("{} entries", directory.entries.len());
-                    self.directory = Some(directory);
-                    self.browser = Some(browser);
-                }
-                Err(error) => {
-                    self.status = error.to_string();
-                    self.browser = None;
-                }
-            }
-            cx.notify();
-        }
-        let mut finished = false;
-        if let Some(progress) = &mut self.progress {
-            while let Ok(event) = progress.try_recv() {
-                let (status, terminal) = transfer_status(event);
-                self.status = status;
-                finished |= terminal;
-                cx.notify();
-            }
-        }
-        if let Some(event) = self
-            .transfer
-            .as_ref()
-            .and_then(sftp::Transfer::terminal_event)
-        {
-            if matches!(&event, TransferEvent::Failed(_)) {
-                self.browser = None;
-            }
-            let (status, terminal) = transfer_status(event);
-            self.status = status;
-            finished |= terminal;
-            cx.notify();
-        }
-        if !finished
-            && self
-                .progress
-                .as_ref()
-                .is_some_and(|progress| progress.is_closed())
-        {
-            self.status =
-                "Transfer status was interrupted. Refresh the folder before retrying.".into();
-            self.browser = None;
-            finished = true;
-            cx.notify();
-        }
-        if finished {
-            self.transfer = None;
-            self.progress = None;
-        }
-    }
-
-    pub(super) fn navigate(&mut self, path: String, cx: &mut Context<Self>) {
-        if self.busy || self.closing || self.transfer.is_some() {
-            return;
-        }
-        let browser = self.browser.clone();
-        let commands = self.commands.clone();
-        let events = self.sender.clone();
-        self.busy = true;
-        self.status = "Loading directory…".into();
-        self.operation = Some(self.runtime.spawn(async move {
-            let result = async {
-                let browser = match browser {
-                    Some(browser) => browser,
-                    None => Browser::connect(&commands).await?,
-                };
-                let directory = browser.list(&path).await?;
-                Ok((browser, directory))
-            }
-            .await;
-            let _ = events.send(result);
-        }));
-        cx.notify();
+        };
+        files.navigate(".".into(), cx);
+        files.load_local(None, false, None, cx);
+        files
     }
 
     pub(super) fn prepare_close(&mut self, cx: &mut Context<Self>) -> Option<sftp::Transfer> {
         self.closing = true;
         self.busy = true;
-        if let Some(operation) = self.operation.take() {
+        for operation in [self.operation.take(), self.local_operation.take()]
+            .into_iter()
+            .flatten()
+        {
             operation.abort();
         }
         self.progress = None;
         self.browser = None;
         cx.notify();
         self.transfer.take()
-    }
-}
-
-fn transfer_status(event: TransferEvent) -> (String, bool) {
-    match event {
-        TransferEvent::Progress { completed, total } => (
-            match total {
-                Some(total) => format!("Transferring: {completed} / {total} bytes"),
-                None => format!("Transferring: {completed} bytes"),
-            },
-            false,
-        ),
-        TransferEvent::Completed => ("Transfer complete".into(), true),
-        TransferEvent::Cancelled => ("Transfer cancelled".into(), true),
-        TransferEvent::Failed(error) => (format!("{error} Refresh folder to reconnect."), true),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{TransferEvent, transfer_status};
-
-    #[test]
-    fn retained_terminal_states_release_transfer_controls_but_progress_does_not() {
-        assert_eq!(
-            transfer_status(TransferEvent::Completed),
-            ("Transfer complete".into(), true)
-        );
-        assert_eq!(
-            transfer_status(TransferEvent::Cancelled),
-            ("Transfer cancelled".into(), true)
-        );
-        assert_eq!(
-            transfer_status(TransferEvent::Failed("failure".into())),
-            ("failure Refresh folder to reconnect.".into(), true)
-        );
-        assert!(
-            !transfer_status(TransferEvent::Progress {
-                completed: 1,
-                total: Some(2)
-            })
-            .1
-        );
     }
 }

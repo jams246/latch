@@ -59,9 +59,10 @@ impl Files {
         if self.busy || self.transfer.is_some() {
             return;
         }
-        let directory = std::env::var_os("USERPROFILE")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from("."));
+        let directory = self
+            .local
+            .as_ref()
+            .map_or_else(|| PathBuf::from("."), |directory| directory.path.clone());
         let prompt = cx.prompt_for_new_path(&directory, Some(name));
         cx.spawn(async move |this, cx| match prompt.await {
             Ok(Ok(Some(local))) => {

@@ -35,7 +35,12 @@ impl Latch {
                                         let commands = transport.commands.clone();
                                         let runtime = self.runtime.clone();
                                         *files = Some(cx.new(|cx| {
-                                            super::files::Files::new(commands, runtime, cx)
+                                            super::files::Files::new(
+                                                commands,
+                                                runtime,
+                                                self.directory.clone(),
+                                                cx,
+                                            )
                                         }));
                                     }
                                 }
