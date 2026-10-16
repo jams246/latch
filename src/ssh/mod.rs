@@ -67,6 +67,8 @@ pub enum State {
     Authenticating,
     /// Authentication and any requested PTY and shell startup succeeded.
     Connected,
+    /// Recovering this tab's interrupted transport for up to 30 seconds.
+    Reconnecting,
     /// The attempt terminated with a sanitized error.
     Failed,
 }
@@ -84,6 +86,8 @@ pub enum Command {
     },
     /// Cancel pending authentication or close the connected transport.
     Disconnect,
+    /// Recover a transport whose SFTP subsystem stopped responding.
+    Reconnect,
     /// Open SFTP on this authenticated transport without another login or usage count.
     OpenSftp(oneshot::Sender<Result<SftpStream, Error>>),
 }
@@ -136,7 +140,7 @@ pub enum Prompt {
         /// Explicit trust decision; false or a dropped sender cancels the attempt.
         reply: oneshot::Sender<bool>,
     },
-    /// A password or key passphrase, with no persistent reuse across attempts.
+    /// A password or key passphrase, retained only in memory for this tab's recovery.
     Secret {
         /// Required credential and associated existing key path, when applicable.
         kind: SecretKind,
@@ -187,6 +191,8 @@ mod tests_auth;
 mod tests_key_formats;
 #[cfg(test)]
 mod tests_lifecycle;
+#[cfg(test)]
+mod tests_recovery;
 #[cfg(test)]
 mod tests_sftp;
 #[cfg(test)]

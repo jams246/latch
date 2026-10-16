@@ -129,10 +129,36 @@ async fn sftp_only_peer_disconnect_is_detected_without_a_shell_channel() {
     password(&mut prompts, "test-only-password", false).await;
     connected(&mut events).await;
     fixture.disconnect_clients();
-
-    stopped(&mut events, &fixture, State::Failed).await;
-
-    assert!(control.commands.is_closed());
+    super::tests_recovery::status(&mut events, State::Reconnecting).await;
+    control.commands.send(Command::Disconnect).await.unwrap();
+    stopped(&mut events, &fixture, State::Disconnected).await;
     assert_eq!(fixture.counts.ptys.load(Ordering::SeqCst), 0);
     assert_eq!(fixture.counts.shells.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn sftp_subsystem_loss_recovers_verified_transport_without_another_password() {
+    let fixture = Fixture::start_sftp(subsystem).await;
+    let (control, mut prompts, mut events) = start(config(&fixture, "sftp-recovery"));
+    trust(&mut prompts).await;
+    password(&mut prompts, "test-only-password", false).await;
+    connected(&mut events).await;
+    let browser = Browser::connect(&control.commands).await.unwrap();
+    control.commands.send(Command::Reconnect).await.unwrap();
+    super::tests_recovery::status(&mut events, State::Reconnecting).await;
+    connected(&mut events).await;
+    let reopened = Browser::connect(&control.commands).await.unwrap();
+    assert!(
+        reopened
+            .list("/")
+            .await
+            .unwrap()
+            .entries
+            .iter()
+            .any(|entry| entry.name == "hello.txt")
+    );
+    assert!(prompts.try_recv().is_err());
+    assert_eq!(fixture.counts.passwords.load(Ordering::SeqCst), 2);
+    assert_eq!(fixture.counts.ptys.load(Ordering::SeqCst), 0);
+    drop(browser);
 }

@@ -151,6 +151,8 @@ impl server::Handler for Handler {
     ) -> Result<(), Self::Error> {
         if cols > 0 && rows > 0 {
             self.counts.ptys.fetch_add(1, Ordering::SeqCst);
+            self.counts.cols.store(cols as usize, Ordering::SeqCst);
+            self.counts.rows.store(rows as usize, Ordering::SeqCst);
         }
         if self.reject_pty {
             session.channel_failure(channel)?;
@@ -183,6 +185,26 @@ impl server::Handler for Handler {
         data: &[u8],
         session: &mut server::Session,
     ) -> Result<(), Self::Error> {
+        if data == b"synthetic-drop" {
+            session.disconnect(
+                russh::Disconnect::ByApplication,
+                "Synthetic disconnect",
+                "en",
+            )?;
+            return Ok(());
+        }
+        if data == b"synthetic-exit" || data == b"synthetic-eof-exit" {
+            if data == b"synthetic-eof-exit" {
+                session.eof(channel)?;
+            }
+            session.exit_status_request(channel, 0)?;
+            session.close(channel)?;
+            return Ok(());
+        }
+        if data == b"synthetic-shell-close" {
+            session.close(channel)?;
+            return Ok(());
+        }
         if self.channels.contains_key(&channel) {
             session.data(channel, data.to_vec())?;
         }

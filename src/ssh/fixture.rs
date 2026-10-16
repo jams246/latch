@@ -24,6 +24,8 @@ pub(crate) struct Counts {
     pub subsystems: AtomicUsize,
     pub resizes: AtomicUsize,
     pub agent_forwarding: AtomicUsize,
+    pub cols: AtomicUsize,
+    pub rows: AtomicUsize,
 }
 
 pub(crate) fn key(seed: u8) -> PrivateKey {

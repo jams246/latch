@@ -1,12 +1,10 @@
-use std::{sync::Arc, time::Duration};
-
+mod connected;
+mod recovery;
 mod setup;
 
-use russh::ChannelMsg;
 use tokio::sync::mpsc;
 
 use super::{Command, ConnectionConfig, Error, Event, Prompt, State};
-use setup::{Established, establish, open_sftp};
 
 /// Owns one tab's transport task; dropping it aborts pending work and closes its socket.
 pub struct SessionControl {
@@ -111,88 +109,37 @@ async fn serve(
         .send(Event::Status(State::Connecting))
         .await
         .map_err(|_| Error::Cancelled)?;
-    let setup = tokio::time::timeout(
-        Duration::from_secs(180),
-        establish(config, prompts, events, request_shell),
-    );
-    tokio::pin!(setup);
-    let mut size = (config.cols, config.rows);
-    let Established {
-        handle,
-        mut shell,
-        initial,
-        _socket_guard,
-        mut disconnected,
-    } = loop {
-        tokio::select! {
-            result = &mut setup => break result.map_err(|_| Error::Timeout)??,
-            command = commands.recv() => match command {
-                Some(Command::Disconnect) | None => return Err(Error::Cancelled),
-                Some(Command::OpenSftp(reply)) => { let _ = reply.send(Err(Error::Authentication)); },
-                Some(Command::Resize { cols, rows }) if cols > 0 && rows > 0 => size = (cols, rows),
-                _ => (),
-            }
-        }
-    };
-    if size != (config.cols, config.rows)
-        && let Some(shell) = &shell
-    {
-        shell.window_change(size.0, size.1, 0, 0).await?;
-    }
-    events
-        .send(Event::Status(State::Connected))
-        .await
-        .map_err(|_| Error::Cancelled)?;
-    if !initial.is_empty() {
-        events
-            .send(Event::Output(initial))
-            .await
-            .map_err(|_| Error::Cancelled)?;
-    }
-    let handle = Arc::new(handle);
-    let mut channel_requests = tokio::task::JoinSet::new();
-    loop {
-        tokio::select! {
-            command = commands.recv() => match command {
-                Some(Command::Input(data)) => {
-                    if let Some(shell) = &shell { shell.data(data.as_slice()).await?; }
-                }
-                Some(Command::Resize { cols, rows }) if cols > 0 && rows > 0 => {
-                    if let Some(shell) = &shell { shell.window_change(cols, rows, 0, 0).await?; }
-                }
-                Some(Command::OpenSftp(reply)) => {
-                    let handle = handle.clone();
-                    channel_requests.spawn(async move {
-                        let result = tokio::time::timeout(Duration::from_secs(20), open_sftp(&handle))
-                            .await.map_err(|_| Error::Timeout).and_then(|result| result);
-                        let _ = reply.send(result);
-                    });
-                }
-                Some(Command::Disconnect) | None => break,
-                _ => (),
-            },
-            _ = channel_requests.join_next(), if !channel_requests.is_empty() => (),
-            _ = disconnected.changed(), if shell.is_none() => return Err(Error::Transport),
-            message = async { shell.as_mut()?.wait().await }, if shell.is_some() => match message {
-                Some(ChannelMsg::Data { data }) | Some(ChannelMsg::ExtendedData { data, .. }) => {
-                    events.send(Event::Output(data.to_vec())).await.map_err(|_| Error::Cancelled)?;
-                }
-                Some(ChannelMsg::ExitStatus { exit_status }) => {
-                    let _ = events.send(Event::Exit(exit_status)).await;
-                }
-                Some(ChannelMsg::Close | ChannelMsg::Eof) | None => break,
-                _ => (),
-            }
-        }
-    }
-    if let Some(shell) = shell {
-        let _ = shell.close().await;
-    }
-    tokio::time::timeout(
-        Duration::from_secs(5),
-        handle.disconnect(russh::Disconnect::ByApplication, "Session closed", "en"),
+    let mut config = config.clone();
+    let mut cached = None;
+    let mut connection = recovery::attempt(
+        &mut config,
+        commands,
+        prompts,
+        events,
+        request_shell,
+        &mut cached,
+        None,
     )
-    .await
-    .map_err(|_| Error::Timeout)??;
-    Ok(())
+    .await?;
+    loop {
+        let result = connected::serve(connection, &mut config, commands, events).await;
+        match result {
+            Ok(()) | Err(Error::Cancelled) => return result,
+            Err(_) => {
+                events
+                    .send(Event::Status(State::Reconnecting))
+                    .await
+                    .map_err(|_| Error::Cancelled)?;
+                connection = recovery::recover(
+                    &mut config,
+                    commands,
+                    prompts,
+                    events,
+                    request_shell,
+                    &mut cached,
+                )
+                .await?;
+            }
+        }
+    }
 }

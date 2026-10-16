@@ -4,7 +4,7 @@ use russh::{Channel, ChannelMsg, client};
 use tokio::sync::{mpsc, watch};
 
 use crate::ssh::{
-    ConnectionConfig, Error, Event, Prompt, SftpStream, State,
+    ConnectionConfig, Error, Event, Prompt, Secret, SftpStream, State,
     host::{CancelOnDrop, Client},
     socket::SocketGuard,
 };
@@ -22,6 +22,8 @@ pub(super) async fn establish(
     prompts: &mpsc::Sender<Prompt>,
     events: &mpsc::Sender<Event>,
     request_shell: bool,
+    cached: &mut Option<Secret>,
+    reconnecting: bool,
 ) -> Result<Established, Error> {
     let (cancel, cancelled) = watch::channel(false);
     let (closed, mut disconnected) = watch::channel(false);
@@ -36,18 +38,30 @@ pub(super) async fn establish(
         disconnected: disconnected.clone(),
     };
     let settings = client::Config {
-        keepalive_interval: Some(Duration::from_secs(30)),
-        keepalive_max: 3,
+        keepalive_interval: Some(Duration::from_secs(3)),
+        keepalive_max: 2,
         ..Default::default()
     };
-    let (socket, guard) = crate::ssh::socket::connect(&config.host, config.port, closed).await?;
-    let mut handle = client::connect_stream(Arc::new(settings), socket, client).await?;
-    events
-        .send(Event::Status(State::Authenticating))
-        .await
-        .map_err(|_| Error::Cancelled)?;
+    let connecting = async {
+        let (socket, guard) =
+            crate::ssh::socket::connect(&config.host, config.port, closed).await?;
+        let handle = client::connect_stream(Arc::new(settings), socket, client).await?;
+        Ok::<_, Error>((handle, guard))
+    };
+    let (mut handle, guard) = tokio::time::timeout(
+        Duration::from_secs(if reconnecting { 5 } else { 180 }),
+        connecting,
+    )
+    .await
+    .map_err(|_| Error::Timeout)??;
+    if !reconnecting {
+        events
+            .send(Event::Status(State::Authenticating))
+            .await
+            .map_err(|_| Error::Cancelled)?;
+    }
     tokio::select! {
-        result = crate::ssh::auth::authenticate(&mut handle, config, prompts) => result?,
+        result = crate::ssh::auth::authenticate(&mut handle, config, prompts, cached) => result?,
         _ = disconnected.changed() => return Err(Error::Transport),
     }
     let mut initial = Vec::new();
@@ -61,6 +75,17 @@ pub(super) async fn establish(
         await_success(&mut shell, &mut initial).await?;
         Some(shell)
     } else {
+        if reconnecting {
+            tokio::time::timeout(Duration::from_secs(5), async {
+                let session = russh_sftp::client::SftpSession::new(open_sftp(&handle).await?)
+                    .await
+                    .map_err(|_| Error::Transport)?;
+                let _ = session.close().await;
+                Ok::<_, Error>(())
+            })
+            .await
+            .map_err(|_| Error::Timeout)??;
+        }
         None
     };
     Ok(Established {
