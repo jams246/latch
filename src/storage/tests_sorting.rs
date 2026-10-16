@@ -92,7 +92,6 @@ fn only_explicit_success_events_increment_usage() {
     let mut store = store("success-only");
     store.upsert(connection("a", "Server")).unwrap();
     store.set_sort_mode(SortMode::MostUsed).unwrap();
-    store.save().unwrap();
     assert_eq!(store.connections()[0].successful_shells, 0);
     store.record_successful_shell("a").unwrap();
     assert_eq!(store.connections()[0].successful_shells, 1);

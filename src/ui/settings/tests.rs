@@ -54,8 +54,7 @@ pub(super) fn fixture(cx: &mut TestAppContext) -> Fixture {
         .join(".verification/terminal-settings")
         .join(uuid::Uuid::new_v4().to_string());
     let path = directory.join("latch.db");
-    let store = Store::load(&path).unwrap();
-    store.save().unwrap();
+    let store = Store::load_profile(&directory).unwrap();
     let runtime = Arc::new(tokio::runtime::Runtime::new().unwrap());
     cx.update(|cx| cx.set_global(TerminalPalette::Classic));
     let handle = cx

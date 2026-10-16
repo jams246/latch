@@ -63,14 +63,6 @@ impl Store {
         Ok(ImportSnapshot(configuration))
     }
 
-    /// Exports settings, connections, usage, and local directories as plaintext JSON.
-    ///
-    /// # Errors
-    /// Returns serialization failures without writing a file.
-    pub fn export_json(&self) -> io::Result<Vec<u8>> {
-        self.snapshot().export_json()
-    }
-
     /// Captures immutable metadata for serialization on a worker thread.
     pub fn snapshot(&self) -> ImportSnapshot {
         ImportSnapshot(self.configuration.clone())

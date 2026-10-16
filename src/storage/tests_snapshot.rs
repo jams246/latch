@@ -21,7 +21,6 @@ fn complete_snapshot_round_trip_preserves_counts_paths_and_all_preferences() {
     let connection = sample();
     original.upsert(connection.clone()).unwrap();
     original.configuration.connections[0].successful_shells = u64::MAX;
-    original.save().unwrap();
     original.record_successful_shell(&connection.id).unwrap();
     original.set_sort_mode(SortMode::FrequentAndName).unwrap();
     original
@@ -40,10 +39,9 @@ fn complete_snapshot_round_trip_preserves_counts_paths_and_all_preferences() {
         .unwrap();
     let mut imported = store("complete-import");
     imported.upsert(sample()).unwrap();
-    imported.save().unwrap();
     let wrapped_key = fs::read(imported.path.with_file_name("key.dpapi")).unwrap();
     imported
-        .replace_import(Store::parse_import(&original.export_json().unwrap()).unwrap())
+        .replace_import(Store::parse_import(&original.snapshot().export_json().unwrap()).unwrap())
         .unwrap();
     assert!(original.configuration == imported.configuration);
     assert!(Store::load(&imported.path).unwrap().configuration == original.configuration);
@@ -81,7 +79,7 @@ fn unversioned_configuration_is_rejected() {
 fn unknown_version_and_invalid_connections_are_rejected() {
     let original = store("invalid-import");
     let mut value: serde_json::Value =
-        serde_json::from_slice(&original.export_json().unwrap()).unwrap();
+        serde_json::from_slice(&original.snapshot().export_json().unwrap()).unwrap();
     value["format_version"] = 2.into();
     assert!(Store::parse_import(&serde_json::to_vec(&value).unwrap()).is_err());
     value["format_version"] = 1.into();
@@ -148,7 +146,7 @@ fn settings_that_cannot_fit_export_limit_are_rejected_before_commit() {
 fn exports_protect_internal_files_and_allow_user_backup_destination() {
     let directory = super::tests_portable::directory("export-targets");
     let original = Store::load_profile(&directory).unwrap();
-    let bytes = original.export_json().unwrap();
+    let bytes = original.snapshot().export_json().unwrap();
     for name in [
         "latch.db",
         "key.dpapi",

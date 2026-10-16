@@ -2,14 +2,14 @@ use std::{fs, io};
 
 use crate::storage::{AuthMethod, Connection, Store, tests_persistence::path};
 
-use super::{database, key};
+use super::{database, key, write};
 
 #[test]
 fn encrypted_database_enables_schema_protections_and_rejects_schema_overwrites() {
     use rusqlite::config::DbConfig;
 
     let path = path("defensive-schema");
-    Store::load(&path).unwrap().save().unwrap();
+    write(&path, &Default::default()).unwrap();
     let database = database::open(&path).unwrap();
     assert!(
         database
@@ -49,7 +49,10 @@ fn invalid_configuration_is_rejected_before_creating_profile_files() {
     connection.name.clear();
     store.configuration.connections.push(connection);
 
-    assert_eq!(store.save().unwrap_err().kind(), io::ErrorKind::InvalidData);
+    assert_eq!(
+        write(&store.path, &store.configuration).unwrap_err().kind(),
+        io::ErrorKind::InvalidData
+    );
     assert!(!path.parent().unwrap().exists());
 }
 
@@ -154,8 +157,8 @@ fn locked_transaction_preserves_prior_memory_and_rows() {
 fn protected_key_roundtrips_random_256_bits_and_rejects_another_profiles_key() {
     let first = path("first-key");
     let second = path("second-key");
-    Store::load(&first).unwrap().save().unwrap();
-    Store::load(&second).unwrap().save().unwrap();
+    write(&first, &Default::default()).unwrap();
+    write(&second, &Default::default()).unwrap();
     let first_key = first.with_file_name("key.dpapi");
     let second_key = second.with_file_name("key.dpapi");
     assert_eq!(key::read(&first_key).unwrap().len(), 32);
@@ -229,11 +232,11 @@ fn all_auth_methods_unicode_paths_order_and_unsigned_counts_roundtrip() {
         .configuration
         .local_directories
         .insert(id.clone(), "C:\\synthetic\\données-目录".into());
-    store.save().unwrap();
+    write(&store.path, &store.configuration).unwrap();
     let restored = Store::load(path).unwrap();
     assert_eq!(restored.connections(), store.connections());
     assert_eq!(restored.local_directory(&id), store.local_directory(&id));
-    let exported = restored.export_json().unwrap();
+    let exported = restored.snapshot().export_json().unwrap();
     let mut imported = Store::load(super::super::tests_persistence::path("auth-import")).unwrap();
     imported
         .replace_import(Store::parse_import(&exported).unwrap())

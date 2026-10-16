@@ -69,14 +69,6 @@ impl Store {
         })
     }
 
-    /// Writes the current metadata without modifying the prior file on failure.
-    ///
-    /// # Errors
-    /// Returns filesystem and serialization failures.
-    pub fn save(&self) -> io::Result<()> {
-        persistence::write(&self.path, &self.configuration)
-    }
-
     /// Returns all saved connections in storage order.
     pub fn connections(&self) -> &[Connection] {
         &self.configuration.connections

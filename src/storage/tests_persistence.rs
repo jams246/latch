@@ -88,7 +88,7 @@ fn plaintext_settings_are_rejected_as_an_encrypted_database() {
 fn serialized_metadata_contains_only_allowed_fields() {
     let mut store = store("metadata-only");
     store.upsert(sample()).unwrap();
-    let bytes = store.export_json().unwrap();
+    let bytes = store.snapshot().export_json().unwrap();
     let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
     let mut fields: Vec<_> = value["configuration"]["connections"][0]
         .as_object()
@@ -154,7 +154,7 @@ fn duplicate_ids_and_invalid_connection_fields_are_rejected() {
     invalid.port = 0;
     assert!(store.upsert(invalid).is_err());
     let mut value: serde_json::Value =
-        serde_json::from_slice(&store.export_json().unwrap()).unwrap();
+        serde_json::from_slice(&store.snapshot().export_json().unwrap()).unwrap();
     value["configuration"]["connections"]
         .as_array_mut()
         .unwrap()

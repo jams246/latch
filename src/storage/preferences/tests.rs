@@ -45,7 +45,7 @@ fn all_terminal_themes_survive_restart_with_other_preferences() {
         assert_eq!(restored.sort_mode(), SortMode::FrequentAndName);
         assert_eq!(restored.window_size(), window_size);
         let value: serde_json::Value =
-            serde_json::from_slice(&store.export_json().unwrap()).unwrap();
+            serde_json::from_slice(&store.snapshot().export_json().unwrap()).unwrap();
         assert_eq!(value["configuration"]["terminal_theme"], serialized);
     }
 }
@@ -86,7 +86,7 @@ fn invalid_imported_terminal_theme_is_rejected_without_changing_settings() {
     store.set_terminal_theme(TerminalTheme::Carbon).unwrap();
     let original = fs::read(&store.path).unwrap();
     let mut snapshot: serde_json::Value =
-        serde_json::from_slice(&store.export_json().unwrap()).unwrap();
+        serde_json::from_slice(&store.snapshot().export_json().unwrap()).unwrap();
     snapshot["configuration"]["terminal_theme"] = "unknown".into();
     assert_eq!(
         Store::parse_import(&serde_json::to_vec(&snapshot).unwrap())

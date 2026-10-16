@@ -34,7 +34,8 @@ fn import_should_reject_active_tabs_without_changing_theme(cx: &mut TestAppConte
     fixture
         .handle
         .update(&mut fixture.visual, |app, _, cx| {
-            let snapshot = Store::parse_import(&app.store.export_json().unwrap()).unwrap();
+            let snapshot =
+                Store::parse_import(&app.store.snapshot().export_json().unwrap()).unwrap();
             assert!(app.apply_import(snapshot, cx).is_err());
             assert!(!app.preserve_imported_window);
             assert_eq!(app.store.terminal_theme(), TerminalPalette::Classic);
@@ -54,7 +55,8 @@ fn import_should_apply_theme_clear_search_and_preserve_imported_window(cx: &mut 
             app.store
                 .set_terminal_theme(TerminalPalette::Carbon)
                 .unwrap();
-            let snapshot = Store::parse_import(&app.store.export_json().unwrap()).unwrap();
+            let snapshot =
+                Store::parse_import(&app.store.snapshot().export_json().unwrap()).unwrap();
             app.store
                 .set_terminal_theme(TerminalPalette::Classic)
                 .unwrap();

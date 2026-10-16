@@ -126,7 +126,7 @@ mod tests {
         store.set_window_size(WindowSize::default()).unwrap();
         let original = fs::read(&store.path).unwrap();
         let mut snapshot: serde_json::Value =
-            serde_json::from_slice(&store.export_json().unwrap()).unwrap();
+            serde_json::from_slice(&store.snapshot().export_json().unwrap()).unwrap();
         snapshot["configuration"]["window_size"]["width"] = 1.into();
         assert_eq!(
             Store::parse_import(&serde_json::to_vec(&snapshot).unwrap())
