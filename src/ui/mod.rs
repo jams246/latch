@@ -1,4 +1,5 @@
 mod auth_dialog;
+mod connection_delete;
 mod connections;
 mod files;
 mod files_view;
@@ -37,6 +38,7 @@ pub struct Latch {
     tab_reveal_key: Option<(String, usize, Pixels)>,
     error: Option<String>,
     editor: Option<connections::Editor>,
+    connection_delete: Option<connection_delete::DeleteDialog>,
     owner: AnyWindowHandle,
     cleanup_sender: std::sync::mpsc::Sender<lifecycle::Completion>,
     cleanup_events: std::sync::mpsc::Receiver<lifecycle::Completion>,
@@ -107,6 +109,7 @@ impl Latch {
             tab_reveal_key: None,
             error: None,
             editor: None,
+            connection_delete: None,
             owner,
             cleanup_sender,
             cleanup_events,

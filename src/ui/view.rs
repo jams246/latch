@@ -135,5 +135,8 @@ impl Render for Latch {
             .when(self.editor.is_some(), |view| {
                 view.child(self.editor_view(cx))
             })
+            .when(self.connection_delete.is_some(), |view| {
+                view.child(self.connection_delete_view(cx))
+            })
     }
 }

@@ -28,6 +28,7 @@ impl Latch {
         let double_click = connection.clone();
         let sftp = connection.clone();
         let edit = connection.clone();
+        let delete = connection.clone();
         let id = connection.id.clone();
         div()
             .id(SharedString::from(format!("{section}-{id}")))
@@ -87,12 +88,13 @@ impl Latch {
                             SharedString::from(format!("delete-{section}-{id}")),
                             "Delete",
                         )
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            if let Err(error) = this.store.delete(&id) {
-                                this.error = Some(format!("Cannot delete connection: {error}"));
-                            }
-                            cx.notify();
-                        })),
+                        .text_color(rgb(0xff7777))
+                        .debug_selector(move || format!("delete-{section}-{id}"))
+                        .on_click(cx.listener(
+                            move |this, _, window, cx| {
+                                this.request_connection_delete(delete.clone(), window, cx);
+                            },
+                        )),
                     ),
             )
             .into_any_element()
