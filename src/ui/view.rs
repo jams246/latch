@@ -8,7 +8,7 @@ impl Render for Latch {
             (self.settings_sidebar(cx), self.settings_page(cx))
         } else {
             let tabs = self.tab_bar(window, cx);
-            let content = self.workspace(cx);
+            let content = self.workspace(window, cx);
             (
                 self.connections_sidebar(cx),
                 div()

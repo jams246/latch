@@ -13,6 +13,7 @@ mod lifecycle;
 mod modal;
 mod persistence;
 mod picker;
+mod reconnect;
 pub(crate) mod recovery;
 mod session_events;
 mod sessions;
@@ -77,6 +78,7 @@ struct Tab {
     content: TabContent,
     dialog: Option<WindowHandle<auth_dialog::AuthDialog>>,
     host_dialog: Option<host_dialog::HostDialog>,
+    reconnect: Option<reconnect::ReconnectDialog>,
     events: std::sync::mpsc::Receiver<ssh::Event>,
     prompts: tokio::sync::mpsc::Receiver<ssh::Prompt>,
     closing: bool,

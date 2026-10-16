@@ -46,6 +46,7 @@ fn fixture(cx: &mut TestAppContext) -> (WindowHandle<Latch>, VisualTestContext) 
                     content: TabContent::Terminal(terminal),
                     dialog: None,
                     host_dialog: None,
+                    reconnect: None,
                     events,
                     prompts,
                     closing: false,

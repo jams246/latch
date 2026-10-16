@@ -3,8 +3,9 @@ use gpui::{prelude::*, *};
 use latch::ssh::State;
 
 impl Latch {
-    pub(super) fn workspace(&self, cx: &mut Context<Self>) -> AnyElement {
+    pub(super) fn workspace(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let colors = super::theme::CARBON;
+        let reconnect = self.reconnect_view(window, cx);
         if let Some(index) = self.active.filter(|i| *i < self.tabs.len()) {
             let tab = &self.tabs[index];
             let connection = tab.connection.clone();
@@ -13,6 +14,7 @@ impl Latch {
                 _ => None,
             };
             div()
+                .relative()
                 .flex()
                 .flex_col()
                 .flex_1()
@@ -67,6 +69,7 @@ impl Latch {
                 .children(
                     tab.error
                         .clone()
+                        .filter(|_| tab.reconnect.is_none())
                         .map(|error| div().p_3().text_color(rgb(colors.danger)).child(error)),
                 )
                 .child(
@@ -80,11 +83,13 @@ impl Latch {
                             .child(match tab.state {
                                 State::Connected => "Opening SFTP…",
                                 State::Connecting | State::Authenticating => "Connecting SFTP…",
+                                State::Reconnecting => "Reconnecting SFTP…",
                                 State::Failed | State::Disconnected => "SFTP session closed",
                             })
                             .into_any_element(),
                     }),
                 )
+                .child(reconnect)
                 .into_any_element()
         } else {
             div()
@@ -110,6 +115,7 @@ fn state_label(state: State) -> &'static str {
     match state {
         State::Disconnected => "Disconnected",
         State::Connecting => "Connecting…",
+        State::Reconnecting => "Reconnecting…",
         State::Authenticating => "Authenticating…",
         State::Connected => "Connected",
         State::Failed => "Failed",

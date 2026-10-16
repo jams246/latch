@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod tests;
+pub(super) mod tests;
 
 use super::{Latch, SessionKind, Tab, TabContent, transport::Transport};
 use gpui::*;
@@ -86,6 +86,7 @@ impl Latch {
             content,
             dialog: None,
             host_dialog: None,
+            reconnect: None,
             events,
             prompts,
             closing: false,

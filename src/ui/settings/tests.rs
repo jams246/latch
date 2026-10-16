@@ -99,6 +99,7 @@ pub(super) fn fixture(cx: &mut TestAppContext) -> Fixture {
                 content: TabContent::Terminal(terminal),
                 dialog: None,
                 host_dialog: None,
+                reconnect: None,
                 events,
                 prompts,
                 closing: false,

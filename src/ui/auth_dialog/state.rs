@@ -1,12 +1,14 @@
 use latch::ssh::{self, Prompt};
 
 pub(in crate::ui) fn is_current(prompt: &Prompt, state: ssh::State) -> bool {
-    matches!(state, ssh::State::Connecting | ssh::State::Authenticating)
-        && match prompt {
-            Prompt::HostKey { reply, .. } => !reply.is_closed(),
-            Prompt::Secret { reply, .. } => !reply.is_closed(),
-            Prompt::KeyboardInteractive { reply, .. } => !reply.is_closed(),
-        }
+    matches!(
+        state,
+        ssh::State::Connecting | ssh::State::Authenticating | ssh::State::Reconnecting
+    ) && match prompt {
+        Prompt::HostKey { reply, .. } => !reply.is_closed(),
+        Prompt::Secret { reply, .. } => !reply.is_closed(),
+        Prompt::KeyboardInteractive { reply, .. } => !reply.is_closed(),
+    }
 }
 
 #[cfg(test)]
@@ -23,7 +25,11 @@ mod tests {
             error: None,
             reply,
         };
-        for state in [ssh::State::Connecting, ssh::State::Authenticating] {
+        for state in [
+            ssh::State::Connecting,
+            ssh::State::Authenticating,
+            ssh::State::Reconnecting,
+        ] {
             assert!(is_current(&prompt, state));
         }
         for state in [

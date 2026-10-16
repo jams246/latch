@@ -21,7 +21,9 @@ impl Latch {
                 dialog.reply.is_closed()
                     || !matches!(
                         tab.state,
-                        ssh::State::Connecting | ssh::State::Authenticating
+                        ssh::State::Connecting
+                            | ssh::State::Authenticating
+                            | ssh::State::Reconnecting
                     )
             }) {
                 if let Some(dialog) = tab.host_dialog.take() {
@@ -34,10 +36,31 @@ impl Latch {
                 match event {
                     ssh::Event::Status(state) => {
                         tab.state = state;
+                        if state == ssh::State::Reconnecting && !tab.closing {
+                            tab.error = None;
+                            if tab.reconnect.is_none() {
+                                tab.reconnect = Some(super::reconnect::ReconnectDialog::new(cx));
+                                if let TabContent::Sftp {
+                                    files: Some(files), ..
+                                } = &tab.content
+                                {
+                                    files.update(cx, |files, cx| files.connection_lost(cx));
+                                }
+                            }
+                        }
                         if matches!(state, ssh::State::Failed | ssh::State::Disconnected) {
                             disconnected.push(tab.id.clone());
                         }
                         if state == ssh::State::Connected && !tab.closing {
+                            if tab.reconnect.take().is_some() {
+                                tab.error = None;
+                                if let TabContent::Sftp {
+                                    files: Some(files), ..
+                                } = &tab.content
+                                {
+                                    files.update(cx, |files, cx| files.reconnected(cx));
+                                }
+                            }
                             match &mut tab.content {
                                 TabContent::Terminal(_) if !tab.counted => {
                                     tab.counted = true;

@@ -72,6 +72,7 @@ fn pending_host(
                 content,
                 dialog: None,
                 host_dialog: None,
+                reconnect: None,
                 events,
                 prompts: receiver,
                 closing: false,

@@ -61,6 +61,7 @@ fn only_matching_live_sftp_tabs_can_persist_local_preferences(cx: &mut TestAppCo
                 },
                 dialog: None,
                 host_dialog: None,
+                reconnect: None,
                 events,
                 prompts,
                 closing: false,

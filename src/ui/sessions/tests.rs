@@ -10,7 +10,7 @@ use latch::{
 };
 use std::sync::{Arc, mpsc};
 
-fn fixture(cx: &mut TestAppContext) -> (WindowHandle<Latch>, Connection) {
+pub(in crate::ui) fn fixture(cx: &mut TestAppContext) -> (WindowHandle<Latch>, Connection) {
     let directory = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join(".verification/app-updates/sftp-tabs")
         .join(uuid::Uuid::new_v4().to_string());
@@ -31,7 +31,7 @@ fn fixture(cx: &mut TestAppContext) -> (WindowHandle<Latch>, Connection) {
     (handle, connection)
 }
 
-fn synthetic_tab(
+pub(in crate::ui) fn synthetic_tab(
     connection: Connection,
     kind: SessionKind,
     cx: &mut Context<Latch>,
@@ -63,6 +63,7 @@ fn synthetic_tab(
             content,
             dialog: None,
             host_dialog: None,
+            reconnect: None,
             events,
             prompts,
             closing: false,

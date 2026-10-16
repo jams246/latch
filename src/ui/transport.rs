@@ -104,7 +104,14 @@ async fn route(
                         if !reply.is_empty() && commands.send(ssh::Command::Input(reply)).await.is_err() { break; }
                     }
                 }
-                Some(event) => { let _ = ui_events.send(event); }
+                Some(event) => {
+                    if matches!(event, ssh::Event::Status(ssh::State::Reconnecting))
+                        && let Some(state) = &state
+                    {
+                        state.reset_for_reconnect();
+                    }
+                    let _ = ui_events.send(event);
+                }
                 None => break,
             },
             event = input.recv(), if input_open => match event {
