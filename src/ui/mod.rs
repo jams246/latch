@@ -11,6 +11,7 @@ mod input_tests;
 mod lifecycle;
 mod modal;
 mod picker;
+pub(crate) mod recovery;
 mod session_events;
 mod sessions;
 mod settings;
@@ -48,6 +49,16 @@ pub struct Latch {
     cleanup_events: std::sync::mpsc::Receiver<lifecycle::Completion>,
     pending_cleanup: usize,
     shutting_down: bool,
+    data_busy: bool,
+    preserve_imported_window: bool,
+    preference_sender: std::sync::mpsc::Sender<LocalPreference>,
+    preference_events: std::sync::mpsc::Receiver<LocalPreference>,
+}
+
+struct LocalPreference {
+    tab_id: String,
+    connection_id: String,
+    path: PathBuf,
 }
 
 struct Tab {
@@ -98,9 +109,11 @@ impl Latch {
         })
         .detach();
         let (cleanup_sender, cleanup_events) = std::sync::mpsc::channel();
+        let (preference_sender, preference_events) = std::sync::mpsc::channel();
         let connection_search = cx.new(|cx| input::Input::new("", false, cx));
         cx.observe(&connection_search, |_, _, cx| cx.notify())
             .detach();
+        let error = (!store.warnings().is_empty()).then(|| store.warnings().join("\n"));
         Self {
             store,
             connection_search,
@@ -111,7 +124,7 @@ impl Latch {
             tab_scroll: ScrollHandle::new(),
             tab_drag: tabs::TabDrag::default(),
             tab_reveal_key: None,
-            error: None,
+            error,
             editor: None,
             connection_delete: None,
             settings: None,
@@ -120,7 +133,20 @@ impl Latch {
             cleanup_events,
             pending_cleanup: 0,
             shutting_down: false,
+            data_busy: false,
+            preserve_imported_window: false,
+            preference_sender,
+            preference_events,
         }
+    }
+
+    fn can_import(&self) -> bool {
+        self.tabs.is_empty()
+            && self.pending_cleanup == 0
+            && !self.shutting_down
+            && !self.data_busy
+            && self.editor.is_none()
+            && self.connection_delete.is_none()
     }
 }
 

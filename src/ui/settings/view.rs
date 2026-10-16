@@ -1,9 +1,11 @@
+use super::Page;
 use crate::ui::{Latch, button, theme::CARBON};
 use gpui::{prelude::*, *};
 use latch::terminal::TerminalPalette;
 
 impl Latch {
     pub(in crate::ui) fn settings_sidebar(&self, cx: &mut Context<Self>) -> Div {
+        let page = self.settings.as_ref().map(|settings| settings.page);
         div()
             .flex()
             .flex_col()
@@ -16,11 +18,39 @@ impl Latch {
                 button("settings-terminal-theme", "Terminal theme")
                     .debug_selector(|| "settings-terminal-theme".into())
                     .w_full()
-                    .bg(rgb(CARBON.selected))
-                    .border_color(rgb(CARBON.accent))
-                    .on_click(cx.listener(|this, _, window, _| {
-                        if let Some(settings) = &this.settings {
+                    .when(page == Some(Page::Terminal), |button| {
+                        button
+                            .bg(rgb(CARBON.selected))
+                            .border_color(rgb(CARBON.accent))
+                    })
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        if !this.data_busy
+                            && !this.shutting_down
+                            && let Some(settings) = &mut this.settings
+                        {
+                            settings.page = Page::Terminal;
                             window.focus(&settings.focus);
+                            cx.notify();
+                        }
+                    })),
+            )
+            .child(
+                button("settings-data", "Data")
+                    .debug_selector(|| "settings-data".into())
+                    .w_full()
+                    .when(page == Some(Page::Data), |button| {
+                        button
+                            .bg(rgb(CARBON.selected))
+                            .border_color(rgb(CARBON.accent))
+                    })
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        if !this.data_busy
+                            && !this.shutting_down
+                            && let Some(settings) = &mut this.settings
+                        {
+                            settings.page = Page::Data;
+                            window.focus(&settings.focus);
+                            cx.notify();
                         }
                     })),
             )
@@ -39,6 +69,9 @@ impl Latch {
         let Some(settings) = &self.settings else {
             return div();
         };
+        if settings.page == Page::Data {
+            return self.settings_data_page(cx);
+        }
         let active = TerminalPalette::current(cx);
         div()
             .size_full()

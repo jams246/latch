@@ -18,7 +18,7 @@ impl Latch {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.shutting_down {
+        if self.shutting_down || self.data_busy {
             return;
         }
         let config = ssh::ConnectionConfig {

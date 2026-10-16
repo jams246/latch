@@ -23,8 +23,8 @@ fn fixture(cx: &mut TestAppContext) -> (WindowHandle<Latch>, Connection) {
         "tester".into(),
         AuthMethod::Password,
     );
-    crate::ui::files::local::remember(&directory, &connection.id, &local).unwrap();
     store.upsert(connection.clone()).unwrap();
+    store.set_local_directory(&connection.id, &local).unwrap();
     let runtime = Arc::new(tokio::runtime::Runtime::new().unwrap());
     let handle = cx
         .add_window(|window, cx| Latch::new(store, directory, runtime, window.window_handle(), cx));
@@ -111,7 +111,11 @@ fn closing_terminal_keeps_sftp_tab_and_focuses_its_path(cx: &mut TestAppContext)
                     &sftp.connection,
                     commands,
                     app.runtime.clone(),
-                    app.directory.clone(),
+                    app.store
+                        .local_directory(&sftp.connection.id)
+                        .map(std::path::Path::to_path_buf),
+                    sftp.id.clone(),
+                    app.preference_sender.clone(),
                     cx,
                 )
             });

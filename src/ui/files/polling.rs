@@ -30,6 +30,11 @@ impl Files {
             self.local_busy = false;
             match result {
                 Ok(directory) => {
+                    let _ = self.preference_sender.send(LocalPreference {
+                        tab_id: self.tab_id.clone(),
+                        connection_id: self.connection_id.clone(),
+                        path: directory.path.clone(),
+                    });
                     self.selections[0].clear();
                     self.menu = None;
                     let changed = self.local.as_ref().is_none_or(|d| d.path != directory.path);

@@ -1,99 +1,58 @@
 use super::{tests::fixture, *};
 
 #[test]
-fn remembered_local_directory_survives_restart_and_can_be_replaced() {
-    let configuration = fixture("preferences");
-    let first = fixture("first");
-    let second = fixture("second");
-    remember(&configuration, "connection", &first).unwrap();
-    assert_eq!(initial_path(&configuration, "connection"), first);
-    remember(&configuration, "connection", &second).unwrap();
-    assert_eq!(initial_path(&configuration, "connection"), second);
+fn remembered_local_directory_is_listed_without_reading_legacy_preferences() {
+    let directory = fixture("remembered-directory");
+    let legacy = directory.join("sftp-local-directory.json");
+    fs::write(&legacy, b"invalid JSON").unwrap();
+
+    assert_eq!(
+        list_initial(Some(directory.clone())).unwrap().path,
+        directory
+    );
+    assert_eq!(fs::read(legacy).unwrap(), b"invalid JSON");
 }
 
 #[test]
-fn connections_remember_independent_local_directories() {
-    let configuration = fixture("connection-preferences");
+fn connections_receive_independent_initial_directories() {
     let first = fixture("connection-first");
     let second = fixture("connection-second");
-    remember(&configuration, "first-connection", &first).unwrap();
-    remember(&configuration, "second-connection", &second).unwrap();
-    assert_eq!(initial_path(&configuration, "first-connection"), first);
-    assert_eq!(initial_path(&configuration, "second-connection"), second);
+
+    assert_eq!(list_initial(Some(first.clone())).unwrap().path, first);
+    assert_eq!(list_initial(Some(second.clone())).unwrap().path, second);
 }
 
 #[test]
-fn renaming_a_connection_preserves_its_remembered_directory() {
-    let configuration = fixture("renamed-preferences");
-    let directory = fixture("renamed-directory");
-    let mut connection = latch::storage::Connection::new(
-        "Original name".into(),
-        "example.test".into(),
-        "synthetic".into(),
-        latch::storage::AuthMethod::Password,
-    );
-    remember(&configuration, &connection.id, &directory).unwrap();
-    connection.name = "Renamed connection".into();
-    assert_eq!(initial_path(&configuration, &connection.id), directory);
-}
-
-#[test]
-fn missing_preferences_do_not_reuse_another_connection_or_legacy_directory() {
-    let configuration = fixture("missing-preferences");
-    let directory = fixture("legacy-directory");
-    fs::write(
-        configuration.join("sftp-local-directory.json"),
-        serde_json::to_vec(&directory).unwrap(),
-    )
-    .unwrap();
-    remember(&configuration, "other-connection", &directory).unwrap();
-    let selected = initial_path(&configuration, "new-connection");
-    assert_ne!(selected, directory);
-    assert!(selected.is_dir());
+fn absent_remembered_directory_uses_an_existing_default() {
+    assert!(list_initial(None).unwrap().path.is_dir());
 }
 
 #[test]
 fn unavailable_remembered_directory_falls_back_to_an_existing_directory() {
-    let configuration = fixture("unavailable");
-    let unavailable = configuration.join("missing");
-    remember(&configuration, "connection", &unavailable).unwrap();
-    let selected = initial_path(&configuration, "connection");
+    let unavailable = fixture("unavailable").join("missing");
+    let selected = list_initial(Some(unavailable.clone())).unwrap().path;
+
     assert_ne!(selected, unavailable);
     assert!(selected.is_dir());
 }
 
 #[test]
-fn deleting_a_remembered_directory_uses_the_default_directory() {
-    let configuration = fixture("deleted-preferences");
+fn remembered_file_falls_back_without_modifying_it() {
+    let file = fixture("remembered-file").join("file.txt");
+    fs::write(&file, b"keep").unwrap();
+    let selected = list_initial(Some(file.clone())).unwrap().path;
+
+    assert_ne!(selected, file);
+    assert!(selected.is_dir());
+    assert_eq!(fs::read(file).unwrap(), b"keep");
+}
+
+#[test]
+fn deleted_remembered_directory_uses_an_existing_default() {
     let directory = fixture("deleted-directory");
-    remember(&configuration, "connection", &directory).unwrap();
     fs::remove_dir(&directory).unwrap();
-    let selected = initial_path(&configuration, "connection");
+    let selected = list_initial(Some(directory.clone())).unwrap().path;
+
     assert_ne!(selected, directory);
     assert!(selected.is_dir());
-}
-
-#[test]
-fn arbitrary_connection_ids_stay_inside_the_preferences_directory() {
-    let configuration = fixture("safe-identity");
-    let directory = fixture("safe-directory");
-    let connection_id = "../outside\\file:server";
-    remember(&configuration, connection_id, &directory).unwrap();
-    let destination = preference_path(&configuration, connection_id);
-    assert_eq!(
-        destination.parent(),
-        Some(configuration.join("sftp-local-directories").as_path())
-    );
-    assert_eq!(initial_path(&configuration, connection_id), directory);
-}
-
-#[test]
-fn invalid_preferences_fall_back_without_changing_the_original_file() {
-    let configuration = fixture("invalid-preferences");
-    let directory = fixture("valid-directory");
-    remember(&configuration, "connection", &directory).unwrap();
-    let destination = preference_path(&configuration, "connection");
-    fs::write(&destination, b"invalid JSON").unwrap();
-    assert!(initial_path(&configuration, "connection").is_dir());
-    assert_eq!(fs::read(destination).unwrap(), b"invalid JSON");
 }

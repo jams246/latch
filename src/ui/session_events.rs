@@ -2,10 +2,13 @@ use super::{Latch, TabContent, auth_dialog::AuthDialog, options};
 use gpui::*;
 use latch::ssh;
 
+#[cfg(test)]
+mod tests;
+
 impl Latch {
     pub(super) fn poll(&mut self, cx: &mut Context<Self>) {
         self.poll_cleanup(cx);
-        let mut changed = false;
+        let mut changed = self.poll_local_preferences();
         let mut disconnected = Vec::new();
         let active_id = self
             .active
@@ -39,7 +42,11 @@ impl Latch {
                                                 &tab.connection,
                                                 commands,
                                                 runtime,
-                                                self.directory.clone(),
+                                                self.store
+                                                    .local_directory(&tab.connection.id)
+                                                    .map(std::path::Path::to_path_buf),
+                                                tab.id.clone(),
+                                                self.preference_sender.clone(),
                                                 cx,
                                             )
                                         }));
@@ -120,5 +127,24 @@ impl Latch {
         if changed {
             cx.notify();
         }
+    }
+
+    fn poll_local_preferences(&mut self) -> bool {
+        let mut changed = false;
+        while let Ok(preference) = self.preference_events.try_recv() {
+            if self.tabs.iter().any(|tab| {
+                !tab.closing
+                    && tab.id == preference.tab_id
+                    && tab.connection.id == preference.connection_id
+                    && matches!(tab.content, TabContent::Sftp { files: Some(_), .. })
+            }) && let Err(error) = self
+                .store
+                .set_local_directory(&preference.connection_id, &preference.path)
+            {
+                self.error = Some(format!("Cannot save local directory: {error}"));
+                changed = true;
+            }
+        }
+        changed
     }
 }

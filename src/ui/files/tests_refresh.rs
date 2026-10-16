@@ -13,7 +13,7 @@ fn context_refresh_reloads_only_its_pane_with_or_without_a_listing(cx: &mut Test
         handle
             .update(&mut visual, |files, _, _| {
                 files.local = has_listing.then(|| local::Directory {
-                    path: files.config_directory.join("initial"),
+                    path: files.initial_directory.clone().unwrap(),
                     entries: Vec::new(),
                     drives: Vec::new(),
                 });

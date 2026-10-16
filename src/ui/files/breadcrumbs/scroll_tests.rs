@@ -8,11 +8,19 @@ fn fixture(cx: &mut TestAppContext) -> (WindowHandle<Files>, VisualTestContext) 
         .join(uuid::Uuid::new_v4().to_string());
     std::fs::create_dir_all(&directory).unwrap();
     let connection = crate::ui::files::tests::connection();
-    local::remember(&directory, &connection.id, &directory).unwrap();
     let runtime = Arc::new(tokio::runtime::Runtime::new().unwrap());
     let (commands, _) = tokio::sync::mpsc::channel(1);
-    let handle =
-        cx.add_window(|_, cx| Files::new(&connection, commands, runtime, directory.clone(), cx));
+    let handle = cx.add_window(|_, cx| {
+        Files::new(
+            &connection,
+            commands,
+            runtime,
+            Some(directory.clone()),
+            "synthetic-tab".into(),
+            std::sync::mpsc::channel().0,
+            cx,
+        )
+    });
     handle
         .update(cx, |files, _, _| {
             for operation in [files.operation.take(), files.local_operation.take()]

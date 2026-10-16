@@ -51,12 +51,12 @@ fn populated(cx: &mut TestAppContext) -> (WindowHandle<Files>, VisualTestContext
                 })
                 .collect();
             files.local = Some(local::Directory {
-                path: files.config_directory.join("initial"),
+                path: files.initial_directory.clone().unwrap(),
                 drives: vec![],
                 entries: entries
                     .iter()
                     .map(|entry| local::Entry {
-                        path: files.config_directory.join("initial").join(&entry.name),
+                        path: files.initial_directory.as_ref().unwrap().join(&entry.name),
                         metadata: entry.clone(),
                         icon: None,
                     })

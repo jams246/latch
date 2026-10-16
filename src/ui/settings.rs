@@ -1,5 +1,11 @@
+mod data;
+#[cfg(test)]
+mod data_tests;
+mod data_view;
 #[cfg(test)]
 mod focus_tests;
+#[cfg(test)]
+mod guard_tests;
 mod preview;
 #[cfg(test)]
 mod tests;
@@ -13,20 +19,36 @@ pub(super) struct Settings {
     pub(super) focus: FocusHandle,
     pub(super) preview: Entity<TerminalView>,
     pub(super) error: Option<String>,
+    page: Page,
+    message: Option<String>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Page {
+    Terminal,
+    Data,
 }
 
 impl Latch {
     pub(super) fn open_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.data_busy || self.shutting_down {
+            return;
+        }
         let settings = self.settings.get_or_insert_with(|| Settings {
             focus: cx.focus_handle().tab_stop(false),
             preview: preview::new(cx),
             error: None,
+            page: Page::Terminal,
+            message: None,
         });
         window.focus(&settings.focus);
         cx.notify();
     }
 
     pub(super) fn close_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.data_busy {
+            return;
+        }
         self.settings = None;
         let focus = self
             .active
@@ -38,6 +60,9 @@ impl Latch {
     }
 
     fn choose_terminal_theme(&mut self, palette: TerminalPalette, cx: &mut Context<Self>) {
+        if self.data_busy || self.shutting_down {
+            return;
+        }
         let Some(settings) = &mut self.settings else {
             return;
         };

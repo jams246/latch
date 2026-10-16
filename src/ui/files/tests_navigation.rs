@@ -21,15 +21,24 @@ fn local_directory(path: &str) -> local::Directory {
     }
 }
 
-fn fixture(cx: &mut TestAppContext) -> Entity<Files> {
+pub(super) fn fixture(cx: &mut TestAppContext) -> Entity<Files> {
     let (commands, _) = tokio::sync::mpsc::channel(1);
     let runtime = Arc::new(tokio::runtime::Runtime::new().unwrap());
     let config = directory();
     let initial = config.join("initial-local");
     let connection = super::tests::connection();
     std::fs::create_dir_all(&initial).unwrap();
-    local::remember(&config, &connection.id, &initial).unwrap();
-    let files = cx.new(|cx| Files::new(&connection, commands, runtime, config, cx));
+    let files = cx.new(|cx| {
+        Files::new(
+            &connection,
+            commands,
+            runtime,
+            Some(initial),
+            "synthetic-tab".into(),
+            mpsc::channel().0,
+            cx,
+        )
+    });
     files.update(cx, |files, _| {
         for operation in [files.operation.take(), files.local_operation.take()]
             .into_iter()
@@ -170,10 +179,19 @@ fn new_remote_browser_starts_at_server_default_despite_remembered_local_path(
     let remembered = config.join("remembered-local");
     let connection = super::tests::connection();
     std::fs::create_dir_all(&remembered).unwrap();
-    local::remember(&config, &connection.id, &remembered).unwrap();
     let (commands, _) = tokio::sync::mpsc::channel::<ssh::Command>(1);
     let runtime = Arc::new(tokio::runtime::Runtime::new().unwrap());
-    let files = cx.new(|cx| Files::new(&connection, commands, runtime, config, cx));
+    let files = cx.new(|cx| {
+        Files::new(
+            &connection,
+            commands,
+            runtime,
+            Some(remembered),
+            "synthetic-tab".into(),
+            mpsc::channel().0,
+            cx,
+        )
+    });
 
     files.read_with(cx, |files, cx| {
         assert_eq!(files.connection_name, connection.name);

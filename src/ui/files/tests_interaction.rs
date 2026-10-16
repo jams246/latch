@@ -1,5 +1,5 @@
 use super::{
-    Files, local,
+    Files,
     pane::{Column, Side},
 };
 use gpui::{
@@ -20,7 +20,6 @@ pub(super) fn fixture(cx: &mut TestAppContext) -> (WindowHandle<Files>, VisualTe
     std::fs::create_dir_all(&initial).unwrap();
     std::fs::create_dir_all(config.join("first")).unwrap();
     std::fs::create_dir_all(config.join("second")).unwrap();
-    local::remember(&config, &connection.id, &initial).unwrap();
     let runtime = Arc::new(
         tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -28,7 +27,17 @@ pub(super) fn fixture(cx: &mut TestAppContext) -> (WindowHandle<Files>, VisualTe
             .unwrap(),
     );
     let (commands, _) = tokio::sync::mpsc::channel(1);
-    let handle = cx.add_window(|_, cx| Files::new(&connection, commands, runtime, config, cx));
+    let handle = cx.add_window(|_, cx| {
+        Files::new(
+            &connection,
+            commands,
+            runtime,
+            Some(initial),
+            "synthetic-tab".into(),
+            mpsc::channel().0,
+            cx,
+        )
+    });
     handle
         .update(cx, |files, _, _| {
             for operation in [files.operation.take(), files.local_operation.take()]
@@ -117,9 +126,15 @@ fn mouse_back_and_forward_use_the_pane_under_the_pointer(cx: &mut TestAppContext
     handle
         .update(&mut visual, |files, _, _| {
             for path in ["first", "second"] {
-                files
-                    .local_history
-                    .commit(files.config_directory.join(path));
+                files.local_history.commit(
+                    files
+                        .initial_directory
+                        .as_ref()
+                        .unwrap()
+                        .parent()
+                        .unwrap()
+                        .join(path),
+                );
                 files.remote_history.commit(format!("/{path}"));
             }
         })
@@ -154,11 +169,13 @@ fn mouse_back_and_forward_use_the_pane_under_the_pointer(cx: &mut TestAppContext
                         files.pending_local_history = None;
                         files.local_history.commit_at(
                             target,
-                            files.config_directory.join(if target == 0 {
-                                "first"
-                            } else {
-                                "second"
-                            }),
+                            files
+                                .initial_directory
+                                .as_ref()
+                                .unwrap()
+                                .parent()
+                                .unwrap()
+                                .join(if target == 0 { "first" } else { "second" }),
                         );
                     }
                     Side::Remote => {

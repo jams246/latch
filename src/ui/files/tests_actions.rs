@@ -18,7 +18,7 @@ fn populated(cx: &mut TestAppContext) -> (WindowHandle<Files>, VisualTestContext
     let (handle, mut visual) = fixture(cx);
     let paths = handle
         .update(&mut visual, |files, _, _| {
-            let parent = files.config_directory.join("initial");
+            let parent = files.initial_directory.clone().unwrap();
             let paths = [parent.join("first.txt"), parent.join("second.txt")];
             let entries: Vec<_> = paths
                 .iter()

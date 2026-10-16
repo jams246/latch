@@ -21,6 +21,9 @@ impl Latch {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.data_busy {
+            return;
+        }
         let cancel = cx.focus_handle().tab_index(0).tab_stop(true);
         let previous_focus = window.focused(cx);
         window.focus(&cancel);
@@ -49,6 +52,9 @@ impl Latch {
     }
 
     fn confirm_connection_delete(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.data_busy {
+            return;
+        }
         let Some(dialog) = &mut self.connection_delete else {
             return;
         };

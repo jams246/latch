@@ -41,6 +41,9 @@ impl Latch {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.data_busy {
+            return;
+        }
         let values = connection.as_ref().map_or_else(
             || {
                 vec![
@@ -89,6 +92,9 @@ impl Latch {
     }
 
     fn save_connection(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.data_busy {
+            return;
+        }
         let Some(editor) = &self.editor else {
             return;
         };

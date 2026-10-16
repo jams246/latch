@@ -81,6 +81,9 @@ impl Latch {
                                 button.border_color(rgb(colors.accent))
                             })
                             .on_click(cx.listener(move |this, _, _, cx| {
+                                if this.data_busy {
+                                    return;
+                                }
                                 if let Err(error) = this.store.set_sort_mode(mode) {
                                     this.error = Some(format!("Cannot save sorting: {error}"));
                                 }

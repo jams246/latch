@@ -21,10 +21,12 @@ mod tests_interaction;
 #[cfg(test)]
 mod tests_navigation;
 #[cfg(test)]
+mod tests_preferences;
+#[cfg(test)]
 mod tests_refresh;
 mod transfers;
 
-use super::input::Input;
+use super::{LocalPreference, input::Input};
 use gpui::*;
 use latch::{
     sftp::{self, Browser, Direction, Directory, TransferEvent},
@@ -78,7 +80,9 @@ pub(super) struct Files {
     operation: Option<tokio::task::JoinHandle<()>>,
     local_operation: Option<tokio::task::JoinHandle<()>>,
     commands: tokio::sync::mpsc::Sender<ssh::Command>,
-    config_directory: PathBuf,
+    initial_directory: Option<PathBuf>,
+    tab_id: String,
+    preference_sender: mpsc::Sender<LocalPreference>,
     pending_local_history: Option<usize>,
     pending_remote_history: Option<usize>,
     closing: bool,
@@ -100,7 +104,9 @@ impl Files {
         connection: &storage::Connection,
         commands: tokio::sync::mpsc::Sender<ssh::Command>,
         runtime: Arc<tokio::runtime::Runtime>,
-        config_directory: PathBuf,
+        initial_directory: Option<PathBuf>,
+        tab_id: String,
+        preference_sender: mpsc::Sender<LocalPreference>,
         cx: &mut Context<Self>,
     ) -> Self {
         let (sender, events) = mpsc::channel();
@@ -150,7 +156,9 @@ impl Files {
             operation: None,
             local_operation: None,
             commands,
-            config_directory,
+            initial_directory,
+            tab_id,
+            preference_sender,
             pending_local_history: None,
             pending_remote_history: None,
             closing: false,

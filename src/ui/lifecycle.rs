@@ -59,6 +59,9 @@ impl Tab {
 
 impl Latch {
     pub(crate) fn save_window_size(&mut self, size: latch::storage::WindowSize) {
+        if self.preserve_imported_window || self.data_busy {
+            return;
+        }
         if let Err(error) = self.store.set_window_size(size) {
             eprintln!("Cannot save window size: {error}");
             self.error = Some(format!("Cannot save window size: {error}"));
@@ -114,6 +117,9 @@ impl Latch {
 
     /// Defers main-window closure until transfer cleanup and transport shutdown finish.
     pub(crate) fn request_shutdown(&mut self, cx: &mut Context<Self>) -> bool {
+        if self.data_busy {
+            return false;
+        }
         if self.tabs.is_empty() && self.pending_cleanup == 0 {
             return true;
         }
