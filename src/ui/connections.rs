@@ -1,3 +1,4 @@
+mod key_picker;
 #[cfg(test)]
 mod tests;
 mod view;

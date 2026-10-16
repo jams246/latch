@@ -82,12 +82,22 @@ impl Latch {
                             .enumerate()
                             .filter(|(i, _)| *i < 4 || editor.auth == 1)
                             .map(|(i, field)| {
-                                div()
-                                    .flex()
-                                    .flex_col()
-                                    .gap_1()
-                                    .child(labels[i])
-                                    .child(field.clone())
+                                div().flex().flex_col().gap_1().child(labels[i]).child(
+                                    div()
+                                        .flex()
+                                        .items_center()
+                                        .gap_2()
+                                        .child(div().flex_1().min_w_0().child(field.clone()))
+                                        .when(i == 4, |row| {
+                                            row.child(
+                                                button("browse-private-key", "Browse").on_click(
+                                                    cx.listener(|this, _, _, cx| {
+                                                        this.browse_key(cx)
+                                                    }),
+                                                ),
+                                            )
+                                        }),
+                                )
                             }),
                     )
                     .child(div().mt_2().child("Authentication"))
