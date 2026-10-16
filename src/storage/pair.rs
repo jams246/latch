@@ -103,8 +103,7 @@ pub(super) fn leftovers(directory: &Path) -> io::Result<bool> {
     for entry in fs::read_dir(directory)? {
         let name = entry?.file_name();
         let name = name.to_string_lossy();
-        if name.starts_with("latch-data.stage-")
-            || name.starts_with("latch-data.archive-")
+        if name.starts_with(super::recovery::STAGE_PREFIX)
             || FILES
                 .into_iter()
                 .chain(SIDECARS)

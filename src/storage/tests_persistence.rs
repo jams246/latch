@@ -8,6 +8,10 @@ pub(super) fn store(tag: &str) -> Store {
     Store::load(path(tag)).unwrap()
 }
 
+pub(super) fn empty_snapshot() -> super::ImportSnapshot {
+    Store::parse_import(br#"{"format_version":1,"configuration":{"connections":[],"sort_mode":"name","terminal_theme":"classic","window_size":null},"local_directories":{}}"#).unwrap()
+}
+
 pub(super) fn path(tag: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join(".verification/encrypted-storage/storage")
@@ -66,7 +70,7 @@ fn malformed_configuration_is_preserved_without_disclosing_contents() {
 }
 
 #[test]
-fn unknown_secret_fields_are_rejected_and_not_migrated_silently() {
+fn plaintext_settings_are_rejected_as_an_encrypted_database() {
     let path = path("unknown-field");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(

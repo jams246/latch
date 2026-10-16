@@ -1,34 +1,34 @@
 use std::{fs, io};
 
-use super::{Store, tests_portable::directory};
+use super::{Store, tests_persistence::empty_snapshot, tests_portable::directory};
 
 #[test]
 fn process_lock_prevents_second_profile_owner_until_drop() {
     let directory = directory("profile-lock");
-    let original = Store::load_portable(&directory, None).unwrap();
+    let original = Store::load_profile(&directory).unwrap();
     assert_eq!(
-        Store::load_portable(&directory, None).err().unwrap().kind(),
+        Store::load_profile(&directory).err().unwrap().kind(),
         io::ErrorKind::WouldBlock
     );
     drop(original);
-    assert!(Store::load_portable(&directory, None).is_ok());
+    assert!(Store::load_profile(&directory).is_ok());
 }
 
 #[test]
-fn incomplete_root_pair_never_reimports_retained_json() {
+fn incomplete_root_pair_preserves_unrelated_json() {
     let directory = directory("incomplete-profile");
     fs::create_dir_all(&directory).unwrap();
     fs::write(directory.join("latch.db"), b"incomplete database").unwrap();
     fs::write(directory.join("latch.json"), b"{}").unwrap();
     assert_eq!(
-        Store::load_portable(&directory, None).err().unwrap().kind(),
+        Store::load_profile(&directory).err().unwrap().kind(),
         io::ErrorKind::InvalidData
     );
     assert!(!directory.join("key.dpapi").exists());
 }
 
 #[test]
-fn archived_profile_without_root_pair_never_reimports_retained_json() {
+fn archived_current_profile_without_pair_does_not_regenerate() {
     let directory = directory("archived-without-active");
     fs::create_dir_all(&directory).unwrap();
     fs::write(
@@ -37,12 +37,12 @@ fn archived_profile_without_root_pair_never_reimports_retained_json() {
     )
     .unwrap();
     fs::write(directory.join("latch.json"), b"{}").unwrap();
-    assert!(Store::load_portable(&directory, None).is_err());
+    assert!(Store::load_profile(&directory).is_err());
     assert!(!directory.join("latch.db").exists());
 }
 
 #[test]
-fn pending_recovery_without_root_pair_blocks_stale_json_import() {
+fn pending_recovery_without_pair_blocks_profile_creation() {
     let directory = directory("interrupted-recovery");
     fs::create_dir_all(&directory).unwrap();
     fs::write(
@@ -51,10 +51,9 @@ fn pending_recovery_without_root_pair_blocks_stale_json_import() {
     )
     .unwrap();
     fs::write(directory.join("latch.json"), b"{}").unwrap();
-    assert!(Store::load_portable(&directory, None).is_err());
+    assert!(Store::load_profile(&directory).is_err());
     assert!(!directory.join("latch.db").exists());
-    let recovered =
-        Store::recover_portable(&directory, Store::parse_import(b"{}").unwrap()).unwrap();
+    let recovered = Store::recover_profile(&directory, empty_snapshot()).unwrap();
     assert!(recovered.connections().is_empty());
     assert!(!directory.join("latch-recovery.pending").exists());
 }
@@ -62,7 +61,7 @@ fn pending_recovery_without_root_pair_blocks_stale_json_import() {
 #[test]
 fn recovery_archives_damaged_root_pair_and_sidecars_without_new_directories() {
     let directory = directory("recovery-archive");
-    let original = Store::load_portable(&directory, None).unwrap();
+    let original = Store::load_profile(&directory).unwrap();
     drop(original);
     let key = fs::read(directory.join("key.dpapi")).unwrap();
     fs::write(directory.join("latch.db"), b"damaged encrypted database").unwrap();
@@ -75,8 +74,7 @@ fn recovery_archives_damaged_root_pair_and_sidecars_without_new_directories() {
         b"original retained legacy data",
     )
     .unwrap();
-    let recovered =
-        Store::recover_portable(&directory, Store::parse_import(b"{}").unwrap()).unwrap();
+    let recovered = Store::recover_profile(&directory, empty_snapshot()).unwrap();
     assert!(recovered.connections().is_empty());
     assert_eq!(
         fs::read(directory.join("known_hosts")).unwrap(),
@@ -116,24 +114,53 @@ fn recovery_archives_damaged_root_pair_and_sidecars_without_new_directories() {
 #[test]
 fn failed_recovery_guard_preserves_original_root_profile() {
     let directory = directory("failed-recovery-guard");
-    let original = Store::load_portable(&directory, None).unwrap();
+    let original = Store::load_profile(&directory).unwrap();
     drop(original);
     let bytes = fs::read(directory.join("latch.db")).unwrap();
     fs::create_dir(directory.join("latch-recovery.pending")).unwrap();
-    assert!(Store::recover_portable(&directory, Store::parse_import(b"{}").unwrap()).is_err());
+    assert!(Store::recover_profile(&directory, empty_snapshot()).is_err());
     assert_eq!(fs::read(directory.join("latch.db")).unwrap(), bytes);
 }
 
 #[test]
 fn recovery_marker_hard_link_cannot_truncate_root_database() {
     let directory = directory("hard-linked-marker");
-    let original = Store::load_portable(&directory, None).unwrap();
+    let original = Store::load_profile(&directory).unwrap();
     drop(original);
     let database = directory.join("latch.db");
     let bytes = fs::read(&database).unwrap();
     fs::hard_link(&database, directory.join("latch-recovery.pending")).unwrap();
-    assert!(Store::recover_portable(&directory, Store::parse_import(b"{}").unwrap()).is_err());
+    assert!(Store::recover_profile(&directory, empty_snapshot()).is_err());
     assert_eq!(fs::read(database).unwrap(), bytes);
+}
+
+#[test]
+fn recovery_archives_current_interrupted_stage_and_removes_empty_staging_directory() {
+    let directory = directory("interrupted-current-stage");
+    let stage = directory.join("latch-stage-interrupted");
+    fs::create_dir_all(&stage).unwrap();
+    fs::write(
+        stage.join("key.dpapi"),
+        b"preserved interrupted protected key",
+    )
+    .unwrap();
+    let recovered = Store::recover_profile(&directory, empty_snapshot()).unwrap();
+    assert!(recovered.connections().is_empty());
+    assert!(!stage.exists());
+    let archive = fs::read_dir(&directory)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .find(|path| {
+            path.file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with("key.dpapi.archive-")
+        })
+        .unwrap();
+    assert_eq!(
+        fs::read(archive).unwrap(),
+        b"preserved interrupted protected key"
+    );
 }
 
 #[test]
@@ -151,8 +178,7 @@ fn recovery_preserves_unexpected_old_storage_file_and_publishes_root_pair() {
     ] {
         fs::write(directory.join(name), b"preserved unexpected artifact").unwrap();
     }
-    let recovered =
-        Store::recover_portable(&directory, Store::parse_import(b"{}").unwrap()).unwrap();
+    let recovered = Store::recover_profile(&directory, empty_snapshot()).unwrap();
     assert!(recovered.connections().is_empty());
     assert_eq!(
         fs::read(directory.join("latch-data")).unwrap(),
@@ -178,11 +204,11 @@ fn recovery_crash_boundaries_preserve_sources_and_fail_closed_until_both_files_p
         fs::create_dir_all(&directory).unwrap();
         fs::write(directory.join("latch.json"), b"{}").unwrap();
         if checkpoint == 0 {
-            fs::create_dir(directory.join("latch-data.stage-incomplete")).unwrap();
-            assert!(Store::load_portable(&directory, None).is_err());
+            fs::create_dir(directory.join("latch-stage-incomplete")).unwrap();
+            assert!(Store::load_profile(&directory).is_err());
             continue;
         }
-        let original = Store::load_portable(&directory, None).unwrap();
+        let original = Store::load_profile(&directory).unwrap();
         drop(original);
         let stage = super::recovery::stage(&directory, &super::Configuration::default()).unwrap();
         let marker = directory.join("latch-recovery.pending");
@@ -202,7 +228,7 @@ fn recovery_crash_boundaries_preserve_sources_and_fail_closed_until_both_files_p
             super::pair::cleanup(&stage).unwrap();
             fs::remove_file(marker).unwrap();
         }
-        let reopened = Store::load_portable(&directory, None);
+        let reopened = Store::load_profile(&directory);
         assert_eq!(reopened.is_ok(), checkpoint == 1 || checkpoint == 6);
         assert_eq!(fs::read(directory.join("latch.json")).unwrap(), b"{}");
         if checkpoint >= 3 {

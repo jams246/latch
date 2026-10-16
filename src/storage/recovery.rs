@@ -8,6 +8,7 @@ use uuid::Uuid;
 use super::{Configuration, ImportSnapshot, Store, files, locking, pair, persistence, portable};
 
 pub(super) const MARKER: &str = "latch-recovery.pending";
+pub(super) const STAGE_PREFIX: &str = "latch-stage-";
 const GUARD: &[u8] = b"LATCH-RECOVERY-V1\n";
 
 impl Store {
@@ -15,24 +16,18 @@ impl Store {
     /// Unreadable current data is archived unchanged before publication.
     ///
     /// # Errors
-    /// Failed or interrupted recovery preserves data and blocks legacy reimport.
-    pub fn recover_portable(directory: &Path, snapshot: ImportSnapshot) -> io::Result<Self> {
+    /// Failed or interrupted recovery preserves data and blocks profile startup.
+    pub fn recover_profile(directory: &Path, snapshot: ImportSnapshot) -> io::Result<Self> {
         let lock = locking::acquire(directory)?;
         let configuration = snapshot.into_configuration();
         let stage = stage(directory, &configuration)?;
         let marker = directory.join(MARKER);
         write_guard(&marker)?;
         pair::archive(directory, directory)?;
-        let old = directory.join(portable::LEGACY_DIRECTORY);
-        if files::exists(&old)? && fs::symlink_metadata(&old)?.is_dir() {
-            pair::archive(&old, directory)?;
-            pair::remove_empty(&old)?;
-        }
         archive_stages(directory, &stage)?;
         publish(&stage, directory, &configuration)?;
         let mut store = Self::load(directory.join(portable::DATABASE))?;
         store._lock = Some(lock);
-        store.warnings = portable::legacy_warnings(directory, None);
         Ok(store)
     }
 }
@@ -43,9 +38,7 @@ fn archive_stages(directory: &Path, current: &Path) -> io::Result<()> {
         .collect::<io::Result<Vec<_>>>()?;
     for path in stages {
         let name = path.file_name().unwrap_or_default().to_string_lossy();
-        if path == current
-            || !(name.starts_with("latch-data.stage-") || name.starts_with("latch-data.archive-"))
-        {
+        if path == current || !name.starts_with(STAGE_PREFIX) {
             continue;
         }
         if !fs::symlink_metadata(&path)?.is_dir() {
@@ -93,7 +86,7 @@ fn write_guard(path: &Path) -> io::Result<()> {
 }
 
 pub(super) fn stage(directory: &Path, configuration: &Configuration) -> io::Result<PathBuf> {
-    let stage = directory.join(format!("latch-data.stage-{}", Uuid::new_v4()));
+    let stage = directory.join(format!("{STAGE_PREFIX}{}", Uuid::new_v4()));
     fs::create_dir(&stage)?;
     let path = stage.join(portable::DATABASE);
     persistence::write(&path, configuration)?;

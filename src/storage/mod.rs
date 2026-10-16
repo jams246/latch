@@ -13,8 +13,6 @@ mod snapshot;
 mod window;
 
 #[cfg(test)]
-mod tests_flat_migration;
-#[cfg(test)]
 mod tests_persistence;
 #[cfg(test)]
 mod tests_portable;
@@ -34,23 +32,17 @@ use std::{
     sync::Arc,
 };
 
-use serde::{Deserialize, Serialize};
-
 pub use model::{AuthMethod, Connection, SortMode};
 pub use preferences::TerminalTheme;
 pub use snapshot::ImportSnapshot;
 pub use window::WindowSize;
 
-#[derive(Clone, Default, Deserialize, PartialEq, Serialize)]
-#[serde(default, deny_unknown_fields)]
+#[derive(Clone, Default, PartialEq)]
 struct Configuration {
     connections: Vec<Connection>,
     sort_mode: SortMode,
-    #[serde(default)]
     terminal_theme: TerminalTheme,
-    #[serde(skip_serializing_if = "Option::is_none")]
     window_size: Option<WindowSize>,
-    #[serde(default, deserialize_with = "snapshot::unique_directories")]
     local_directories: BTreeMap<String, PathBuf>,
 }
 
@@ -59,7 +51,6 @@ pub struct Store {
     path: PathBuf,
     configuration: Configuration,
     _lock: Option<Arc<File>>,
-    warnings: Vec<String>,
 }
 
 impl Store {
@@ -75,7 +66,6 @@ impl Store {
             path,
             configuration,
             _lock: None,
-            warnings: Vec::new(),
         })
     }
 
