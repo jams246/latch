@@ -7,6 +7,10 @@ mod transfer_files;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
+mod tests_browse;
+#[cfg(test)]
+mod tests_filesystem;
+#[cfg(test)]
 mod tests_lifecycle;
 #[cfg(test)]
 mod tests_progress;
@@ -29,8 +33,12 @@ pub struct Entry {
     pub path: String,
     /// Whether this entry is a directory.
     pub is_dir: bool,
+    /// Whether this entry is a symbolic link.
+    pub is_link: bool,
     /// File length when supplied by the server.
     pub size: Option<u64>,
+    /// Last modification time in seconds since the Unix epoch, when supplied.
+    pub modified: Option<u64>,
 }
 
 /// A canonical remote directory and its entries, with directories first.

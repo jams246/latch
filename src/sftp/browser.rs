@@ -53,11 +53,17 @@ impl Browser {
             }
         };
         let mut entries: Vec<_> = directory
-            .map(|entry| Entry {
-                name: entry.file_name(),
-                path: entry.path(),
-                is_dir: entry.file_type().is_dir(),
-                size: entry.metadata().size,
+            .map(|entry| {
+                let metadata = entry.metadata();
+                let is_dir = metadata.is_dir();
+                Entry {
+                    name: entry.file_name(),
+                    path: entry.path(),
+                    is_dir,
+                    is_link: metadata.is_symlink(),
+                    size: if is_dir { None } else { metadata.size },
+                    modified: metadata.mtime.map(u64::from),
+                }
             })
             .collect();
         entries.sort_by(|a, b| {
@@ -67,6 +73,17 @@ impl Browser {
                 .then_with(|| a.name.cmp(&b.name))
         });
         Ok(Directory { path, entries })
+    }
+
+    /// Resolves a symbolic link and returns its canonical directory target.
+    /// A regular file target returns `None`.
+    ///
+    /// # Errors
+    /// Returns lookup, broken-link, permissions, and transport failures.
+    pub async fn resolve_link(&self, path: &str) -> Result<Option<String>, Error> {
+        let path = self.session.canonicalize(path).await?;
+        let metadata = self.session.metadata(path.clone()).await?;
+        Ok(metadata.is_dir().then_some(path))
     }
 
     /// Spawns a transfer on the current Tokio runtime.

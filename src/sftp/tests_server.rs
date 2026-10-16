@@ -1,8 +1,8 @@
-use std::collections::{HashMap, HashSet};
-
 use russh_sftp::protocol::{
     Attrs, Data, File, FileAttributes, Handle, Name, OpenFlags, Status, StatusCode,
 };
+
+use super::tests_filesystem::{Filesystem, normalized};
 
 pub(crate) async fn serve(stream: russh::ChannelStream<russh::server::Msg>) {
     serve_faulty(stream, false, false).await;
@@ -13,45 +13,7 @@ pub(super) async fn serve_faulty(
     stall_close: bool,
     deny_remove: bool,
 ) {
-    let files = HashMap::from([
-        ("/hello.txt".into(), b"Synthetic SFTP content\n".to_vec()),
-        (
-            "/folder/nested.txt".into(),
-            b"Nested synthetic content\n".to_vec(),
-        ),
-        ("/large.bin".into(), vec![0x5a; 16 * 1024 * 1024]),
-    ]);
-    russh_sftp::server::run(
-        stream,
-        Filesystem {
-            files,
-            directories: HashSet::new(),
-            stall_close,
-            deny_remove,
-        },
-    )
-    .await;
-}
-
-struct Filesystem {
-    files: HashMap<String, Vec<u8>>,
-    directories: HashSet<String>,
-    stall_close: bool,
-    deny_remove: bool,
-}
-
-fn normalized(path: &str) -> String {
-    let mut components = Vec::new();
-    for part in path.split('/') {
-        match part {
-            "" | "." => (),
-            ".." => {
-                components.pop();
-            }
-            name => components.push(name),
-        }
-    }
-    format!("/{}", components.join("/"))
+    russh_sftp::server::run(stream, Filesystem::new(stall_close, deny_remove)).await;
 }
 
 fn status(id: u32) -> Status {
@@ -63,28 +25,6 @@ fn status(id: u32) -> Status {
     }
 }
 
-fn attributes(size: u64, directory: bool) -> FileAttributes {
-    FileAttributes {
-        size: Some(size),
-        permissions: Some(if directory { 0o040755 } else { 0o100644 }),
-        ..Default::default()
-    }
-}
-
-impl Filesystem {
-    fn attrs(&self, path: &str) -> Result<FileAttributes, StatusCode> {
-        let path = normalized(path);
-        if path == "/" || path == "/folder" {
-            Ok(attributes(0, true))
-        } else {
-            self.files
-                .get(&path)
-                .map(|file| attributes(file.len() as u64, false))
-                .ok_or(StatusCode::NoSuchFile)
-        }
-    }
-}
-
 impl russh_sftp::server::Handler for Filesystem {
     type Error = StatusCode;
 
@@ -93,7 +33,7 @@ impl russh_sftp::server::Handler for Filesystem {
     }
 
     async fn realpath(&mut self, id: u32, path: String) -> Result<Name, Self::Error> {
-        let path = normalized(&path);
+        let path = self.resolved(&path)?;
         Ok(Name {
             id,
             files: vec![File::new(&path, self.attrs(&path)?)],
@@ -101,7 +41,7 @@ impl russh_sftp::server::Handler for Filesystem {
     }
 
     async fn opendir(&mut self, id: u32, path: String) -> Result<Handle, Self::Error> {
-        let path = normalized(&path);
+        let path = self.resolved(&path)?;
         if !self.attrs(&path)?.is_dir() {
             return Err(StatusCode::NoSuchFile);
         }
@@ -113,29 +53,16 @@ impl russh_sftp::server::Handler for Filesystem {
         if !self.directories.insert(handle.clone()) {
             return Err(StatusCode::Eof);
         }
-        let prefix = if handle == "/" {
-            "/".into()
-        } else {
-            format!("{handle}/")
-        };
-        let mut files = Vec::new();
-        if handle == "/" {
-            files.push(File::new("folder", attributes(0, true)));
-        }
-        for (path, content) in &self.files {
-            if let Some(name) = path.strip_prefix(&prefix)
-                && !name.contains('/')
-            {
-                files.push(File::new(name, attributes(content.len() as u64, false)));
-            }
-        }
-        Ok(Name { id, files })
+        Ok(Name {
+            id,
+            files: self.entries(&handle)?,
+        })
     }
 
     async fn stat(&mut self, id: u32, path: String) -> Result<Attrs, Self::Error> {
         Ok(Attrs {
             id,
-            attrs: self.attrs(&path)?,
+            attrs: self.attrs(&self.resolved(&path)?)?,
         })
     }
 
@@ -160,7 +87,11 @@ impl russh_sftp::server::Handler for Filesystem {
         flags: OpenFlags,
         _: FileAttributes,
     ) -> Result<Handle, Self::Error> {
-        let path = normalized(&filename);
+        let path = if flags.contains(OpenFlags::CREATE) {
+            normalized(&filename)
+        } else {
+            self.resolved(&filename)?
+        };
         if flags.contains(OpenFlags::EXCLUDE) && self.files.contains_key(&path) {
             return Err(StatusCode::Failure);
         }
