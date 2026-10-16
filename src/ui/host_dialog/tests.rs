@@ -16,7 +16,7 @@ fn fixture(cx: &mut TestAppContext) -> (WindowHandle<Latch>, VisualTestContext) 
     let directory = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join(".verification/host-identity/tests")
         .join(uuid::Uuid::new_v4().to_string());
-    let store = Store::load(directory.join("latch.json")).unwrap();
+    let store = Store::load(directory.join("latch.db")).unwrap();
     let runtime = Arc::new(tokio::runtime::Runtime::new().unwrap());
     let handle = cx
         .add_window(|window, cx| Latch::new(store, directory, runtime, window.window_handle(), cx));

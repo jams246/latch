@@ -53,7 +53,7 @@ pub(super) fn fixture(cx: &mut TestAppContext) -> Fixture {
     let directory = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join(".verification/terminal-settings")
         .join(uuid::Uuid::new_v4().to_string());
-    let path = directory.join("latch.json");
+    let path = directory.join("latch.db");
     let store = Store::load(&path).unwrap();
     store.save().unwrap();
     let runtime = Arc::new(tokio::runtime::Runtime::new().unwrap());

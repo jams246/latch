@@ -7,19 +7,14 @@ use latch::storage::{Store, WindowSize};
 use std::{io, path::PathBuf, sync::Arc};
 
 fn main() {
-    let directory = match configuration_directory() {
+    let directory = match executable_directory() {
         Ok(directory) => directory,
         Err(error) => {
             eprintln!("Cannot locate Latch settings: {error}");
             return;
         }
     };
-    let roaming_directory = if std::env::var_os("LATCH_CONFIG_DIR").is_none() {
-        std::env::var_os("APPDATA").map(|path| PathBuf::from(path).join("Latch"))
-    } else {
-        None
-    };
-    let store = Store::load_portable(&directory, roaming_directory.as_deref());
+    let store = Store::load_profile(&directory);
     let runtime = match tokio::runtime::Runtime::new() {
         Ok(runtime) => Arc::new(runtime),
         Err(error) => {
@@ -86,10 +81,7 @@ pub(crate) fn open_latch(
     Ok(())
 }
 
-fn configuration_directory() -> io::Result<PathBuf> {
-    if let Some(directory) = std::env::var_os("LATCH_CONFIG_DIR") {
-        return Ok(PathBuf::from(directory));
-    }
+fn executable_directory() -> io::Result<PathBuf> {
     std::env::current_exe()?
         .parent()
         .map(std::path::Path::to_path_buf)

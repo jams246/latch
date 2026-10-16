@@ -16,7 +16,7 @@ fn fixture(cx: &mut TestAppContext) -> (WindowHandle<Latch>, Connection) {
         .join(uuid::Uuid::new_v4().to_string());
     let local = directory.join("local");
     std::fs::create_dir_all(&local).unwrap();
-    let mut store = Store::load(directory.join("latch.json")).unwrap();
+    let mut store = Store::load(directory.join("latch.db")).unwrap();
     let connection = Connection::new(
         "Synthetic server".into(),
         "example.invalid".into(),

@@ -17,7 +17,7 @@ fn fixture(
     let directory = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join(".verification/connection-delete/tests")
         .join(uuid::Uuid::new_v4().to_string());
-    let path = directory.join("latch.json");
+    let path = directory.join("latch.db");
     let mut store = Store::load(&path).unwrap();
     let connections =
         [("first", "First synthetic"), ("second", "Second synthetic")].map(|(id, name)| {

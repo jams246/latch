@@ -37,7 +37,7 @@ async fn gui_server() {
         )
         .unwrap();
     }
-    let mut store = Store::load(directory.join("latch.json")).unwrap();
+    let mut store = Store::load(directory.join("latch.db")).unwrap();
     std::fs::write(
         directory.join("known_hosts"),
         format!(
