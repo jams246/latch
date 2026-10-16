@@ -20,6 +20,7 @@ impl Render for Files {
             }
         }
         div()
+            .relative()
             .flex()
             .flex_col()
             .size_full()
@@ -55,6 +56,8 @@ impl Render for Files {
                     .child(self.render_files_pane(Side::Local, cx))
                     .child(self.render_files_pane(Side::Remote, cx)),
             )
+            .child(self.render_context_menu(window, cx))
+            .child(self.render_action_dialog(window, cx))
     }
 }
 
@@ -64,6 +67,9 @@ impl Files {
             Side::Local => ("Local computer", &self.local_status, self.local_busy),
             Side::Remote => ("Connected server", &self.status, self.busy),
         };
+        let status = self.action_status[usize::from(side == Side::Remote)]
+            .as_ref()
+            .unwrap_or(status);
         div()
             .id(side.id())
             .debug_selector(move || format!("{}-pane", side.id()))
@@ -117,7 +123,7 @@ impl Files {
             )
             .child(div().text_xs().text_color(rgb(0xa8c1d3)).child(match side {
                 Side::Local => "Double-click folders or links to open. Dates in UTC.",
-                Side::Remote => "Double-click files to download. Dates in UTC.",
+                Side::Remote => "\u{a0}",
             }))
     }
 }
