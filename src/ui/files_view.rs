@@ -51,6 +51,7 @@ impl Render for Files {
             })
             .child(self.render_context_menu(window, cx))
             .child(self.render_action_dialog(window, cx))
+            .child(self.render_conflict_dialog(window, cx))
     }
 }
 

@@ -3,6 +3,7 @@ mod action_menu;
 mod action_worker;
 mod actions;
 pub(super) mod breadcrumbs;
+pub(super) mod conflicts;
 mod copy_actions;
 pub(super) mod local;
 mod navigation;
@@ -70,6 +71,7 @@ pub(super) struct Files {
     pub(super) breadcrumb_reveal: [bool; 2],
     pub transfer: Option<sftp::Transfer>,
     metrics: Option<operations::Metrics>,
+    conflict: Option<conflicts::Dialog>,
     browser: Option<Browser>,
     runtime: Arc<tokio::runtime::Runtime>,
     events: mpsc::Receiver<Result<RemoteResult, sftp::Error>>,
@@ -145,6 +147,7 @@ impl Files {
             breadcrumb_reveal: [false; 2],
             transfer: None,
             metrics: None,
+            conflict: None,
             browser: None,
             runtime,
             events,
@@ -182,6 +185,7 @@ impl Files {
         }
         self.progress = None;
         self.metrics = None;
+        self.conflict = None;
         self.browser = None;
         cx.notify();
         self.transfer.take()

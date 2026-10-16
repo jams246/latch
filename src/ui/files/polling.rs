@@ -1,6 +1,26 @@
 use super::*;
 
 impl Files {
+    fn poll_conflict(&mut self, cx: &mut Context<Self>) {
+        match self.transfer.as_ref().and_then(sftp::Transfer::conflict) {
+            Some(request) => {
+                if self
+                    .conflict
+                    .as_ref()
+                    .is_none_or(|dialog| dialog.request.id != request.id)
+                {
+                    self.conflict = Some(conflicts::Dialog::new(request, cx));
+                    cx.notify();
+                }
+            }
+            None => {
+                if self.conflict.take().is_some() {
+                    cx.notify();
+                }
+            }
+        }
+    }
+
     pub(super) fn poll(&mut self, cx: &mut Context<Self>) {
         if self.closing {
             return;
@@ -116,6 +136,7 @@ impl Files {
         if self.transfer.is_some() {
             cx.notify();
         }
+        self.poll_conflict(cx);
         if let Some(event) = self
             .transfer
             .as_ref()
@@ -145,19 +166,15 @@ impl Files {
             self.transfer = None;
             self.progress = None;
             self.metrics = None;
-            let notice = if self.batch_copy && self.status != "Transfer complete" {
-                format!(
-                    "{} Transferred items, including partial files, remain in the target directory.",
-                    self.status
-                )
-            } else {
-                self.status.clone()
-            };
+            self.conflict = None;
+            let notice = (!self.status.is_empty()).then(|| self.status.clone());
             self.refresh(Side::Local, cx);
             self.refresh(Side::Remote, cx);
-            self.action_status[1] = Some(notice.clone());
-            if self.batch_copy {
-                self.action_status[0] = Some(notice);
+            if let Some(notice) = notice {
+                self.action_status[1] = Some(notice.clone());
+                if self.batch_copy {
+                    self.action_status[0] = Some(notice);
+                }
             }
             self.batch_copy = false;
         }
@@ -168,7 +185,7 @@ pub(super) fn transfer_status(event: TransferEvent) -> (String, bool) {
     match event {
         TransferEvent::Progress { .. } => (String::new(), false),
         TransferEvent::Completed => ("Transfer complete".into(), true),
-        TransferEvent::Cancelled => ("Transfer cancelled".into(), true),
+        TransferEvent::Cancelled => (String::new(), true),
         TransferEvent::Failed(error) => (format!("{error} Refresh folder to reconnect."), true),
     }
 }

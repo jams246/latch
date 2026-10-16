@@ -12,7 +12,7 @@ impl Files {
         };
         let (events, progress) = tokio::sync::mpsc::channel(32);
         let _guard = self.runtime.enter();
-        self.transfer = Some(browser.transfer(direction, events));
+        self.transfer = Some(browser.transfer_interactive(direction, events));
         self.metrics = Some(operations::Metrics::new(std::time::Instant::now()));
         self.batch_copy = false;
         self.action_status = Default::default();
