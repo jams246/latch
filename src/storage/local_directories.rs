@@ -2,6 +2,9 @@ use std::{io, path::Path};
 
 use super::{Configuration, Store};
 
+#[cfg(test)]
+mod tests;
+
 impl Store {
     /// Returns the remembered SFTP local directory for a saved connection.
     pub fn local_directory(&self, id: &str) -> Option<&Path> {
@@ -25,6 +28,9 @@ impl Store {
                 io::ErrorKind::NotFound,
                 "Connection was deleted",
             ));
+        }
+        if self.local_directory(id) == Some(path) {
+            return Ok(());
         }
         self.update(|configuration| {
             configuration

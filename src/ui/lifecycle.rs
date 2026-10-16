@@ -59,14 +59,24 @@ impl Tab {
 }
 
 impl Latch {
-    pub(crate) fn save_window_size(&mut self, size: latch::storage::WindowSize) {
-        if self.preserve_imported_window || self.data_busy {
+    pub(crate) fn save_window_size(
+        &mut self,
+        size: latch::storage::WindowSize,
+        cx: &mut Context<Self>,
+    ) {
+        if self.preserve_imported_window
+            || self.data_busy
+            || self.shutting_down
+            || self.window_save_failed
+        {
             return;
         }
-        if let Err(error) = self.store.set_window_size(size) {
-            eprintln!("Cannot save window size: {error}");
-            self.error = Some(format!("Cannot save window size: {error}"));
-        }
+        self.save(move |store| store.set_window_size(size), |this, result, _, _| {
+            if let Err(error) = result {
+                this.window_save_failed = true;
+                this.save_error(format!("Cannot save window size: {error}. Close again to exit without saving the window size."));
+            }
+        }, cx);
     }
 
     fn schedule_cleanup(
@@ -121,14 +131,15 @@ impl Latch {
         if self.data_busy {
             return false;
         }
-        if self.tabs.is_empty() && self.pending_cleanup == 0 {
+        self.poll_local_preferences(cx);
+        if self.tabs.is_empty() && self.pending_cleanup == 0 && !self.saves_pending() {
             return true;
         }
         if self.shutting_down {
             return false;
         }
         self.shutting_down = true;
-        self.error = Some("Closing connections and cleaning up transfers…".into());
+        self.error = Some("Saving preferences and closing connections…".into());
         for mut tab in std::mem::take(&mut self.tabs) {
             let (transport, transfer) = tab.detach(cx);
             self.schedule_cleanup(tab.id.clone(), transport, transfer);
@@ -154,7 +165,7 @@ impl Latch {
             }
             cx.notify();
         }
-        if self.shutting_down && self.pending_cleanup == 0 {
+        if self.shutting_down && self.pending_cleanup == 0 && !self.saves_pending() {
             cx.quit();
         }
     }

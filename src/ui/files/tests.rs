@@ -13,14 +13,23 @@ pub(super) fn connection() -> latch::storage::Connection {
 
 #[test]
 fn retained_terminal_states_release_transfer_controls_but_progress_does_not() {
-    assert!(transfer_finished(TransferEvent::Completed));
-    assert!(transfer_finished(TransferEvent::Cancelled));
-    assert!(transfer_finished(TransferEvent::Failed("failure".into())));
-    assert!(!transfer_finished(TransferEvent::Progress {
-        name: "file.txt".into(),
-        completed: 1,
-        total: Some(2)
-    }));
+    let mut error = None;
+    assert!(transfer_finished(TransferEvent::Completed, &mut error));
+    assert!(error.is_none());
+    assert!(transfer_finished(TransferEvent::Cancelled, &mut error));
+    assert!(transfer_finished(
+        TransferEvent::Failed("failure".into()),
+        &mut error
+    ));
+    assert!(error.as_ref().unwrap().contains("failure"));
+    assert!(!transfer_finished(
+        TransferEvent::Progress {
+            name: "file.txt".into(),
+            completed: 1,
+            total: Some(2)
+        },
+        &mut error
+    ));
 }
 
 #[gpui::test]

@@ -30,6 +30,7 @@ impl Files {
             self.local_busy = false;
             match result {
                 Ok(directory) => {
+                    self.directory_errors[0] = None;
                     let _ = self.preference_sender.send(LocalPreference {
                         tab_id: self.tab_id.clone(),
                         connection_id: self.connection_id.clone(),
@@ -44,13 +45,15 @@ impl Files {
                         self.local_history.commit(directory.path.clone());
                     }
                     self.local = Some(directory);
+                    self.rebuild_order(Side::Local);
                     if changed {
                         self.reveal_breadcrumbs(Side::Local);
                     }
                 }
                 Err(error) => {
                     self.pending_local_history = None;
-                    eprintln!("Cannot open local directory: {error}");
+                    self.directory_errors[0] =
+                        Some(format!("Cannot open local directory: {error}"));
                 }
             }
             cx.notify();
@@ -59,6 +62,7 @@ impl Files {
             self.busy = false;
             match result {
                 Ok(RemoteResult::Directory(browser, directory)) => {
+                    self.directory_errors[1] = None;
                     self.selections[1].clear();
                     self.menu = None;
                     let changed = self
@@ -75,6 +79,7 @@ impl Files {
                         self.remote_history.commit(directory.path.clone());
                     }
                     self.directory = Some(directory);
+                    self.rebuild_order(Side::Remote);
                     if changed {
                         self.reveal_breadcrumbs(Side::Remote);
                     }
@@ -88,7 +93,8 @@ impl Files {
                 }
                 Err(error) => {
                     self.pending_remote_history = None;
-                    eprintln!("Cannot open server directory: {error}");
+                    self.directory_errors[1] =
+                        Some(format!("Cannot open server directory: {error}"));
                     self.browser = None;
                 }
             }
@@ -108,7 +114,7 @@ impl Files {
                     if matches!(&event, TransferEvent::Failed(_)) {
                         self.browser = None;
                     }
-                    finished |= transfer_finished(event);
+                    finished |= transfer_finished(event, &mut self.error);
                     cx.notify();
                 }
             }
@@ -149,7 +155,7 @@ impl Files {
             if matches!(&event, TransferEvent::Failed(_)) {
                 self.browser = None;
             }
-            finished = transfer_finished(event);
+            finished = transfer_finished(event, &mut self.error);
             cx.notify();
         }
         if !finished
@@ -158,7 +164,8 @@ impl Files {
                 .as_ref()
                 .is_some_and(|progress| progress.is_closed())
         {
-            eprintln!("Transfer status was interrupted. Refresh the folder before retrying.");
+            self.error =
+                Some("Transfer status was interrupted. Refresh the folder before retrying.".into());
             self.browser = None;
             finished = true;
             cx.notify();
@@ -174,12 +181,14 @@ impl Files {
     }
 }
 
-pub(super) fn transfer_finished(event: TransferEvent) -> bool {
+pub(super) fn transfer_finished(event: TransferEvent, failure: &mut Option<String>) -> bool {
     match event {
         TransferEvent::Progress { .. } => false,
         TransferEvent::Completed | TransferEvent::Cancelled => true,
         TransferEvent::Failed(error) => {
-            eprintln!("SFTP transfer failed: {error} Refresh folder to reconnect.");
+            *failure = Some(format!(
+                "SFTP transfer failed: {error} Refresh folder to reconnect."
+            ));
             true
         }
     }

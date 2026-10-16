@@ -6,12 +6,9 @@ pub(super) async fn authenticate(
     handle: &mut client::Handle<Client>,
     username: &str,
 ) -> Result<(), Error> {
-    #[cfg(windows)]
     let agent = AgentClient::connect_named_pipe(r"\\.\pipe\openssh-ssh-agent")
         .await
         .map_err(|_| Error::Agent)?;
-    #[cfg(unix)]
-    let agent = AgentClient::connect_env().await.map_err(|_| Error::Agent)?;
     authenticate_with(handle, username, agent).await
 }
 

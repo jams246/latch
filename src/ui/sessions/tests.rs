@@ -92,8 +92,13 @@ fn connected_sftp_does_not_count_usage_and_shell_counts_only_once(cx: &mut TestA
                     .unwrap();
             }
             app.poll(cx);
-            assert_eq!(app.store.connections()[0].successful_shells, 1);
             assert!(app.tabs[0].counted);
+        })
+        .unwrap();
+    crate::ui::persistence::tests::settle(handle, cx);
+    handle
+        .read_with(cx, |app, _| {
+            assert_eq!(app.store.connections()[0].successful_shells, 1)
         })
         .unwrap();
 }

@@ -91,7 +91,6 @@ pub(super) fn stage(directory: &Path, configuration: &Configuration) -> io::Resu
     let path = stage.join(portable::DATABASE);
     persistence::write(&path, configuration)?;
     let restored = persistence::read(&path)?;
-    super::validate(&restored)?;
     if &restored != configuration {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,

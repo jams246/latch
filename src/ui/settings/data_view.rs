@@ -29,7 +29,7 @@ impl Latch {
             .child(
                 button("settings-export", "Export data")
                     .debug_selector(|| "settings-export".into())
-                    .when(self.data_busy, |button| button.opacity(0.5))
+                    .when(self.data_busy || self.saves_pending(), |button| button.opacity(0.5))
                     .on_click(cx.listener(|this, _, window, cx| {
                         this.export_data(window, cx);
                     })),
@@ -44,7 +44,7 @@ impl Latch {
             )
             .children((!self.can_import() && !self.data_busy).then(|| {
                 div().text_color(rgb(CARBON.muted)).child(
-                    "Close all terminal and SFTP tabs, then wait for them to finish closing before importing.",
+                    "Close all terminal and SFTP tabs, then wait for saves and connections to finish before importing.",
                 )
             }))
             .children(self.data_busy.then(|| div().child("Working...")))

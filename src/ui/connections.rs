@@ -41,7 +41,7 @@ impl Latch {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.data_busy {
+        if self.data_busy || self.shutting_down {
             return;
         }
         let values = connection.as_ref().map_or_else(
@@ -92,7 +92,7 @@ impl Latch {
     }
 
     fn save_connection(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.data_busy {
+        if self.data_busy || self.shutting_down {
             return;
         }
         let Some(editor) = &self.editor else {
@@ -129,16 +129,28 @@ impl Latch {
         connection.port = port;
         connection.username.clone_from(&values[3]);
         connection.auth = auth;
-        match self.store.upsert(connection) {
-            Ok(()) => self.close_editor(window, cx),
-            Err(error) => {
-                self.error = Some(format!("Cannot save connection: {error}"));
-                cx.notify();
-            }
-        }
+        window.focus(&editor.focus);
+        self.data_busy = true;
+        self.save(
+            move |store| store.upsert(connection),
+            |this, result, window, cx| {
+                this.data_busy = false;
+                match result {
+                    Ok(()) => this.close_editor(window, cx),
+                    Err(error) => {
+                        this.error = Some(format!("Cannot save connection: {error}"));
+                    }
+                }
+            },
+            cx,
+        );
+        cx.notify();
     }
 
     fn close_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.data_busy {
+            return;
+        }
         let previous = self.editor.take().and_then(|editor| editor.previous_focus);
         self.error = None;
         if let Some(tab) = self.active.and_then(|index| self.tabs.get(index)) {

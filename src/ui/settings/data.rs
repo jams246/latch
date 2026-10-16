@@ -3,7 +3,7 @@ use latch::storage::{ImportSnapshot, Store};
 
 impl Latch {
     fn begin_data(&mut self, cx: &mut Context<Self>) -> bool {
-        if self.data_busy || self.shutting_down || self.settings.is_none() {
+        if self.data_busy || self.shutting_down || self.saves_pending() || self.settings.is_none() {
             return false;
         }
         self.data_busy = true;
@@ -100,7 +100,8 @@ impl Latch {
                 if confirmation.await? != 1 {
                     return Ok(None);
                 }
-                this.update(cx, |this, cx| this.apply_import(snapshot, cx))??;
+                let saved = this.update(cx, |this, cx| this.apply_import(snapshot, cx))??;
+                saved.await??;
                 Ok(Some("Data imported. Saved window dimensions apply next time Latch starts."))
             }.await;
             let _ = this.update(cx, |this, cx| this.finish_data(result, cx));
@@ -111,23 +112,33 @@ impl Latch {
         &mut self,
         snapshot: ImportSnapshot,
         cx: &mut Context<Self>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<tokio::sync::oneshot::Receiver<std::io::Result<()>>> {
         anyhow::ensure!(
             self.tabs.is_empty()
                 && self.pending_cleanup == 0
                 && !self.shutting_down
+                && !self.saves_pending()
                 && self.editor.is_none()
                 && self.connection_delete.is_none(),
             "Close all tabs and dialogs before importing data"
         );
-        self.store.replace_import(snapshot)?;
-        self.connection_search.update(cx, |input, cx| {
-            input.replace(0..input.value.len(), "", cx);
-        });
-        self.preserve_imported_window = true;
-        self.error = None;
-        cx.set_global(self.store.terminal_theme());
-        cx.refresh_windows();
-        Ok(())
+        let (sender, saved) = tokio::sync::oneshot::channel();
+        self.save(
+            move |store| store.replace_import(snapshot),
+            move |this, result, _, cx| {
+                if result.is_ok() {
+                    this.connection_search.update(cx, |input, cx| {
+                        input.replace(0..input.value.len(), "", cx);
+                    });
+                    this.preserve_imported_window = true;
+                    this.error = None;
+                    cx.set_global(this.store.terminal_theme());
+                    cx.refresh_windows();
+                }
+                let _ = sender.send(result);
+            },
+            cx,
+        );
+        Ok(saved)
     }
 }

@@ -145,7 +145,7 @@ fn settings_save_every_palette_with_live_preview_and_preserve_hidden_session(
         fixture
             .visual
             .simulate_click(bounds.center(), Default::default());
-        fixture.visual.run_until_parked();
+        crate::ui::persistence::tests::settle(fixture.handle, &mut fixture.visual);
         fixture.draw();
         fixture.visual.simulate_keystrokes("x");
         fixture
@@ -217,7 +217,7 @@ fn settings_save_failure_retains_previous_palette_and_reports_error(cx: &mut Tes
         .unwrap()
         .center();
     fixture.visual.simulate_click(position, Default::default());
-    fixture.visual.run_until_parked();
+    crate::ui::persistence::tests::settle(fixture.handle, &mut fixture.visual);
     fixture
         .handle
         .read_with(&fixture.visual, |app, cx| {

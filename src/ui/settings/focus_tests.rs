@@ -63,6 +63,7 @@ fn settings_buttons_support_native_keyboard_activation_and_preview_escape(cx: &m
         .unwrap();
     focus_button(&mut fixture, "settings-palette-Carbon");
     release_key(&mut fixture, "space");
+    crate::ui::persistence::tests::settle(fixture.handle, &mut fixture.visual);
     fixture
         .handle
         .read_with(&fixture.visual, |app, cx| {

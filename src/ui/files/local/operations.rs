@@ -93,7 +93,6 @@ fn invalid_target() -> io::Error {
     )
 }
 
-#[cfg(windows)]
 fn rename_without_replace(source: &Path, destination: &Path) -> io::Result<()> {
     use windows::{Win32::Storage::FileSystem::MoveFileW, core::PCWSTR};
     let source = super::native::wide(source)?;
@@ -103,17 +102,8 @@ fn rename_without_replace(source: &Path, destination: &Path) -> io::Result<()> {
         .map_err(|error| io::Error::from_raw_os_error(error.code().0 & 0xffff))
 }
 
-#[cfg(not(windows))]
-fn rename_without_replace(_source: &Path, _destination: &Path) -> io::Result<()> {
-    Err(io::Error::new(
-        io::ErrorKind::Unsupported,
-        "Renaming without replacing existing files is unavailable on this platform",
-    ))
-}
-
 fn remove(path: &Path) -> io::Result<()> {
     let metadata = fs::symlink_metadata(path)?;
-    #[cfg(windows)]
     {
         use std::os::windows::fs::MetadataExt;
         use windows::Win32::Storage::FileSystem::{

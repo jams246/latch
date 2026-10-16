@@ -63,17 +63,30 @@ impl Latch {
         if self.data_busy || self.shutting_down {
             return;
         }
-        let Some(settings) = &mut self.settings else {
+        if self.settings.is_none() {
             return;
-        };
-        match self.store.set_terminal_theme(palette) {
-            Ok(()) => {
-                settings.error = None;
-                cx.set_global(palette);
-                cx.refresh_windows();
-            }
-            Err(error) => settings.error = Some(format!("Cannot save terminal theme: {error}")),
         }
+        self.save(
+            move |store| store.set_terminal_theme(palette),
+            move |this, result, _, cx| match result {
+                Ok(()) => {
+                    if let Some(settings) = &mut this.settings {
+                        settings.error = None;
+                    }
+                    cx.set_global(palette);
+                    cx.refresh_windows();
+                }
+                Err(error) => {
+                    let error = Some(format!("Cannot save terminal theme: {error}"));
+                    if let Some(settings) = &mut this.settings {
+                        settings.error = error;
+                    } else {
+                        this.error = error;
+                    }
+                }
+            },
+            cx,
+        );
         cx.notify();
     }
 

@@ -14,12 +14,14 @@ impl Files {
         let directions = match result {
             Ok(directions) => directions,
             Err(error) => {
-                eprintln!("Cannot copy selected items: {error}");
+                self.error = Some(format!("Cannot copy selected items: {error}"));
+                cx.notify();
                 return;
             }
         };
         let Some(browser) = &self.browser else {
-            eprintln!("Refresh the server directory to reconnect before copying");
+            self.error = Some("Refresh the server directory to reconnect before copying".into());
+            cx.notify();
             return;
         };
         let (events, progress) = tokio::sync::mpsc::channel(32);

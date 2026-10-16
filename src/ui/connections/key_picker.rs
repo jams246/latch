@@ -3,6 +3,9 @@ use std::path::PathBuf;
 
 impl Latch {
     pub(super) fn browse_key(&mut self, cx: &mut Context<Self>) {
+        if self.data_busy {
+            return;
+        }
         let Some(editor) = &self.editor else {
             return;
         };
@@ -29,6 +32,9 @@ impl Latch {
         result: anyhow::Result<Option<Vec<PathBuf>>>,
         cx: &mut Context<Self>,
     ) {
+        if self.data_busy {
+            return;
+        }
         let Some(editor) = &self.editor else {
             return;
         };

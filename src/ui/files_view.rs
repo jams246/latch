@@ -17,6 +17,13 @@ impl Render for Files {
                 });
             }
         }
+        let errors = self
+            .error
+            .iter()
+            .chain(self.directory_errors.iter().flatten())
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
         div()
             .relative()
             .flex()
@@ -26,6 +33,30 @@ impl Render for Files {
             .gap_3()
             .bg(rgb(CARBON.background))
             .text_color(rgb(CARBON.text))
+            .children((!errors.is_empty()).then(|| {
+                div()
+                    .id("file-error")
+                    .debug_selector(|| "file-error".into())
+                    .flex()
+                    .gap_2()
+                    .p_2()
+                    .flex_shrink_0()
+                    .max_h(px(140.))
+                    .overflow_y_scroll()
+                    .bg(rgb(CARBON.surface))
+                    .text_color(rgb(CARBON.danger))
+                    .child(div().flex_1().min_w_0().child(errors))
+                    .child(
+                        super::button("dismiss-file-error", "Dismiss")
+                            .debug_selector(|| "dismiss-file-error".into())
+                            .flex_shrink_0()
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.error = None;
+                                this.directory_errors = Default::default();
+                                cx.notify();
+                            })),
+                    )
+            }))
             .child(
                 div()
                     .flex()

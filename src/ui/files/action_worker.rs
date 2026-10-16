@@ -96,7 +96,7 @@ impl Files {
                 if event.side == Side::Remote {
                     self.browser = None;
                 }
-                eprintln!("SFTP file action failed: {error}");
+                self.error = Some(format!("File action failed: {error}"));
             }
             self.refresh(event.side, cx);
             cx.notify();

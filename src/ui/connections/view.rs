@@ -25,6 +25,11 @@ impl Latch {
             .justify_center()
             .bg(rgba(palette.overlay))
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
+                if this.data_busy {
+                    window.prevent_default();
+                    cx.stop_propagation();
+                    return;
+                }
                 match event.keystroke.key.as_str() {
                     "enter"
                         if this.editor.as_ref().is_some_and(|editor| {
@@ -161,6 +166,19 @@ impl Latch {
                             ),
                     ),
             )
+            .when(self.data_busy, |view| {
+                view.child(
+                    div()
+                        .absolute()
+                        .inset_0()
+                        .occlude()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .bg(rgb(palette.surface))
+                        .child("Saving connection…"),
+                )
+            })
             .into_any_element()
     }
 }

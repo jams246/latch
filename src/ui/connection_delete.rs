@@ -21,7 +21,7 @@ impl Latch {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.data_busy {
+        if self.data_busy || self.shutting_down {
             return;
         }
         let cancel = cx.focus_handle().tab_index(0).tab_stop(true);
@@ -39,6 +39,9 @@ impl Latch {
     }
 
     fn close_connection_delete(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.data_busy {
+            return;
+        }
         let previous = self
             .connection_delete
             .take()
@@ -51,20 +54,31 @@ impl Latch {
         cx.notify();
     }
 
-    fn confirm_connection_delete(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.data_busy {
+    fn confirm_connection_delete(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
+        if self.data_busy || self.shutting_down {
             return;
         }
         let Some(dialog) = &mut self.connection_delete else {
             return;
         };
-        match self.store.delete(&dialog.connection.id) {
-            Ok(()) => self.close_connection_delete(window, cx),
-            Err(error) => {
-                dialog.error = Some(format!("Cannot delete connection: {error}"));
-                cx.notify();
-            }
-        }
+        let id = dialog.connection.id.clone();
+        self.data_busy = true;
+        self.save(
+            move |store| store.delete(&id),
+            |this, result, window, cx| {
+                this.data_busy = false;
+                match result {
+                    Ok(()) => this.close_connection_delete(window, cx),
+                    Err(error) => {
+                        if let Some(dialog) = &mut this.connection_delete {
+                            dialog.error = Some(format!("Cannot delete connection: {error}"));
+                        }
+                    }
+                }
+            },
+            cx,
+        );
+        cx.notify();
     }
 
     pub(super) fn connection_delete_view(&self, cx: &mut Context<Self>) -> AnyElement {

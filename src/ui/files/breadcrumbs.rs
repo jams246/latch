@@ -197,7 +197,6 @@ fn remote_crumbs(path: &str) -> Vec<(String, String)> {
 #[cfg(test)]
 mod tests {
     use super::remote_crumbs;
-    #[cfg(windows)]
     use {
         super::local_crumbs,
         std::path::{Path, PathBuf},
@@ -219,8 +218,6 @@ mod tests {
     fn remote_root_has_one_breadcrumb() {
         assert_eq!(remote_crumbs("/"), vec![("/".into(), "/".into())]);
     }
-
-    #[cfg(windows)]
     #[test]
     fn local_breadcrumbs_include_drive_root_and_keep_native_paths() {
         assert_eq!(

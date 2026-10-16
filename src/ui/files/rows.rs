@@ -8,12 +8,11 @@ pub(super) mod values;
 use super::{Files, pane::Side};
 use crate::ui::theme::CARBON;
 use gpui::{prelude::*, *};
-use std::sync::Arc;
 
 const TABLE_WIDTH: f32 = 374.;
 
 impl Files {
-    pub(in crate::ui) fn file_rows(&self, side: Side, cx: &mut Context<Self>) -> Stateful<Div> {
+    pub(super) fn rebuild_order(&mut self, side: Side) {
         let mut rows: Vec<_> = match side {
             Side::Local => self.local.as_ref().map_or_else(Vec::new, |directory| {
                 directory
@@ -38,7 +37,11 @@ impl Files {
         };
         rows.retain(|(_, entry, _)| !matches!(entry.name.as_str(), "." | ".."));
         rows.sort_by(|left, right| sort.compare(left.1, right.1));
-        let ordered: Arc<[usize]> = rows.iter().map(|row| row.0).collect();
+        self.ordered[usize::from(side == Side::Remote)] = rows.iter().map(|row| row.0).collect();
+    }
+
+    pub(in crate::ui) fn file_rows(&self, side: Side, cx: &mut Context<Self>) -> Stateful<Div> {
+        let ordered = &self.ordered[usize::from(side == Side::Remote)];
         div()
             .id("entries")
             .debug_selector(move || format!("{}-entries", side.id()))
@@ -65,8 +68,15 @@ impl Files {
                 }),
             )
             .child(self.parent_row(side, cx))
-            .children(rows.into_iter().map(|(index, entry, icon)| {
-                self.file_row(side, index, entry, icon.cloned(), ordered.clone(), cx)
+            .children(ordered.iter().filter_map(|&index| {
+                let (entry, icon) = match side {
+                    Side::Local => {
+                        let entry = self.local.as_ref()?.entries.get(index)?;
+                        (&entry.metadata, entry.icon.clone())
+                    }
+                    Side::Remote => (self.directory.as_ref()?.entries.get(index)?, None),
+                };
+                Some(self.file_row(side, index, entry, icon, ordered.clone(), cx))
             }))
     }
 }

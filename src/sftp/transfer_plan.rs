@@ -108,7 +108,6 @@ fn validate_local_name(name: &str) -> Result<(), Error> {
     if !matches!(components.next(), Some(Component::Normal(_))) || components.next().is_some() {
         return Err(Error::InvalidPath);
     }
-    #[cfg(windows)]
     {
         let stem = name
             .split('.')
@@ -158,8 +157,6 @@ mod tests {
             assert!(validate_local_name(name).is_err(), "Accepted {name:?}");
         }
     }
-
-    #[cfg(windows)]
     #[test]
     fn server_child_names_reject_windows_devices_and_aliases() {
         for name in [

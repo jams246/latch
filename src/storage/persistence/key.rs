@@ -1,22 +1,15 @@
-use std::{
-    fs, io,
-    io::{Read, Write},
-    path::Path,
-};
+use std::{fs, io, io::Read, path::Path};
 
 use zeroize::Zeroizing;
+
+use crate::storage::files;
 
 use super::invalid;
 
 pub(super) fn create(path: &Path) -> io::Result<()> {
     let key = generate()?;
     let protected = protect(&key)?;
-    let mut file = fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(path)?;
-    file.write_all(&protected)?;
-    file.sync_all()
+    files::create_new(path, &protected)
 }
 
 pub(super) fn read(path: &Path) -> io::Result<Zeroizing<Vec<u8>>> {
@@ -32,7 +25,6 @@ pub(super) fn read(path: &Path) -> io::Result<Zeroizing<Vec<u8>>> {
     Ok(key)
 }
 
-#[cfg(windows)]
 fn generate() -> io::Result<Zeroizing<Vec<u8>>> {
     use windows::Win32::Security::Cryptography::{
         BCRYPT_USE_SYSTEM_PREFERRED_RNG, BCryptGenRandom,
@@ -45,7 +37,6 @@ fn generate() -> io::Result<Zeroizing<Vec<u8>>> {
     Ok(bytes)
 }
 
-#[cfg(windows)]
 fn protect(bytes: &[u8]) -> io::Result<Vec<u8>> {
     use windows::Win32::Security::Cryptography::{
         CRYPT_INTEGER_BLOB, CRYPTPROTECT_UI_FORBIDDEN, CryptProtectData,
@@ -68,7 +59,6 @@ fn protect(bytes: &[u8]) -> io::Result<Vec<u8>> {
     Ok(copy_output(output).to_vec())
 }
 
-#[cfg(windows)]
 fn unprotect(bytes: &[u8]) -> io::Result<Zeroizing<Vec<u8>>> {
     use windows::Win32::Security::Cryptography::{
         CRYPT_INTEGER_BLOB, CRYPTPROTECT_UI_FORBIDDEN, CryptUnprotectData,
@@ -91,7 +81,6 @@ fn unprotect(bytes: &[u8]) -> io::Result<Zeroizing<Vec<u8>>> {
     Ok(copy_output(output))
 }
 
-#[cfg(windows)]
 fn blob(bytes: &[u8]) -> io::Result<windows::Win32::Security::Cryptography::CRYPT_INTEGER_BLOB> {
     Ok(windows::Win32::Security::Cryptography::CRYPT_INTEGER_BLOB {
         cbData: bytes.len().try_into().map_err(|_| invalid())?,
@@ -99,7 +88,6 @@ fn blob(bytes: &[u8]) -> io::Result<windows::Win32::Security::Cryptography::CRYP
     })
 }
 
-#[cfg(windows)]
 fn copy_output(
     output: windows::Win32::Security::Cryptography::CRYPT_INTEGER_BLOB,
 ) -> Zeroizing<Vec<u8>> {
@@ -116,28 +104,4 @@ fn copy_output(
         let _ = LocalFree(Some(HLOCAL(output.pbData.cast())));
         copy
     }
-}
-
-#[cfg(not(windows))]
-fn generate() -> io::Result<Zeroizing<Vec<u8>>> {
-    Err(io::Error::new(
-        io::ErrorKind::Unsupported,
-        "Windows DPAPI is required",
-    ))
-}
-
-#[cfg(not(windows))]
-fn protect(_: &[u8]) -> io::Result<Vec<u8>> {
-    Err(io::Error::new(
-        io::ErrorKind::Unsupported,
-        "Windows DPAPI is required",
-    ))
-}
-
-#[cfg(not(windows))]
-fn unprotect(_: &[u8]) -> io::Result<Zeroizing<Vec<u8>>> {
-    Err(io::Error::new(
-        io::ErrorKind::Unsupported,
-        "Windows DPAPI is required",
-    ))
 }

@@ -1,4 +1,9 @@
 fn main() -> Result<(), embed_resource::CompilationResult> {
+    assert_eq!(
+        std::env::var("CARGO_CFG_TARGET_OS").as_deref(),
+        Ok("windows"),
+        "Latch supports Windows only"
+    );
     println!("cargo:rerun-if-changed=assets/latch.rc");
     println!("cargo:rerun-if-changed=assets/latch.ico");
     if std::env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc")

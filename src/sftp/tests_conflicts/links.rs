@@ -72,15 +72,12 @@ async fn local_destination_link_cannot_merge_and_source_link_is_rejected_before_
     let link = root.join("link");
     std::fs::create_dir(&original).unwrap();
     std::fs::write(original.join("keep.txt"), b"Keep original").unwrap();
-    #[cfg(windows)]
     if let Err(error) = std::os::windows::fs::symlink_dir(&original, &link) {
         if error.raw_os_error() == Some(1314) {
             return;
         }
         panic!("Cannot create synthetic directory link: {error}");
     }
-    #[cfg(unix)]
-    std::os::unix::fs::symlink(&original, &link).unwrap();
     let (events, mut incoming) = mpsc::channel(32);
     let transfer = browser.transfer_interactive(
         Direction::Download {

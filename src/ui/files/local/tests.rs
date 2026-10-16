@@ -46,7 +46,6 @@ fn initial_listing_skips_unusable_candidates_until_a_directory_can_be_read() {
     assert_eq!(listing.path, directory);
 }
 
-#[cfg(windows)]
 fn shortcut(path: &Path, target: &Path) {
     use windows::{
         Win32::{
@@ -66,7 +65,6 @@ fn shortcut(path: &Path, target: &Path) {
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn windows_shortcuts_follow_directory_targets_and_reveal_file_targets() {
     let directory = fixture("shortcuts");
@@ -90,7 +88,6 @@ fn windows_shortcuts_follow_directory_targets_and_reveal_file_targets() {
     );
 }
 
-#[cfg(windows)]
 #[test]
 fn windows_listing_supplies_native_file_icons_and_available_drives() {
     let directory = fixture("icons");
@@ -109,7 +106,6 @@ fn windows_listing_supplies_native_file_icons_and_available_drives() {
     assert!(!listing.drives.is_empty());
 }
 
-#[cfg(windows)]
 #[test]
 fn native_icons_survive_concurrent_directory_lists() {
     let directory = fixture("concurrent-icons");
@@ -129,7 +125,6 @@ fn native_icons_survive_concurrent_directory_lists() {
     });
 }
 
-#[cfg(windows)]
 #[test]
 fn broken_windows_shortcuts_report_errors_without_executing_targets() {
     let directory = fixture("broken-shortcut");
@@ -139,7 +134,6 @@ fn broken_windows_shortcuts_report_errors_without_executing_targets() {
     assert!(list(&directory).unwrap().entries[0].metadata.is_link);
 }
 
-#[cfg(windows)]
 #[test]
 fn local_symlinks_follow_directories_and_report_broken_targets() {
     let directory = fixture("symlink");
@@ -168,7 +162,6 @@ fn local_symlinks_follow_directories_and_report_broken_targets() {
     assert!(follow_link(&path).is_err());
 }
 
-#[cfg(windows)]
 #[test]
 fn extended_windows_paths_display_normal_drive_and_unc_breadcrumbs() {
     assert_eq!(

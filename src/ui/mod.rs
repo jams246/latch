@@ -11,6 +11,7 @@ mod input_paint;
 mod input_tests;
 mod lifecycle;
 mod modal;
+mod persistence;
 mod picker;
 pub(crate) mod recovery;
 mod session_events;
@@ -33,6 +34,7 @@ use std::{path::PathBuf, sync::Arc};
 
 pub struct Latch {
     store: Store,
+    saves: persistence::Saves,
     connection_search: Entity<input::Input>,
     directory: PathBuf,
     runtime: Arc<tokio::runtime::Runtime>,
@@ -52,6 +54,7 @@ pub struct Latch {
     shutting_down: bool,
     data_busy: bool,
     preserve_imported_window: bool,
+    window_save_failed: bool,
     preference_sender: std::sync::mpsc::Sender<LocalPreference>,
     preference_events: std::sync::mpsc::Receiver<LocalPreference>,
 }
@@ -117,6 +120,7 @@ impl Latch {
             .detach();
         Self {
             store,
+            saves: persistence::Saves::default(),
             connection_search,
             directory,
             runtime,
@@ -136,6 +140,7 @@ impl Latch {
             shutting_down: false,
             data_busy: false,
             preserve_imported_window: false,
+            window_save_failed: false,
             preference_sender,
             preference_events,
         }
@@ -146,6 +151,7 @@ impl Latch {
             && self.pending_cleanup == 0
             && !self.shutting_down
             && !self.data_busy
+            && !self.saves_pending()
             && self.editor.is_none()
             && self.connection_delete.is_none()
     }

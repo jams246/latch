@@ -1,8 +1,6 @@
 //! Native owner association and balanced modality for authentication windows.
 
 use gpui::{AnyWindowHandle, App, Window};
-
-#[cfg(windows)]
 use {
     raw_window_handle::{HasWindowHandle, RawWindowHandle},
     std::{cell::RefCell, collections::HashMap},
@@ -14,13 +12,10 @@ use {
         },
     },
 };
-
-#[cfg(windows)]
 thread_local! {
     static OWNERS: RefCell<HashMap<isize, OwnerState>> = RefCell::new(HashMap::new());
 }
 
-#[cfg(windows)]
 struct OwnerState {
     dialogs: usize,
     restore_enabled: bool,
@@ -28,7 +23,6 @@ struct OwnerState {
 
 /// Keeps an authentication window's owner disabled until its last dialog closes.
 pub(super) struct ModalGuard {
-    #[cfg(windows)]
     owner: HWND,
 }
 
@@ -38,19 +32,10 @@ pub(super) fn attach(
     owner: AnyWindowHandle,
     cx: &mut App,
 ) -> anyhow::Result<ModalGuard> {
-    #[cfg(windows)]
-    {
-        let owner = owner.update(cx, |_, window, _| hwnd(window))??;
-        attach_windows(hwnd(dialog)?, owner)
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = (dialog, owner, cx);
-        anyhow::bail!("Native authentication window modality is unsupported on this platform")
-    }
+    let owner = owner.update(cx, |_, window, _| hwnd(window))??;
+    attach_windows(hwnd(dialog)?, owner)
 }
 
-#[cfg(windows)]
 fn hwnd(window: &Window) -> anyhow::Result<HWND> {
     let handle = HasWindowHandle::window_handle(window)
         .map_err(|error| anyhow::anyhow!("Cannot access native authentication window: {error}"))?;
@@ -60,7 +45,6 @@ fn hwnd(window: &Window) -> anyhow::Result<HWND> {
     }
 }
 
-#[cfg(windows)]
 fn attach_windows(dialog: HWND, owner: HWND) -> anyhow::Result<ModalGuard> {
     // Both handles belong to this UI thread; the guard never leaves that thread.
     unsafe {
@@ -100,30 +84,27 @@ fn attach_windows(dialog: HWND, owner: HWND) -> anyhow::Result<ModalGuard> {
 
 impl Drop for ModalGuard {
     fn drop(&mut self) {
-        #[cfg(windows)]
-        {
-            let restore = OWNERS.with(|owners| {
-                let mut owners = owners.borrow_mut();
-                let Some(state) = owners.get_mut(&(self.owner.0 as isize)) else {
-                    return false;
-                };
-                state.dialogs -= 1;
-                if state.dialogs != 0 {
-                    return false;
-                }
-                owners
-                    .remove(&(self.owner.0 as isize))
-                    .is_some_and(|state| state.restore_enabled)
-            });
-            // The main window can already be destroyed during application shutdown.
-            if restore && unsafe { IsWindow(Some(self.owner)).as_bool() } {
-                let _ = unsafe { EnableWindow(self.owner, true) };
+        let restore = OWNERS.with(|owners| {
+            let mut owners = owners.borrow_mut();
+            let Some(state) = owners.get_mut(&(self.owner.0 as isize)) else {
+                return false;
+            };
+            state.dialogs -= 1;
+            if state.dialogs != 0 {
+                return false;
             }
+            owners
+                .remove(&(self.owner.0 as isize))
+                .is_some_and(|state| state.restore_enabled)
+        });
+        // The main window can already be destroyed during application shutdown.
+        if restore && unsafe { IsWindow(Some(self.owner)).as_bool() } {
+            let _ = unsafe { EnableWindow(self.owner, true) };
         }
     }
 }
 
-#[cfg(all(test, windows))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use windows::{Win32::UI::WindowsAndMessaging::*, core::w};

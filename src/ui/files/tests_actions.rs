@@ -57,6 +57,8 @@ fn populated(cx: &mut TestAppContext) -> (WindowHandle<Files>, VisualTestContext
                     })
                     .collect(),
             });
+            files.rebuild_order(Side::Local);
+            files.rebuild_order(Side::Remote);
             paths
         })
         .unwrap();

@@ -63,11 +63,14 @@ pub(crate) fn open_latch(
             let size = bounds.get_bounds().size;
             let ready = weak
                 .update(cx, |app, cx| {
-                    app.save_window_size(WindowSize {
-                        width: f32::from(size.width).max(WindowSize::MIN_WIDTH),
-                        height: f32::from(size.height).max(WindowSize::MIN_HEIGHT),
-                        maximized: matches!(bounds, WindowBounds::Maximized(_)),
-                    });
+                    app.save_window_size(
+                        WindowSize {
+                            width: f32::from(size.width).max(WindowSize::MIN_WIDTH),
+                            height: f32::from(size.height).max(WindowSize::MIN_HEIGHT),
+                            maximized: matches!(bounds, WindowBounds::Maximized(_)),
+                        },
+                        cx,
+                    );
                     app.request_shutdown(cx)
                 })
                 .unwrap_or(true);

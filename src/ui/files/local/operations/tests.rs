@@ -89,7 +89,7 @@ fn delete_validates_every_target_before_removing_anything() {
 
 #[test]
 fn target_validation_rejects_roots_and_dot_paths() {
-    let root = Path::new(if cfg!(windows) { "C:\\" } else { "/" });
+    let root = Path::new("C:\\");
     for path in [root, Path::new("."), Path::new(".."), Path::new("")] {
         assert_eq!(
             target_path(path).unwrap_err().kind(),
@@ -98,13 +98,11 @@ fn target_validation_rejects_roots_and_dot_paths() {
     }
     let directory = fixture("dot-path");
     assert!(target_path(&directory.join(".")).is_err());
-    #[cfg(windows)]
     for root in [r"\\server\share", r"\\?\C:\", r"\\?\UNC\server\share\"] {
         assert!(target_path(Path::new(root)).is_err());
     }
 }
 
-#[cfg(windows)]
 #[test]
 fn rename_preserves_contents_for_files_and_folders() {
     let directory = fixture("rename");
@@ -122,7 +120,6 @@ fn rename_preserves_contents_for_files_and_folders() {
     );
 }
 
-#[cfg(windows)]
 #[test]
 fn rename_never_replaces_existing_destination_contents() {
     let directory = fixture("rename-existing");
@@ -137,7 +134,6 @@ fn rename_never_replaces_existing_destination_contents() {
     assert_eq!(fs::read(directory.join("target.txt")).unwrap(), b"target");
 }
 
-#[cfg(windows)]
 #[test]
 fn rename_allows_changing_only_letter_case() {
     let directory = fixture("rename-case");
@@ -168,7 +164,6 @@ fn unchanged_rename_requires_the_source_to_exist() {
     assert_eq!(fs::read(source).unwrap(), b"keep");
 }
 
-#[cfg(windows)]
 #[test]
 fn delete_does_not_follow_directory_links_even_inside_deleted_folders() {
     let directory = fixture("delete-links");

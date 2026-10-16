@@ -4,7 +4,13 @@ impl Render for AuthDialog {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let palette = crate::ui::theme::CARBON;
         let host = matches!(self.prompt, Some(Prompt::HostKey { .. }));
-        let unlock = self.title == "Unlock SSH key";
+        let unlock = matches!(
+            self.prompt,
+            Some(Prompt::Secret {
+                kind: SecretKind::KeyPassphrase { .. },
+                ..
+            })
+        );
         div()
             .id("authentication")
             .track_focus(&self.focus)

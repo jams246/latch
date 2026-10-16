@@ -81,12 +81,14 @@ impl Latch {
                                 button.border_color(rgb(colors.accent))
                             })
                             .on_click(cx.listener(move |this, _, _, cx| {
-                                if this.data_busy {
+                                if this.data_busy || this.shutting_down {
                                     return;
                                 }
-                                if let Err(error) = this.store.set_sort_mode(mode) {
-                                    this.error = Some(format!("Cannot save sorting: {error}"));
-                                }
+                                this.save_preference(
+                                    "sorting",
+                                    move |store| store.set_sort_mode(mode),
+                                    cx,
+                                );
                                 cx.notify();
                             }))
                     }),

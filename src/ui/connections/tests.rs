@@ -48,6 +48,7 @@ fn editor_should_accept_typing_and_save_after_keyboard_navigation(cx: &mut TestA
     cx.simulate_event(KeyUpEvent {
         keystroke: Keystroke::parse("enter").unwrap(),
     });
+    crate::ui::persistence::tests::settle(handle, cx);
     handle
         .read_with(cx, |app, _| {
             assert!(app.editor.is_none());
@@ -72,6 +73,11 @@ fn chosen_private_key_should_replace_displayed_path_and_save(cx: &mut TestAppCon
             assert_eq!(input.value.as_str(), selected.to_str().unwrap());
             assert_eq!(input.selection, input.value.len()..input.value.len());
             app.save_connection(window, cx);
+        })
+        .unwrap();
+    crate::ui::persistence::tests::settle(handle, cx);
+    handle
+        .read_with(cx, |app, _| {
             assert_eq!(
                 app.store.connections()[0].auth,
                 AuthMethod::KeyFile { path: selected }
@@ -141,6 +147,46 @@ fn stale_private_key_picker_should_ignore_closed_and_reopened_editor(cx: &mut Te
                 "existing-key.ppk"
             );
             assert!(app.error.is_none());
+        })
+        .unwrap();
+}
+
+#[gpui::test]
+fn pending_save_blocks_typing_focus_changes_and_late_key_picker(cx: &mut TestAppContext) {
+    let handle = open_editor(cx, Some(key_connection()));
+    let (release, wait) = std::sync::mpsc::channel();
+    handle
+        .update(cx, |app, window, cx| {
+            app.save_preference(
+                "barrier",
+                move |_| {
+                    wait.recv_timeout(std::time::Duration::from_secs(5))
+                        .unwrap();
+                    Ok(())
+                },
+                cx,
+            );
+            app.save_connection(window, cx);
+        })
+        .unwrap();
+    cx.simulate_input(*handle, "ignored edit");
+    cx.simulate_keystrokes(*handle, "tab");
+    handle
+        .update(cx, |app, window, cx| {
+            let field = app.editor.as_ref().unwrap().fields[4].entity_id();
+            app.apply_key_selection(field, Ok(Some(vec!["ignored.ppk".into()])), cx);
+            let editor = app.editor.as_ref().unwrap();
+            assert!(editor.focus.is_focused(window));
+            assert_eq!(editor.fields[0].read(cx).value.as_str(), "Synthetic");
+            assert_eq!(editor.fields[4].read(cx).value.as_str(), "existing-key.ppk");
+        })
+        .unwrap();
+    release.send(()).unwrap();
+    crate::ui::persistence::tests::settle(handle, cx);
+    handle
+        .read_with(cx, |app, _| {
+            assert!(app.editor.is_none());
+            assert_eq!(app.store.connections()[0].name, "Synthetic");
         })
         .unwrap();
 }

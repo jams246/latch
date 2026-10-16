@@ -59,6 +59,7 @@ impl Files {
                                 Side::Local => this.local_sort.toggle(column),
                                 Side::Remote => this.remote_sort.toggle(column),
                             }
+                            this.rebuild_order(side);
                             cx.notify();
                         }))
                 }),

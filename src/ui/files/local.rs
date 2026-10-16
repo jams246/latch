@@ -1,4 +1,3 @@
-#[cfg(windows)]
 mod native;
 mod operations;
 #[cfg(test)]
@@ -31,9 +30,8 @@ pub(super) fn list_initial(initial_directory: Option<PathBuf>) -> io::Result<Dir
     let mut candidates: Vec<_> = initial_directory.into_iter().collect();
     candidates.extend(home_directory());
     candidates.extend(std::env::current_dir().ok());
-    #[cfg(windows)]
     candidates.extend(native::drives());
-    candidates.push(PathBuf::from(if cfg!(windows) { "C:\\" } else { "/" }));
+    candidates.push(PathBuf::from("C:\\"));
     list_first_available(candidates)
 }
 
@@ -53,7 +51,6 @@ fn list_first_available(candidates: Vec<PathBuf>) -> io::Result<Directory> {
 }
 
 pub(super) fn list(path: &Path) -> io::Result<Directory> {
-    #[cfg(windows)]
     let _apartment = native::Apartment::new()?;
     let path = canonicalize(path)?;
     let mut entries = Vec::new();
@@ -69,10 +66,7 @@ pub(super) fn list(path: &Path) -> io::Result<Directory> {
         let is_dir = metadata.is_dir()
             || (metadata.file_type().is_symlink()
                 && fs::metadata(&path).is_ok_and(|target| target.is_dir()));
-        #[cfg(windows)]
         let icon = native::icon(&path, is_dir, is_link);
-        #[cfg(not(windows))]
-        let icon = None;
         entries.push(Entry {
             metadata: latch::sftp::Entry {
                 name: item.file_name().to_string_lossy().into_owned(),
@@ -90,10 +84,7 @@ pub(super) fn list(path: &Path) -> io::Result<Directory> {
             icon,
         });
     }
-    #[cfg(windows)]
     let drives = native::drives();
-    #[cfg(not(windows))]
-    let drives = vec![PathBuf::from("/")];
     Ok(Directory {
         path,
         entries,
@@ -103,20 +94,16 @@ pub(super) fn list(path: &Path) -> io::Result<Directory> {
 
 fn home_directory() -> Option<PathBuf> {
     std::env::var_os("USERPROFILE")
-        .or_else(|| std::env::var_os("HOME"))
         .map(PathBuf::from)
         .filter(|path| path.is_dir())
 }
 
 pub(super) fn follow_link(path: &Path) -> io::Result<PathBuf> {
-    #[cfg(windows)]
     let target = if is_shortcut(path) {
         native::resolve_shortcut(path)?
     } else {
         path.to_path_buf()
     };
-    #[cfg(not(windows))]
-    let target = path.to_path_buf();
     let target = canonicalize(&target)?;
     if fs::metadata(&target)?.is_dir() {
         Ok(target)
@@ -129,15 +116,12 @@ pub(super) fn follow_link(path: &Path) -> io::Result<PathBuf> {
 }
 
 fn is_shortcut(path: &Path) -> bool {
-    cfg!(windows)
-        && path
-            .extension()
-            .is_some_and(|extension| extension.eq_ignore_ascii_case("lnk"))
+    path.extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("lnk"))
 }
 
 fn canonicalize(path: &Path) -> io::Result<PathBuf> {
     let canonical = fs::canonicalize(path)?;
-    #[cfg(windows)]
     let canonical = native::display_path(&canonical);
     Ok(canonical)
 }

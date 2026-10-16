@@ -8,7 +8,7 @@ use tokio::fs;
 use uuid::Uuid;
 
 use super::{
-    super::{Error, transfer::wait_running},
+    super::{Error, transfer::wait_running, transfer_destination::local_is_link},
     Controls,
 };
 
@@ -40,7 +40,7 @@ pub(super) async fn snapshot(
             root.join(&relative)
         };
         let metadata = fs::symlink_metadata(&path).await?;
-        let link = is_link(&metadata);
+        let link = local_is_link(&metadata);
         if metadata.is_dir() && !link {
             let mut children = fs::read_dir(&path).await?;
             while let Some(child) = children.next_entry().await? {
@@ -110,8 +110,7 @@ fn retained(path: &Path, reason: impl std::fmt::Display) -> Error {
 
 pub(super) async fn remove(path: &Path) -> io::Result<()> {
     let metadata = fs::symlink_metadata(path).await?;
-    #[cfg(windows)]
-    if is_link(&metadata) {
+    if local_is_link(&metadata) {
         use std::os::windows::fs::MetadataExt;
         use windows::Win32::Storage::FileSystem::FILE_ATTRIBUTE_DIRECTORY;
         return if metadata.file_attributes() & FILE_ATTRIBUTE_DIRECTORY.0 != 0 {
@@ -120,24 +119,11 @@ pub(super) async fn remove(path: &Path) -> io::Result<()> {
             fs::remove_file(path).await
         };
     }
-    if metadata.is_dir() && !is_link(&metadata) {
+    if metadata.is_dir() {
         fs::remove_dir_all(path).await
-    } else if metadata.is_dir() {
-        fs::remove_dir(path).await
     } else {
         fs::remove_file(path).await
     }
-}
-
-fn is_link(metadata: &std::fs::Metadata) -> bool {
-    #[cfg(windows)]
-    {
-        use std::os::windows::fs::MetadataExt;
-        use windows::Win32::Storage::FileSystem::FILE_ATTRIBUTE_REPARSE_POINT;
-        metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT.0 != 0
-    }
-    #[cfg(not(windows))]
-    metadata.file_type().is_symlink()
 }
 
 async fn rename_new(source: &Path, destination: &Path) -> Result<(), Error> {
@@ -154,7 +140,6 @@ async fn rename_new(source: &Path, destination: &Path) -> Result<(), Error> {
         })
 }
 
-#[cfg(windows)]
 fn rename_without_replace(source: &Path, destination: &Path) -> io::Result<()> {
     use std::os::windows::ffi::OsStrExt;
     use windows::{Win32::Storage::FileSystem::MoveFileW, core::PCWSTR};
@@ -174,21 +159,4 @@ fn rename_without_replace(source: &Path, destination: &Path) -> io::Result<()> {
     // MoveFileW rejects concurrently created destinations instead of replacing them.
     unsafe { MoveFileW(PCWSTR(source.as_ptr()), PCWSTR(destination.as_ptr())) }
         .map_err(|error| io::Error::from_raw_os_error(error.code().0 & 0xffff))
-}
-
-#[cfg(not(windows))]
-// shortcut: folder replacement is unavailable, add platform atomic no-replace rename to support it.
-fn rename_without_replace(source: &Path, destination: &Path) -> io::Result<()> {
-    if !std::fs::symlink_metadata(source)?.is_file() {
-        return Err(io::Error::new(
-            io::ErrorKind::Unsupported,
-            "Replacing folders without concurrent overwrites is unavailable on this platform",
-        ));
-    }
-    std::fs::hard_link(source, destination)?;
-    if let Err(error) = std::fs::remove_file(source) {
-        let _ = std::fs::remove_file(destination);
-        return Err(error);
-    }
-    Ok(())
 }

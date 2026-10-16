@@ -47,6 +47,7 @@ struct Configuration {
 }
 
 /// Non-secret application metadata persisted in an encrypted database.
+#[derive(Clone)]
 pub struct Store {
     path: PathBuf,
     configuration: Configuration,
@@ -61,7 +62,6 @@ impl Store {
     pub fn load(path: impl Into<PathBuf>) -> io::Result<Self> {
         let path = path.into();
         let configuration = persistence::read(&path)?;
-        validate(&configuration)?;
         Ok(Self {
             path,
             configuration,
@@ -74,7 +74,6 @@ impl Store {
     /// # Errors
     /// Returns filesystem and serialization failures.
     pub fn save(&self) -> io::Result<()> {
-        validate(&self.configuration)?;
         persistence::write(&self.path, &self.configuration)
     }
 
@@ -176,7 +175,6 @@ impl Store {
     ) -> io::Result<()> {
         let mut next = self.configuration.clone();
         change(&mut next)?;
-        validate(&next)?;
         persistence::write(&self.path, &next)?;
         self.configuration = next;
         Ok(())

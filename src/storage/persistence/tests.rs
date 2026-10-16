@@ -14,6 +14,35 @@ fn sample() -> Connection {
 }
 
 #[test]
+fn invalid_configuration_is_rejected_before_creating_profile_files() {
+    let path = path("invalid-save");
+    let mut store = Store::load(&path).unwrap();
+    let mut connection = sample();
+    connection.name.clear();
+    store.configuration.connections.push(connection);
+
+    assert_eq!(store.save().unwrap_err().kind(), io::ErrorKind::InvalidData);
+    assert!(!path.parent().unwrap().exists());
+}
+
+#[test]
+fn invalid_stored_metadata_is_rejected_on_read() {
+    let path = path("invalid-read");
+    let mut store = Store::load(&path).unwrap();
+    store.upsert(sample()).unwrap();
+    let database = database::open(&path).unwrap();
+    database
+        .execute("UPDATE connections SET name = ''", [])
+        .unwrap();
+    drop(database);
+
+    assert_eq!(
+        Store::load(path).err().unwrap().kind(),
+        io::ErrorKind::InvalidData
+    );
+}
+
+#[test]
 fn encrypted_database_hides_metadata_and_requires_its_key() {
     let path = path("ciphertext");
     let mut store = Store::load(&path).unwrap();

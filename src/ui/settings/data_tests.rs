@@ -59,6 +59,12 @@ fn import_should_apply_theme_clear_search_and_preserve_imported_window(cx: &mut 
                 .set_terminal_theme(TerminalPalette::Classic)
                 .unwrap();
             app.apply_import(snapshot, cx).unwrap();
+        })
+        .unwrap();
+    crate::ui::persistence::tests::settle(fixture.handle, &mut fixture.visual);
+    fixture
+        .handle
+        .read_with(&fixture.visual, |app, cx| {
             assert_eq!(TerminalPalette::current(cx), TerminalPalette::Carbon);
             assert!(app.connection_search.read(cx).value.is_empty());
             assert!(app.preserve_imported_window);

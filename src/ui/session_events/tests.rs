@@ -96,10 +96,6 @@ fn only_matching_live_sftp_tabs_can_persist_local_preferences(cx: &mut TestAppCo
                 })
                 .unwrap();
             app.poll(cx);
-            assert_eq!(
-                app.store.local_directory(&connection.id),
-                Some(accepted.as_path())
-            );
 
             app.tabs.clear();
             app.preference_sender
@@ -110,9 +106,14 @@ fn only_matching_live_sftp_tabs_can_persist_local_preferences(cx: &mut TestAppCo
                 })
                 .unwrap();
             app.poll(cx);
+        })
+        .unwrap();
+    crate::ui::persistence::tests::settle(handle, cx);
+    handle
+        .read_with(cx, |app, _| {
             assert_eq!(
                 app.store.local_directory(&connection.id),
-                Some(accepted.as_path())
+                Some(directory.join("accepted").as_path())
             );
         })
         .unwrap();

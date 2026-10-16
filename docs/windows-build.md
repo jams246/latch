@@ -10,6 +10,6 @@ If native Perl is missing, the first build downloads the official [Strawberry Pe
 
 For offline builds, install [Strawberry Perl](https://strawberryperl.com/) first or set `OPENSSL_SRC_PERL` to the full path of a complete portable installation's `perl.exe`. The build needs no administrator access and changes only its child process environment. The Make target uses a process-scoped `RemoteSigned` execution policy for the local build script; it does not change the system policy or global `PATH`.
 
-OpenSSL and SQLCipher remain statically bundled. The application does not require Perl or separate OpenSSL/SQLCipher DLLs at runtime. Non-Windows Make builds retain the direct Cargo command.
+OpenSSL and SQLCipher remain statically bundled. The application does not require Perl or separate OpenSSL/SQLCipher DLLs at runtime. Latch supports Windows only.
 
 Windows MSVC release builds with debug information disabled omit the final PDB debugging-symbol file. This prevents repeated `LNK4099` warnings for OpenSSL's separate compiler PDB. Detailed production crash symbolization is unavailable in this mode. Development builds and release builds with debug information explicitly enabled retain normal symbol generation.

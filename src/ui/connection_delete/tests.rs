@@ -74,6 +74,7 @@ fn delete_click_requires_confirmation_and_enter_defaults_to_cancel(cx: &mut Test
     visual.simulate_event(KeyUpEvent {
         keystroke: Keystroke::parse("enter").unwrap(),
     });
+    crate::ui::persistence::tests::settle(handle, &mut visual);
     handle
         .read_with(&visual, |app, _| {
             assert!(app.connection_delete.is_none());
@@ -99,6 +100,7 @@ fn escape_and_cancel_button_leave_persisted_connections_intact(cx: &mut TestAppC
         .unwrap()
         .center();
     visual.simulate_click(position, Default::default());
+    crate::ui::persistence::tests::settle(handle, &mut visual);
     handle
         .read_with(&visual, |app, _| {
             assert!(app.connection_delete.is_none());
@@ -134,6 +136,7 @@ fn focused_confirm_deletes_only_captured_connection_and_persists(cx: &mut TestAp
     visual.simulate_event(KeyUpEvent {
         keystroke: Keystroke::parse("enter").unwrap(),
     });
+    crate::ui::persistence::tests::settle(handle, &mut visual);
     handle
         .read_with(&visual, |app, _| {
             assert!(app.connection_delete.is_none());
@@ -165,7 +168,6 @@ fn tab_and_shift_tab_stay_inside_confirmation(cx: &mut TestAppContext) {
     }
 }
 
-#[cfg(windows)]
 #[gpui::test]
 fn failed_persistence_keeps_confirmation_open_and_connection_intact(cx: &mut TestAppContext) {
     use std::{fs::OpenOptions, os::windows::fs::OpenOptionsExt};
@@ -183,6 +185,7 @@ fn failed_persistence_keeps_confirmation_open_and_connection_intact(cx: &mut Tes
         .unwrap()
         .center();
     visual.simulate_click(position, Default::default());
+    crate::ui::persistence::tests::settle(handle, &mut visual);
     handle
         .read_with(&visual, |app, _| {
             let dialog = app.connection_delete.as_ref().unwrap();

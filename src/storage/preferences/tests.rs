@@ -62,7 +62,6 @@ fn failed_save_preserves_previous_terminal_theme() {
     );
 }
 
-#[cfg(windows)]
 #[test]
 fn locked_configuration_preserves_saved_terminal_theme_and_file() {
     use std::{fs::OpenOptions, os::windows::fs::OpenOptionsExt};

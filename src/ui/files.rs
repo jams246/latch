@@ -17,6 +17,8 @@ mod tests;
 #[cfg(test)]
 mod tests_actions;
 #[cfg(test)]
+mod tests_feedback;
+#[cfg(test)]
 mod tests_interaction;
 #[cfg(test)]
 mod tests_navigation;
@@ -55,6 +57,9 @@ pub(super) struct Files {
     pub local_busy: bool,
     pub local_sort: Sort,
     pub remote_sort: Sort,
+    ordered: [Arc<[usize]>; 2],
+    pub(super) error: Option<String>,
+    pub(super) directory_errors: [Option<String>; 2],
     pub local_history: History<PathBuf>,
     pub remote_history: History<String>,
     selections: [selection::Selection; 2],
@@ -131,6 +136,9 @@ impl Files {
             local_busy: false,
             local_sort: Sort::default(),
             remote_sort: Sort::default(),
+            ordered: Default::default(),
+            error: None,
+            directory_errors: Default::default(),
             local_history: History::default(),
             remote_history: History::default(),
             selections: Default::default(),

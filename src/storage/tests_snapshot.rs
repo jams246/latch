@@ -212,7 +212,6 @@ fn exports_reserve_missing_flat_files_and_preserve_unrelated_backup_paths() {
     assert_eq!(fs::read(backup).unwrap(), b"{}");
 }
 
-#[cfg(windows)]
 #[test]
 fn exports_reject_flat_file_names_with_windows_ignored_trailing_characters() {
     let directory = super::tests_portable::directory("aliased-export-targets");
@@ -224,7 +223,6 @@ fn exports_reject_flat_file_names_with_windows_ignored_trailing_characters() {
     assert_eq!(fs::read_dir(directory).unwrap().count(), 0);
 }
 
-#[cfg(windows)]
 #[test]
 fn failed_import_preserves_configuration_and_wrapped_key() {
     use std::{fs::OpenOptions, os::windows::fs::OpenOptionsExt};

@@ -6,7 +6,8 @@ impl Files {
             return;
         }
         let Some(browser) = &self.browser else {
-            eprintln!("Refresh the folder to reconnect before starting a transfer");
+            self.error = Some("Refresh the folder to reconnect before starting a transfer".into());
+            cx.notify();
             return;
         };
         let (events, progress) = tokio::sync::mpsc::channel(32);
@@ -26,16 +27,25 @@ impl Files {
             .as_ref()
             .map_or_else(|| PathBuf::from("."), |directory| directory.path.clone());
         let prompt = cx.prompt_for_new_path(&directory, Some(name));
-        cx.spawn(async move |this, cx| match prompt.await {
-            Ok(Ok(Some(local))) => {
-                let _ = this.update(cx, |this, cx| {
-                    this.start_transfer(Direction::Download { remote, local }, cx)
-                });
+        cx.spawn(async move |this, cx| {
+            let result = prompt
+                .await
+                .map_err(anyhow::Error::from)
+                .and_then(|result| result);
+            match result {
+                Ok(Some(local)) => {
+                    let _ = this.update(cx, |this, cx| {
+                        this.start_transfer(Direction::Download { remote, local }, cx)
+                    });
+                }
+                Err(error) => {
+                    let _ = this.update(cx, |this, cx| {
+                        this.error = Some(format!("Cannot choose download file: {error}"));
+                        cx.notify();
+                    });
+                }
+                Ok(None) => (),
             }
-            Ok(Err(error)) => {
-                eprintln!("Cannot choose download file: {error}");
-            }
-            _ => (),
         })
         .detach();
     }

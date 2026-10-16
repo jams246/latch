@@ -8,7 +8,9 @@ mod tests;
 impl Latch {
     pub(super) fn poll(&mut self, cx: &mut Context<Self>) {
         self.poll_cleanup(cx);
-        let mut changed = self.poll_local_preferences();
+        self.poll_local_preferences(cx);
+        let mut changed = false;
+        let mut successful_shells = Vec::new();
         let mut disconnected = Vec::new();
         let active_id = self
             .active
@@ -39,11 +41,7 @@ impl Latch {
                             match &mut tab.content {
                                 TabContent::Terminal(_) if !tab.counted => {
                                     tab.counted = true;
-                                    if let Err(error) =
-                                        self.store.record_successful_shell(&tab.connection.id)
-                                    {
-                                        self.error = Some(format!("Cannot save usage: {error}"));
-                                    }
+                                    successful_shells.push(tab.connection.id.clone());
                                 }
                                 TabContent::Sftp { files, .. } if files.is_none() => {
                                     if let Some(transport) = &tab.transport {
@@ -155,6 +153,9 @@ impl Latch {
                 }
             }
         }
+        for id in successful_shells {
+            self.save_preference("usage", move |store| store.record_successful_shell(&id), cx);
+        }
         for id in disconnected {
             if let Some(index) = self.tabs.iter().position(|tab| tab.id == id) {
                 self.disconnect(index, cx);
@@ -165,22 +166,22 @@ impl Latch {
         }
     }
 
-    fn poll_local_preferences(&mut self) -> bool {
-        let mut changed = false;
+    pub(super) fn poll_local_preferences(&mut self, cx: &mut Context<Self>) {
         while let Ok(preference) = self.preference_events.try_recv() {
             if self.tabs.iter().any(|tab| {
                 !tab.closing
                     && tab.id == preference.tab_id
                     && tab.connection.id == preference.connection_id
                     && matches!(tab.content, TabContent::Sftp { files: Some(_), .. })
-            }) && let Err(error) = self
-                .store
-                .set_local_directory(&preference.connection_id, &preference.path)
-            {
-                self.error = Some(format!("Cannot save local directory: {error}"));
-                changed = true;
+            }) {
+                self.save_preference(
+                    "local directory",
+                    move |store| {
+                        store.set_local_directory(&preference.connection_id, &preference.path)
+                    },
+                    cx,
+                );
             }
         }
-        changed
     }
 }

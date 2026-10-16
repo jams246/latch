@@ -127,7 +127,6 @@ fn failed_atomic_replacement_preserves_memory_and_cleans_temporary_file() {
     assert_eq!(siblings.len(), 1);
 }
 
-#[cfg(windows)]
 #[test]
 fn locked_configuration_preserves_prior_file_and_preference() {
     use std::{fs::OpenOptions, os::windows::fs::OpenOptionsExt};
