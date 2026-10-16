@@ -104,7 +104,14 @@ impl Files {
         }) = latest
             && let Some(metrics) = &mut self.metrics
         {
-            metrics.update(name, completed, total, std::time::Instant::now());
+            let now = std::time::Instant::now();
+            metrics.set_paused(
+                self.transfer
+                    .as_ref()
+                    .is_some_and(sftp::Transfer::is_paused),
+                now,
+            );
+            metrics.update(name, completed, total, now);
         }
         if self.transfer.is_some() {
             cx.notify();

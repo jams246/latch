@@ -71,6 +71,7 @@ impl Files {
             return;
         }
         let config_directory = self.config_directory.clone();
+        let connection_id = self.connection_id.clone();
         let events = self.local_sender.clone();
         self.local_busy = true;
         self.menu = None;
@@ -88,9 +89,9 @@ impl Files {
                         };
                         local::list(&path)?
                     }
-                    None => local::list_initial(&config_directory)?,
+                    None => local::list_initial(&config_directory, &connection_id)?,
                 };
-                let warning = local::remember(&config_directory, &directory.path)
+                let warning = local::remember(&config_directory, &connection_id, &directory.path)
                     .err()
                     .map(|error| format!("Cannot remember local directory: {error}"));
                 Ok((directory, warning))

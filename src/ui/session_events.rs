@@ -36,6 +36,7 @@ impl Latch {
                                         let runtime = self.runtime.clone();
                                         *files = Some(cx.new(|cx| {
                                             super::files::Files::new(
+                                                &tab.connection,
                                                 commands,
                                                 runtime,
                                                 self.directory.clone(),

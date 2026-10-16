@@ -27,7 +27,7 @@ use super::input::Input;
 use gpui::*;
 use latch::{
     sftp::{self, Browser, Direction, Directory, TransferEvent},
-    ssh,
+    ssh, storage,
 };
 use pane::{History, Side, Sort};
 use std::{
@@ -43,6 +43,8 @@ enum RemoteResult {
 type LocalResult = std::io::Result<(local::Directory, Option<String>)>;
 
 pub(super) struct Files {
+    pub(super) connection_name: String,
+    connection_id: String,
     pub path: Entity<Input>,
     pub directory: Option<Directory>,
     pub local: Option<local::Directory>,
@@ -97,6 +99,7 @@ impl Drop for Files {
 
 impl Files {
     pub fn new(
+        connection: &storage::Connection,
         commands: tokio::sync::mpsc::Sender<ssh::Command>,
         runtime: Arc<tokio::runtime::Runtime>,
         config_directory: PathBuf,
@@ -115,6 +118,8 @@ impl Files {
         })
         .detach();
         let mut files = Self {
+            connection_name: connection.name.clone(),
+            connection_id: connection.id.clone(),
             path: cx.new(|cx| Input::new(".", false, cx)),
             directory: None,
             local: None,

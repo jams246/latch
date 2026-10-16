@@ -16,10 +16,11 @@ pub(super) fn fixture(cx: &mut TestAppContext) -> (WindowHandle<Files>, VisualTe
         .join(".verification/dual-pane/ui-interaction")
         .join(uuid::Uuid::new_v4().to_string());
     let initial = config.join("initial");
+    let connection = super::tests::connection();
     std::fs::create_dir_all(&initial).unwrap();
     std::fs::create_dir_all(config.join("first")).unwrap();
     std::fs::create_dir_all(config.join("second")).unwrap();
-    local::remember(&config, &initial).unwrap();
+    local::remember(&config, &connection.id, &initial).unwrap();
     let runtime = Arc::new(
         tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -27,7 +28,7 @@ pub(super) fn fixture(cx: &mut TestAppContext) -> (WindowHandle<Files>, VisualTe
             .unwrap(),
     );
     let (commands, _) = tokio::sync::mpsc::channel(1);
-    let handle = cx.add_window(|_, cx| Files::new(commands, runtime, config, cx));
+    let handle = cx.add_window(|_, cx| Files::new(&connection, commands, runtime, config, cx));
     handle
         .update(cx, |files, _, _| {
             for operation in [files.operation.take(), files.local_operation.take()]

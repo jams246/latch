@@ -46,7 +46,9 @@ impl Render for Files {
                     .child(self.render_files_pane(Side::Local, show_status, cx))
                     .child(self.render_files_pane(Side::Remote, show_status, cx)),
             )
-            .child(self.operations_bar(cx))
+            .when(self.transfer.is_some(), |view| {
+                view.child(self.operations_bar(cx))
+            })
             .child(self.render_context_menu(window, cx))
             .child(self.render_action_dialog(window, cx))
     }
@@ -61,7 +63,7 @@ impl Files {
     ) -> Stateful<Div> {
         let (title, status, busy) = match side {
             Side::Local => ("Local computer", &self.local_status, self.local_busy),
-            Side::Remote => ("Connected server", &self.status, self.busy),
+            Side::Remote => (self.connection_name.as_str(), &self.status, self.busy),
         };
         let status = self.action_status[usize::from(side == Side::Remote)]
             .as_ref()
@@ -82,7 +84,14 @@ impl Files {
                 MouseButton::Navigate(NavigationDirection::Forward),
                 cx.listener(move |this, _, _, cx| this.history_forward(side, cx)),
             )
-            .child(div().text_lg().child(title))
+            .child(
+                div()
+                    .id("pane-title")
+                    .debug_selector(move || format!("{}-title", side.id()))
+                    .text_lg()
+                    .truncate()
+                    .child(title.to_owned()),
+            )
             .child(self.breadcrumbs(side, cx))
             .child(self.address_row(side, cx))
             .when(show_status, |pane| {
