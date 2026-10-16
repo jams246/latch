@@ -1,7 +1,10 @@
 #[cfg(windows)]
 mod native;
+mod operations;
 #[cfg(test)]
 mod tests;
+
+pub(in crate::ui) use operations::{create_directory, delete, rename, validate_name};
 
 use std::{
     fs,
