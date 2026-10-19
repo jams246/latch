@@ -1,15 +1,15 @@
 use std::{sync::Arc, time::Duration};
 
-use alacritty_terminal::{
-    term::TermMode,
-    vte::ansi::{Color, NamedColor},
-};
+use alacritty_terminal::vte::ansi::{Color, NamedColor};
 use gpui::{
     App, Bounds, ClipboardItem, Context, CursorStyle, FocusHandle, Focusable, KeyDownEvent,
-    MouseButton, Pixels, Point, Render, Timer, Window, canvas, div, prelude::*, px, rgb,
+    MouseButton, Pixels, Point, Render, Task, Timer, Window, canvas, div, prelude::*, px, rgb,
 };
 
 use super::{TerminalPalette, TerminalState, colors, input, paint};
+
+#[path = "mouse.rs"]
+mod mouse;
 
 /// User input and size changes to forward to the tab's SSH session.
 pub enum TerminalInput {
@@ -33,6 +33,9 @@ pub struct TerminalView {
     pub(super) cell_width: Pixels,
     pub(super) composition: String,
     revision: u64,
+    wheel_remainder: f32,
+    selection_position: Option<Point<Pixels>>,
+    selection_task: Option<Task<()>>,
 }
 
 impl TerminalView {
@@ -68,6 +71,9 @@ impl TerminalView {
             cell_width: px(8.4),
             composition: String::new(),
             revision: 0,
+            wheel_remainder: 0.,
+            selection_position: None,
+            selection_task: None,
         }
     }
 
@@ -106,15 +112,6 @@ impl TerminalView {
         cx.stop_propagation();
         cx.notify();
     }
-
-    fn cell_at(&self, position: Point<Pixels>) -> (usize, usize) {
-        let Some(bounds) = self.bounds else {
-            return (0, 0);
-        };
-        let column = ((position.x - bounds.left()) / self.cell_width).max(0.) as usize;
-        let row = ((position.y - bounds.top()) / paint::LINE_HEIGHT).max(0.) as usize;
-        (row, column)
-    }
 }
 
 impl Focusable for TerminalView {
@@ -142,40 +139,8 @@ impl Render for TerminalView {
                 palette,
             )))
             .on_key_down(cx.listener(Self::key_down))
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|this, event: &gpui::MouseDownEvent, window, cx| {
-                    this.focus.focus(window);
-                    let (row, column) = this.cell_at(event.position);
-                    this.state.select(row, column, true);
-                    cx.notify();
-                }),
-            )
-            .on_mouse_move(cx.listener(|this, event: &gpui::MouseMoveEvent, _, cx| {
-                if event.dragging() {
-                    let (row, column) = this.cell_at(event.position);
-                    this.state.select(row, column, false);
-                    cx.notify();
-                }
-            }))
-            .on_scroll_wheel(cx.listener(|this, event: &gpui::ScrollWheelEvent, _, cx| {
-                let lines = (event.delta.pixel_delta(paint::LINE_HEIGHT).y / paint::LINE_HEIGHT)
-                    .round() as i32;
-                if this.state.mode().contains(TermMode::ALT_SCREEN) && !event.modifiers.shift {
-                    let key = if lines > 0 { "up" } else { "down" };
-                    if let Ok(key) = gpui::Keystroke::parse(key) {
-                        for _ in 0..lines.unsigned_abs().min(30) {
-                            if let Some(bytes) = input::encode(&key, this.state.mode()) {
-                                this.send(bytes);
-                            }
-                        }
-                    }
-                } else {
-                    this.state.scroll(lines);
-                }
-                cx.stop_propagation();
-                cx.notify();
-            }))
+            .on_mouse_down(MouseButton::Left, cx.listener(Self::start_selection))
+            .on_scroll_wheel(cx.listener(Self::scroll_wheel))
             .child(
                 canvas(
                     move |bounds, window, cx| {
@@ -197,6 +162,7 @@ impl Render for TerminalView {
                         })
                     },
                     move |bounds, snapshot, window, cx| {
+                        mouse::track_selection(&paint_entity, window);
                         let (focus, width, composition) = {
                             let view = paint_entity.read(cx);
                             (
