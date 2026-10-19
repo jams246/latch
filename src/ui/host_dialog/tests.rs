@@ -236,10 +236,8 @@ fn expired_reply_and_failed_session_dismiss_pending_dialogs(cx: &mut TestAppCont
     draw(handle, &mut visual);
     drop(expired);
     events.send(ssh::Event::Status(ssh::State::Failed)).unwrap();
-    handle
-        .root(&mut visual)
-        .unwrap()
-        .update(&mut visual, |app, cx| app.poll(cx));
+    let app = handle.root(&mut visual).unwrap();
+    app.update(&mut visual, |app, cx| app.poll(cx));
     handle
         .update(&mut visual, |app, window, cx| {
             assert!(app.tabs.iter().all(|tab| tab.host_dialog.is_none()));
