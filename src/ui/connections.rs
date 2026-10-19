@@ -162,4 +162,41 @@ impl Latch {
         }
         cx.notify();
     }
+
+    pub(super) fn clear_saved_password(&mut self, cx: &mut Context<Self>) {
+        if self.data_busy || self.shutting_down {
+            return;
+        }
+        let Some(connection) = self
+            .editor
+            .as_ref()
+            .and_then(|editor| editor.original.clone())
+        else {
+            return;
+        };
+        for tab in &mut self.tabs {
+            if tab.connection.id == connection.id {
+                tab.save_password = false;
+                tab.password_attempt = None;
+                if let Some(dialog) = tab.dialog {
+                    let _ = dialog.update(cx, |dialog, _, _| dialog.take_password());
+                }
+            }
+        }
+        self.data_busy = true;
+        self.save(
+            move |store| store.clear_password(&connection.id),
+            |this, result, window, cx| {
+                this.data_busy = false;
+                this.error = result
+                    .err()
+                    .map(|error| format!("Cannot clear saved password: {error}"));
+                if let Some(editor) = &this.editor {
+                    window.focus(&editor.fields[0].read(cx).focus);
+                }
+            },
+            cx,
+        );
+        cx.notify();
+    }
 }

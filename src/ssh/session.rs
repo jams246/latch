@@ -4,6 +4,8 @@ mod probe;
 mod recovery;
 mod setup;
 pub(super) mod shell;
+#[cfg(test)]
+mod tests_passwords;
 
 use tokio::sync::mpsc;
 

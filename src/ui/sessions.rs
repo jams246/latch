@@ -81,6 +81,8 @@ impl Latch {
             state: ssh::State::Connecting,
             error: None,
             counted: false,
+            save_password: true,
+            password_attempt: None,
             transport: Some(transport),
             content,
             dialog: None,

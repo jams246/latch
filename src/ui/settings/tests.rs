@@ -94,6 +94,8 @@ pub(super) fn fixture(cx: &mut TestAppContext) -> Fixture {
                 state: ssh::State::Connected,
                 error: None,
                 counted: true,
+                save_password: true,
+                password_attempt: None,
                 transport: None,
                 content: TabContent::Terminal(terminal),
                 dialog: None,

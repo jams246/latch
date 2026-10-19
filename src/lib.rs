@@ -1,4 +1,4 @@
-//! Native SSH sessions, terminal emulation, and non-secret connection metadata.
+//! Native SSH sessions, terminal emulation, connection metadata, and encrypted saved passwords.
 
 #![deny(missing_docs)]
 

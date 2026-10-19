@@ -68,6 +68,8 @@ fn pending_host(
                 state: ssh::State::Connecting,
                 error: None,
                 counted: false,
+                save_password: true,
+                password_attempt: None,
                 transport: None,
                 content,
                 dialog: None,

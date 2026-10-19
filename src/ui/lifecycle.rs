@@ -40,6 +40,7 @@ impl Tab {
 
     fn detach(&mut self, cx: &mut App) -> (Option<Transport>, Option<Transfer>) {
         self.closing = true;
+        self.password_attempt = None;
         self.host_dialog.take();
         if let Some(dialog) = self.dialog.take() {
             let _ = dialog.update(cx, |dialog, window, _| dialog.close(window));

@@ -76,6 +76,8 @@ struct Tab {
     state: ssh::State,
     error: Option<String>,
     counted: bool,
+    save_password: bool,
+    password_attempt: Option<ssh::Secret>,
     transport: Option<transport::Transport>,
     content: TabContent,
     dialog: Option<WindowHandle<auth_dialog::AuthDialog>>,

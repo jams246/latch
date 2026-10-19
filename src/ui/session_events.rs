@@ -1,4 +1,7 @@
-use super::{Latch, TabContent, auth_dialog::AuthDialog, options};
+mod authentication;
+
+use super::{Latch, TabContent};
+use authentication::PasswordUpdate;
 use gpui::*;
 use latch::ssh;
 
@@ -11,6 +14,7 @@ impl Latch {
         self.poll_local_preferences(cx);
         let mut changed = false;
         let mut successful_shells = Vec::new();
+        let mut passwords = Vec::new();
         let mut disconnected = Vec::new();
         let active_id = self
             .active
@@ -49,6 +53,7 @@ impl Latch {
                             }
                         }
                         if matches!(state, ssh::State::Failed | ssh::State::Disconnected) {
+                            tab.password_attempt = None;
                             disconnected.push(tab.id.clone());
                         }
                         if state == ssh::State::Connected && !tab.closing {
@@ -93,7 +98,22 @@ impl Latch {
                             ssh::State::Connected | ssh::State::Failed | ssh::State::Disconnected
                         ) && let Some(dialog) = tab.dialog.take()
                         {
-                            let _ = dialog.update(cx, |dialog, window, _| dialog.close(window));
+                            let password = dialog
+                                .update(cx, |dialog, window, _| {
+                                    let password = dialog.take_password();
+                                    dialog.close(window);
+                                    password
+                                })
+                                .ok()
+                                .flatten();
+                            if state == ssh::State::Connected
+                                && !tab.closing
+                                && tab.save_password
+                                && let Some(password) = password
+                            {
+                                passwords
+                                    .push(PasswordUpdate::Save(tab.connection.clone(), password));
+                            }
                         }
                         if matches!(
                             state,
@@ -123,58 +143,11 @@ impl Latch {
                     continue;
                 }
                 changed = true;
-                if let ssh::Prompt::HostKey {
-                    host,
-                    port,
-                    algorithm,
-                    fingerprint,
-                    reply,
-                } = prompt
-                {
-                    tab.host_dialog = Some(super::host_dialog::HostDialog::new(
-                        format!(
-                            "Unknown host {host}:{port}\n{algorithm}\n{fingerprint}\nVerify this fingerprint out of band before trusting."
-                        ),
-                        reply,
-                        cx,
-                    ));
-                    continue;
-                }
-                if let Some(dialog) = tab.dialog {
-                    let _ = dialog.update(cx, |dialog, window, cx| {
-                        dialog.set_prompt(prompt, window, cx)
-                    });
-                } else {
-                    let destination = tab.destination.clone();
-                    let Some(transport) = &tab.transport else {
-                        continue;
-                    };
-                    let commands = transport.commands.clone();
-                    let cancellation = commands.clone();
-                    let owner = self.owner;
-                    let dialog_options = options("SSH authentication", 500., 400., cx);
-                    match cx.open_window(dialog_options, |window, cx| {
-                        let modal = super::modal::attach(window, owner, cx);
-                        cx.new(|cx| {
-                            AuthDialog::new(
-                                prompt,
-                                &tab.name,
-                                destination,
-                                commands,
-                                modal,
-                                window,
-                                cx,
-                            )
-                        })
-                    }) {
-                        Ok(dialog) => tab.dialog = Some(dialog),
-                        Err(error) => {
-                            tab.error = Some(format!("Cannot open authentication dialog: {error}"));
-                            let _ = cancellation.try_send(ssh::Command::Disconnect);
-                        }
-                    }
-                }
+                tab.handle_prompt(prompt, &self.store, self.owner, &mut passwords, cx);
             }
+        }
+        for password in passwords {
+            self.save_preference("password", move |store| password.apply(store), cx);
         }
         for id in successful_shells {
             self.save_preference("usage", move |store| store.record_successful_shell(&id), cx);

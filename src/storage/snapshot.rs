@@ -58,6 +58,7 @@ impl Store {
             terminal_theme: snapshot.configuration.terminal_theme,
             window_size: snapshot.configuration.window_size,
             local_directories: snapshot.local_directories,
+            passwords: BTreeMap::new(),
         };
         validate(&configuration)?;
         Ok(ImportSnapshot(configuration))
@@ -65,7 +66,9 @@ impl Store {
 
     /// Captures immutable metadata for serialization on a worker thread.
     pub fn snapshot(&self) -> ImportSnapshot {
-        ImportSnapshot(self.configuration.clone())
+        let mut configuration = self.configuration.clone();
+        configuration.passwords.clear();
+        ImportSnapshot(configuration)
     }
 
     /// Completely replaces saved metadata, committing before changing memory.

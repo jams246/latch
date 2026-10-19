@@ -19,6 +19,7 @@ pub struct AuthDialog {
     detail: String,
     error: Option<String>,
     busy: bool,
+    password: Option<ssh::Secret>,
     commands: mpsc::Sender<ssh::Command>,
     focus: FocusHandle,
     modal: Option<super::modal::ModalGuard>,
@@ -43,6 +44,7 @@ impl AuthDialog {
             detail: String::new(),
             error: None,
             busy: false,
+            password: None,
             commands,
             focus: cx.focus_handle(),
             modal: None,
@@ -52,6 +54,7 @@ impl AuthDialog {
         window.on_window_should_close(cx, move |_, cx| {
             let _ = entity.update(cx, |dialog, _| {
                 dialog.fields.clear();
+                dialog.password = None;
                 dialog.prompt = None;
                 dialog.modal.take();
             });
@@ -77,6 +80,7 @@ impl AuthDialog {
 
     pub fn set_prompt(&mut self, prompt: Prompt, window: &mut Window, cx: &mut Context<Self>) {
         self.fields.clear();
+        self.password = None;
         self.error = None;
         self.busy = false;
         self.title.clone_from(&self.authentication_title);
@@ -87,7 +91,11 @@ impl AuthDialog {
             }
             Prompt::Secret { kind, error, .. } => {
                 let (label, detail) = match kind {
-                    SecretKind::Password => ("Password", "SSH login password".to_string()),
+                    SecretKind::Password => (
+                        "Password",
+                        "Saved in your encrypted database after a successful connection."
+                            .to_string(),
+                    ),
                     SecretKind::KeyPassphrase { path } => {
                         self.title = "Unlock SSH key".into();
                         ("Passphrase", path.display().to_string())
@@ -134,11 +142,14 @@ impl AuthDialog {
             Prompt::HostKey { reply, .. } => {
                 let _ = reply.send(false);
             }
-            Prompt::Secret { reply, .. } => {
+            Prompt::Secret { reply, kind, .. } => {
                 let secret = self
                     .fields
                     .first()
                     .map(|(_, field)| field.update(cx, |field, cx| field.take(cx)));
+                if matches!(kind, SecretKind::Password) {
+                    self.password = secret.clone();
+                }
                 let _ = reply.send(secret);
             }
             Prompt::KeyboardInteractive { reply, .. } => {
@@ -160,6 +171,7 @@ impl AuthDialog {
     fn cancel(&mut self, window: &mut Window) {
         self.prompt.take();
         self.fields.clear();
+        self.password = None;
         self.modal.take();
         let _ = self.commands.try_send(ssh::Command::Disconnect);
         window.remove_window();
@@ -167,8 +179,13 @@ impl AuthDialog {
 
     pub fn close(&mut self, window: &mut Window) {
         self.fields.clear();
+        self.password = None;
         self.prompt = None;
         self.modal.take();
         window.remove_window();
+    }
+
+    pub(super) fn take_password(&mut self) -> Option<ssh::Secret> {
+        self.password.take()
     }
 }

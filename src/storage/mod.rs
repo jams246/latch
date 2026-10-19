@@ -1,10 +1,11 @@
-//! Non-secret connection metadata, durable preferences, and deterministic picker sorting.
+//! Connection metadata, encrypted saved passwords, durable preferences, and deterministic picker sorting.
 
 mod files;
 mod local_directories;
 mod locking;
 mod model;
 mod pair;
+mod passwords;
 mod persistence;
 mod portable;
 mod preferences;
@@ -44,9 +45,10 @@ struct Configuration {
     terminal_theme: TerminalTheme,
     window_size: Option<WindowSize>,
     local_directories: BTreeMap<String, PathBuf>,
+    passwords: BTreeMap<String, zeroize::Zeroizing<String>>,
 }
 
-/// Non-secret application metadata persisted in an encrypted database.
+/// Application metadata and saved passwords persisted in an encrypted database.
 #[derive(Clone)]
 pub struct Store {
     path: PathBuf,
@@ -102,6 +104,9 @@ impl Store {
                 .iter_mut()
                 .find(|item| item.id == connection.id)
             {
+                if !passwords::same_account(existing, &connection) {
+                    configuration.passwords.remove(&connection.id);
+                }
                 connection.successful_shells = existing.successful_shells;
                 *existing = connection;
             } else {
@@ -120,6 +125,7 @@ impl Store {
         self.update(|configuration| {
             configuration.connections.retain(|item| item.id != id);
             configuration.local_directories.remove(id);
+            configuration.passwords.remove(id);
             Ok(())
         })
     }
@@ -201,6 +207,7 @@ fn validate(configuration: &Configuration) -> io::Result<()> {
         }
     }
     local_directories::validate(configuration)?;
+    passwords::validate(configuration)?;
     snapshot::validate_size(configuration)?;
     Ok(())
 }

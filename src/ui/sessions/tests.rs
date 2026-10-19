@@ -59,6 +59,8 @@ pub(in crate::ui) fn synthetic_tab(
             state: ssh::State::Connecting,
             error: None,
             counted: false,
+            save_password: true,
+            password_attempt: None,
             transport: None,
             content,
             dialog: None,

@@ -1,5 +1,7 @@
 //! Programmatic GPUI lifecycle coverage, separate from native HWND modality tests.
 
+mod password_tests;
+
 use super::{AuthDialog, Input};
 use crate::ui::{Latch, SessionKind, Tab, TabContent};
 use gpui::{AppContext, Entity, TestAppContext, WeakEntity, WindowHandle};
@@ -42,6 +44,7 @@ fn pending_dialog(cx: &mut TestAppContext, kind: SecretKind, session_kind: Sessi
             detail: String::new(),
             error: None,
             busy: false,
+            password: None,
             commands,
             focus: cx.focus_handle(),
             modal: None,
@@ -93,6 +96,8 @@ fn pending_dialog(cx: &mut TestAppContext, kind: SecretKind, session_kind: Sessi
                 state: ssh::State::Authenticating,
                 error: None,
                 counted: false,
+                save_password: true,
+                password_attempt: None,
                 transport: None,
                 content,
                 dialog: Some(dialog),

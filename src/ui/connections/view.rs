@@ -143,6 +143,26 @@ impl Latch {
                                         }),
                                 ),
                             )
+                            .when(editor.auth == 0, |view| {
+                                let saved = editor.original.as_ref().is_some_and(|connection| {
+                                    self.store.saved_password(connection).is_some()
+                                });
+                                view.child(div().mt_2().text_color(rgb(palette.muted)).child(
+                                    if saved {
+                                        "Password saved in encrypted database"
+                                    } else {
+                                        "No saved password. Saved after your next successful login."
+                                    },
+                                ))
+                                .when(saved, |view| {
+                                    view.child(
+                                        button("clear-saved-password", "Clear saved password")
+                                            .on_click(cx.listener(|this, _, _, cx| {
+                                                this.clear_saved_password(cx)
+                                            })),
+                                    )
+                                })
+                            })
                             .children(
                                 self.error.clone().map(|error| {
                                     div().text_color(rgb(palette.danger)).child(error)

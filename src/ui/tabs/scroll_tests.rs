@@ -42,6 +42,8 @@ fn fixture(cx: &mut TestAppContext) -> (WindowHandle<Latch>, VisualTestContext) 
                     state: ssh::State::Connected,
                     error: None,
                     counted: true,
+                    save_password: true,
+                    password_attempt: None,
                     transport: None,
                     content: TabContent::Terminal(terminal),
                     dialog: None,

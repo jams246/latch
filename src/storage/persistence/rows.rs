@@ -36,6 +36,16 @@ pub(super) fn read(database: &Database) -> io::Result<Configuration> {
             PathBuf::from(row.get::<_, String>(1).map_err(error)?),
         );
     }
+    let mut statement = database
+        .prepare("SELECT connection_id,password FROM passwords")
+        .map_err(error)?;
+    let mut rows = statement.query([]).map_err(error)?;
+    while let Some(row) = rows.next().map_err(error)? {
+        configuration.passwords.insert(
+            row.get(0).map_err(error)?,
+            zeroize::Zeroizing::new(row.get(1).map_err(error)?),
+        );
+    }
     Ok(configuration)
 }
 
@@ -113,6 +123,14 @@ pub(super) fn write(database: &mut Database, configuration: &Configuration) -> i
             .execute(
                 "INSERT INTO local_directories VALUES(?1,?2)",
                 params![id, path.to_str().ok_or_else(invalid)?],
+            )
+            .map_err(error)?;
+    }
+    for (id, password) in &configuration.passwords {
+        transaction
+            .execute(
+                "INSERT INTO passwords VALUES(?1,?2)",
+                params![id, password.as_str()],
             )
             .map_err(error)?;
     }

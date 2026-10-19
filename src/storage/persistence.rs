@@ -6,6 +6,8 @@ mod rows;
 mod tests;
 #[cfg(test)]
 mod tests_parallel;
+#[cfg(test)]
+mod tests_passwords;
 
 use std::{fs, io, path::Path};
 

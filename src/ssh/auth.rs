@@ -29,18 +29,18 @@ async fn password(
     prompts: &mpsc::Sender<Prompt>,
     cached: &mut Option<Secret>,
 ) -> Result<(), Error> {
+    let mut error = None;
     if let Some(secret) = cached.as_ref() {
-        return if handle
+        if handle
             .authenticate_password(username, secret.as_str())
             .await?
             .success()
         {
-            Ok(())
-        } else {
-            Err(Error::Authentication)
-        };
+            return Ok(());
+        }
+        *cached = None;
+        error = Some("Saved password rejected. Enter it again to retry.".into());
     }
-    let mut error = None;
     loop {
         let (reply, response) = oneshot::channel();
         let secret = super::prompt(

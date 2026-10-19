@@ -54,6 +54,8 @@ fn only_matching_live_sftp_tabs_can_persist_local_preferences(cx: &mut TestAppCo
                 state: ssh::State::Connected,
                 error: None,
                 counted: false,
+                save_password: true,
+                password_attempt: None,
                 transport: None,
                 content: TabContent::Sftp {
                     files: Some(files),
