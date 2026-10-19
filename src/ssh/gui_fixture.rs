@@ -25,7 +25,7 @@ async fn scrollback_fixture_streams_more_than_one_screen() {
     let mut output = String::new();
     tokio::time::timeout(Duration::from_secs(5), async {
         while !output.contains("Scrollback line 200\r\n") {
-            if let Some(Event::Output(bytes)) = events.recv().await {
+            if let Event::Output(bytes) = events.recv().await.expect("Expected scrollback output") {
                 output.push_str(&String::from_utf8(bytes).unwrap());
             }
         }
