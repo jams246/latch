@@ -8,6 +8,40 @@ fn subsystem(stream: russh::ChannelStream<russh::server::Msg>) {
 }
 
 #[tokio::test]
+async fn scrollback_fixture_streams_more_than_one_screen() {
+    use super::{Command, Event, tests};
+    use std::time::Duration;
+
+    let fixture = Fixture::start(false).await;
+    let (control, mut prompts, mut events) = tests::start(tests::config(&fixture, "scrollback"));
+    tests::trust(&mut prompts).await;
+    tests::password(&mut prompts, "test-only-password", false).await;
+    tests::connected(&mut events).await;
+    control
+        .commands
+        .send(Command::Input(b"synthetic-scrollback".to_vec()))
+        .await
+        .unwrap();
+    let mut output = String::new();
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while !output.contains("Scrollback line 200\r\n") {
+            if let Some(Event::Output(bytes)) = events.recv().await {
+                output.push_str(&String::from_utf8(bytes).unwrap());
+            }
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(
+        output
+            .lines()
+            .filter(|line| line.starts_with("Scrollback line "))
+            .count(),
+        200
+    );
+}
+
+#[tokio::test]
 #[ignore = "Interactive loopback GUI verification server"]
 async fn gui_server() {
     let fixture = Fixture::start_shell_with("/bin/bash", Some(subsystem)).await;

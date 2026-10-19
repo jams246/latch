@@ -81,6 +81,13 @@ impl Handler {
         data: &[u8],
         session: &mut server::Session,
     ) -> Result<(), russh::Error> {
+        if data == b"synthetic-scrollback" {
+            let output: String = (1..=200)
+                .map(|line| format!("Scrollback line {line:03}\r\n"))
+                .collect();
+            session.data(channel, output.into_bytes())?;
+            return Ok(());
+        }
         if self.shell.is_some()
             && let Some(path) = data.strip_prefix(b"synthetic-cwd:")
         {
