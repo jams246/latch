@@ -31,11 +31,17 @@ impl Latch {
         let edit = connection.clone();
         let delete = connection.clone();
         let id = connection.id.clone();
+        let name = connection.name.clone();
+        let address = format!(
+            "{}@{}:{}",
+            connection.username, connection.host, connection.port
+        );
         div()
             .id(SharedString::from(format!("{section}-{id}")))
             .debug_selector(|| format!("{section}-connection"))
             .flex()
             .flex_col()
+            .flex_shrink_0()
             .gap_1()
             .p_2()
             .rounded_md()
@@ -47,19 +53,38 @@ impl Latch {
             }))
             .child(
                 div()
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .child(connection.name.clone()),
+                    .id(SharedString::from(format!("details-{section}-{id}")))
+                    .flex()
+                    .items_baseline()
+                    .gap_2()
+                    .min_w_0()
+                    .child(
+                        div()
+                            .max_w(relative(0.5))
+                            .min_w_0()
+                            .truncate()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .child(name.clone()),
+                    )
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .truncate()
+                            .text_xs()
+                            .text_color(rgb(colors.muted))
+                            .child(address.clone()),
+                    )
+                    .tooltip(move |_, cx| {
+                        cx.new(|_| ConnectionTooltip(name.clone(), address.clone()))
+                            .into()
+                    }),
             )
-            .child(div().text_xs().text_color(rgb(colors.muted)).child(format!(
-                "{}@{}:{}",
-                connection.username, connection.host, connection.port
-            )))
             .child(
                 div()
                     .id(SharedString::from(format!("actions-{section}-{id}")))
                     .flex()
                     .gap_1()
-                    .mt_1()
                     .on_click(|_, _, cx| cx.stop_propagation())
                     .child(
                         button(
@@ -99,6 +124,26 @@ impl Latch {
                     ),
             )
             .into_any_element()
+    }
+}
+
+struct ConnectionTooltip(String, String);
+
+impl Render for ConnectionTooltip {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        let colors = super::theme::CARBON;
+        div()
+            .max_w(px(600.))
+            .px_2()
+            .py_1()
+            .rounded_md()
+            .bg(rgb(colors.control))
+            .border_1()
+            .border_color(rgb(colors.border))
+            .text_color(rgb(colors.text))
+            .text_sm()
+            .child(div().child(self.0.clone()))
+            .child(div().text_color(rgb(colors.muted)).child(self.1.clone()))
     }
 }
 
