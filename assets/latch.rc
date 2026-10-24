@@ -1,1 +1,30 @@
+#include <winver.h>
+
 1 ICON "assets/latch.ico"
+
+1 VERSIONINFO
+FILEVERSION LATCH_VERSION_NUMERIC
+PRODUCTVERSION LATCH_VERSION_NUMERIC
+FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+FILEFLAGS 0
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+FILESUBTYPE 0
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "FileDescription", "Latch SSH and SFTP client\0"
+            VALUE "FileVersion", LATCH_VERSION_STRING "\0"
+            VALUE "InternalName", "latch\0"
+            VALUE "OriginalFilename", "latch.exe\0"
+            VALUE "ProductName", "Latch\0"
+            VALUE "ProductVersion", LATCH_VERSION_STRING "\0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1200
+    END
+END

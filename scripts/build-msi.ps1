@@ -3,14 +3,9 @@ $env:PSModulePath = [IO.Path]::Combine($PSHOME, 'Modules')
 $repository = Split-Path -Parent $PSScriptRoot
 Push-Location $repository
 try {
+    $version = & (Join-Path $PSScriptRoot 'check-version.ps1')
     $metadata = & cargo metadata --no-deps --locked --format-version 1 | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0) { throw 'Cannot read Cargo package metadata.' }
-    $package = $metadata.packages | Where-Object name -EQ 'latch'
-    $version = $package.version
-    if ($version -notmatch '^(\d+)\.(\d+)\.(\d+)$' -or
-        [int]$Matches[1] -gt 255 -or [int]$Matches[2] -gt 255 -or [int]$Matches[3] -gt 65535) {
-        throw 'MSI requires a Cargo version with three numeric components: major <=255, minor <=255, patch <=65535.'
-    }
     $hostInfo = & rustc -vV
     if ($LASTEXITCODE -ne 0 -or $hostInfo -notcontains 'host: x86_64-pc-windows-msvc') {
         throw 'Build the MSI with the x86_64-pc-windows-msvc Rust toolchain.'

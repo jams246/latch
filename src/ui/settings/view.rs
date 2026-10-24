@@ -56,6 +56,12 @@ impl Latch {
             )
             .child(div().flex_1())
             .child(
+                div()
+                    .text_sm()
+                    .text_color(rgb(CARBON.muted))
+                    .child(concat!("Latch ", env!("CARGO_PKG_VERSION"))),
+            )
+            .child(
                 button("settings-back", "Back to connections")
                     .debug_selector(|| "settings-back".into())
                     .w_full()

@@ -46,18 +46,18 @@ The MSI installs for the current Windows user under `%LOCALAPPDATA%\Programs\Lat
 
 Latch keeps its encrypted profile and trusted host keys beside its executable. Upgrade and uninstall preserve these user-created files. An existing portable copy has a separate profile; use Latch's export/import to move connections. Never package the entire release directory, because it can contain private profile data.
 
-Before distributing a newer version, increase `version` in `Cargo.toml` and update `Cargo.lock`. MSI versions must contain exactly three numeric components: major and minor at most 255, patch at most 65535. Keep `UpgradeCode` and component GUIDs in `wix/main.wxs` stable. Newer versions and same-version rebuilds replace the existing installation; downgrades are rejected.
+Before distributing a newer version, run `./scripts/set-version.ps1 -Version X.Y.Z`. MSI versions must contain exactly three numeric components: major and minor at most 255, patch at most 65535. Keep `UpgradeCode` and component GUIDs in `wix/main.wxs` stable. Newer versions and same-version rebuilds replace the existing installation; downgrades are rejected.
 
 These installers are unsigned. Windows may show an unknown-publisher or reputation warning. Code signing is a separate release step.
 
 ## Manual GitHub Actions build
 
-The workflow in `.github/workflows/build-msi.yml` uses the same MSI script on a Windows runner. It runs formatting, Clippy, and tests before packaging, then uploads the MSI as the `latch-windows-x64-msi` artifact. It does not publish a release.
+The workflow in `.github/workflows/build-msi.yml` uses the same MSI script on a Windows runner. It checks version consistency and, when run for a tag, requires `vX.Y.Z` to match Cargo. It runs version-script tests, formatting, Clippy, and Rust tests before packaging, then uploads the MSI as the `latch-X.Y.Z-windows-x64-msi` artifact. It does not publish a release.
 
 After the workflow reaches the repository's default branch:
 
 1. Open **Actions**, then **Build Windows MSI**.
-2. Select **Run workflow**, choose the branch, and run it.
-3. Open the completed run and download `latch-windows-x64-msi` from **Artifacts**. Extract the ZIP to get the MSI.
+2. Select **Run workflow**, choose the branch, and run it. For tagged builds, run `gh workflow run build-msi.yml --ref vX.Y.Z`.
+3. Open the completed run and download `latch-X.Y.Z-windows-x64-msi` from **Artifacts**. Extract the ZIP to get the MSI.
 
 Only `workflow_dispatch` triggers builds; pushes and tags do not start this workflow.
