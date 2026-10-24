@@ -7,6 +7,9 @@ use gpui::{
 use super::*;
 use crate::terminal::{TerminalInput, TerminalState};
 
+#[path = "wheel_tests.rs"]
+mod wheel_tests;
+
 struct Fixture {
     handle: WindowHandle<TerminalView>,
     visual: VisualTestContext,
@@ -27,7 +30,7 @@ impl Fixture {
             )
         });
         let mut visual = VisualTestContext::from_window(*handle, cx);
-        visual.simulate_resize(size(px(400.), px(210.)));
+        visual.simulate_resize(size(px(400.), px(220.)));
         visual.update(|window, cx| window.draw(cx)).clear();
         let text = (0..100)
             .map(|line| format!("line {line:03}"))

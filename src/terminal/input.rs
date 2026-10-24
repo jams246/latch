@@ -1,5 +1,34 @@
 use alacritty_terminal::term::TermMode;
-use gpui::Keystroke;
+use gpui::{Keystroke, Modifiers};
+
+pub(super) fn wheel_report(
+    column: usize,
+    row: usize,
+    up: bool,
+    modifiers: Modifiers,
+    mode: TermMode,
+) -> Option<Vec<u8>> {
+    let button =
+        64 + u8::from(!up) + 8 * u8::from(modifiers.alt) + 16 * u8::from(modifiers.control);
+    if mode.contains(TermMode::SGR_MOUSE) {
+        return Some(format!("\x1b[<{button};{};{}M", column + 1, row + 1).into_bytes());
+    }
+    let utf8 = mode.contains(TermMode::UTF8_MOUSE);
+    let limit = if utf8 { 2015 } else { 223 };
+    if column >= limit || row >= limit {
+        return None;
+    }
+    let mut bytes = vec![0x1b, b'[', b'M', button + 32];
+    for coordinate in [column, row] {
+        let value = (coordinate + 33) as u32;
+        if utf8 {
+            bytes.extend_from_slice(char::from_u32(value)?.encode_utf8(&mut [0; 4]).as_bytes());
+        } else {
+            bytes.push(value as u8);
+        }
+    }
+    Some(bytes)
+}
 
 pub(super) fn is_clipboard_shortcut(key: &Keystroke) -> bool {
     ((key.modifiers.control && key.modifiers.shift) || key.modifiers.platform)

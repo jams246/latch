@@ -128,7 +128,7 @@ impl Render for TerminalView {
         div()
             .id("terminal")
             .size_full()
-            .p(px(5.))
+            .p(px(10.))
             .overflow_hidden()
             .track_focus(&self.focus)
             .key_context("Terminal")

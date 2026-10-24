@@ -110,10 +110,25 @@ impl TerminalView {
         self.wheel_remainder -= lines as f32;
         if lines != 0 {
             let mode = self.state.mode();
-            if mode.contains(TermMode::ALT_SCREEN)
-                && !event.modifiers.shift
-                && self.selection_position.is_none()
-            {
+            let local = event.modifiers.shift || self.selection_position.is_some();
+            if !local && mode.intersects(TermMode::MOUSE_MODE) {
+                if let Some(bounds) = self.bounds {
+                    let (row, column) = self.cell_at(event.position);
+                    let columns = (bounds.size.width / self.cell_width).floor().max(2.) as usize;
+                    let rows = (bounds.size.height / paint::LINE_HEIGHT).floor().max(1.) as usize;
+                    if let Some(bytes) = input::wheel_report(
+                        column.min(columns - 1),
+                        row.min(rows - 1),
+                        lines > 0,
+                        event.modifiers,
+                        mode,
+                    ) {
+                        for _ in 0..lines.unsigned_abs().min(30) {
+                            (self.sink)(super::TerminalInput::Data(bytes.clone()));
+                        }
+                    }
+                }
+            } else if !local && mode.contains(TermMode::ALT_SCREEN | TermMode::ALTERNATE_SCROLL) {
                 let key = if lines > 0 { "up" } else { "down" };
                 if let Ok(key) = gpui::Keystroke::parse(key) {
                     for _ in 0..lines.unsigned_abs().min(30) {
