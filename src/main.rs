@@ -43,7 +43,7 @@ pub(crate) fn open_latch(
     cx.set_global(store.terminal_theme());
     let window_size = store.window_size();
     let mut options = ui::options(
-        "Lightweight Access Terminal & Connection Handler",
+        "Latch - Lightweight Access Terminal & Connection Handler",
         window_size.width,
         window_size.height,
         cx,

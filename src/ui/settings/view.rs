@@ -13,7 +13,19 @@ impl Latch {
             .min_h_0()
             .gap_3()
             .on_key_down(cx.listener(Self::settings_key_down))
-            .child(div().text_lg().child("Settings"))
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap_1()
+                    .child(div().text_lg().child("Settings"))
+                    .child(
+                        div()
+                            .text_base()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .child(concat!("Latch ", env!("CARGO_PKG_VERSION"))),
+                    ),
+            )
             .child(
                 button("settings-terminal-theme", "Terminal theme")
                     .debug_selector(|| "settings-terminal-theme".into())
@@ -55,12 +67,6 @@ impl Latch {
                     })),
             )
             .child(div().flex_1())
-            .child(
-                div()
-                    .text_sm()
-                    .text_color(rgb(CARBON.muted))
-                    .child(concat!("Latch ", env!("CARGO_PKG_VERSION"))),
-            )
             .child(
                 button("settings-back", "Back to connections")
                     .debug_selector(|| "settings-back".into())
