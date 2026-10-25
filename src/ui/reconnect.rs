@@ -33,7 +33,9 @@ impl Latch {
             return div().into_any_element();
         };
         let failed = matches!(tab.state, State::Failed | State::Disconnected);
-        if !dialog.focus.contains_focused(window, cx) || (failed && dialog.focus.is_focused(window))
+        if self.tab_menu.is_none()
+            && (!dialog.focus.contains_focused(window, cx)
+                || (failed && dialog.focus.is_focused(window)))
         {
             window.focus(if failed { &dialog.close } else { &dialog.focus });
         }

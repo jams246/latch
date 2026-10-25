@@ -41,8 +41,16 @@ impl Fixture {
             });
     }
 
+    pub(super) fn select_terminal_theme(&mut self) {
+        self.click("settings-terminal-theme");
+    }
+
     pub(super) fn open_settings(&mut self) {
-        let position = self.visual.debug_bounds("settings-open").unwrap().center();
+        self.click("settings-open");
+    }
+
+    fn click(&mut self, selector: &'static str) {
+        let position = self.visual.debug_bounds(selector).unwrap().center();
         self.visual.simulate_click(position, Default::default());
         self.visual.run_until_parked();
         self.draw();
@@ -130,6 +138,7 @@ fn settings_save_every_palette_with_live_preview_and_preserve_hidden_session(
     let mut fixture = fixture(cx);
     assert!(fixture.visual.debug_bounds("settings-page").is_none());
     fixture.open_settings();
+    fixture.select_terminal_theme();
     assert!(
         fixture
             .visual
@@ -200,6 +209,7 @@ fn settings_save_every_palette_with_live_preview_and_preserve_hidden_session(
         .unwrap();
     assert_eq!(fixture.data.load(Ordering::Relaxed), 0);
     fixture.open_settings();
+    fixture.select_terminal_theme();
     fixture.visual.simulate_keystrokes("escape");
     fixture
         .handle
@@ -211,6 +221,7 @@ fn settings_save_every_palette_with_live_preview_and_preserve_hidden_session(
 fn settings_save_failure_retains_previous_palette_and_reports_error(cx: &mut TestAppContext) {
     let mut fixture = fixture(cx);
     fixture.open_settings();
+    fixture.select_terminal_theme();
     std::fs::remove_file(&fixture.path).unwrap();
     std::fs::create_dir(&fixture.path).unwrap();
     let position = fixture

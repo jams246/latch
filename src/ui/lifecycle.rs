@@ -101,14 +101,30 @@ impl Latch {
         if index >= self.tabs.len() {
             return;
         }
+        if self
+            .tab_menu
+            .as_ref()
+            .is_some_and(|menu| menu.tab_id == self.tabs[index].id)
+        {
+            self.dismiss_tab_menu(window, cx);
+        }
         let mut tab = self.tabs.remove(index);
         let (transport, transfer) = tab.detach(cx);
         self.schedule_cleanup(tab.id.clone(), transport, transfer);
         self.active = tabs::active_after_close(self.active, index, self.tabs.len());
-        if self.settings.is_none()
-            && let Some(tab) = self.active.and_then(|active| self.tabs.get(active))
-        {
-            window.focus(&tab.visible_focus(cx));
+        if self.settings.is_none() && self.tab_menu.is_none() {
+            let focus = self
+                .active
+                .and_then(|active| self.tabs.get(active))
+                .map(|tab| tab.visible_focus(cx))
+                .unwrap_or_else(|| {
+                    if self.sidebar_collapsed {
+                        self.sidebar_toggle_focus.clone()
+                    } else {
+                        self.connection_search.read(cx).focus.clone()
+                    }
+                });
+            window.focus(&focus);
         }
         cx.notify();
     }
@@ -133,6 +149,7 @@ impl Latch {
             return false;
         }
         self.poll_local_preferences(cx);
+        self.tab_menu = None;
         if self.tabs.is_empty() && self.pending_cleanup == 0 && !self.saves_pending() {
             return true;
         }

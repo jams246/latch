@@ -1,6 +1,7 @@
 use super::{Latch, button};
 use gpui::{prelude::*, *};
 
+pub(super) mod menu;
 #[cfg(test)]
 mod scroll_tests;
 
@@ -74,7 +75,18 @@ impl Latch {
                 }
             }))
             .children(self.tabs.iter().enumerate().map(|(index, tab)| {
+                let tab_id = tab.id.clone();
                 div()
+                    .id(SharedString::from(format!("tab-header-{}", tab.id)))
+                    .capture_any_mouse_down(cx.listener(
+                        move |this, event: &MouseDownEvent, window, cx| {
+                            if event.button == MouseButton::Right {
+                                this.open_tab_menu(&tab_id, event.position, window, cx);
+                                window.prevent_default();
+                                cx.stop_propagation();
+                            }
+                        },
+                    ))
                     .flex()
                     .flex_shrink_0()
                     .items_center()

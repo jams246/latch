@@ -13,18 +13,26 @@ impl Latch {
             .min_h_0()
             .gap_3()
             .on_key_down(cx.listener(Self::settings_key_down))
+            .child(div().text_lg().child("Settings"))
             .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap_1()
-                    .child(div().text_lg().child("Settings"))
-                    .child(
-                        div()
-                            .text_base()
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .child(concat!("Latch ", env!("CARGO_PKG_VERSION"))),
-                    ),
+                button("settings-about", "About")
+                    .debug_selector(|| "settings-about".into())
+                    .w_full()
+                    .when(page == Some(Page::About), |button| {
+                        button
+                            .bg(rgb(CARBON.selected))
+                            .border_color(rgb(CARBON.accent))
+                    })
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        if !this.data_busy
+                            && !this.shutting_down
+                            && let Some(settings) = &mut this.settings
+                        {
+                            settings.page = Page::About;
+                            window.focus(&settings.focus);
+                            cx.notify();
+                        }
+                    })),
             )
             .child(
                 button("settings-terminal-theme", "Terminal theme")
@@ -81,8 +89,10 @@ impl Latch {
         let Some(settings) = &self.settings else {
             return div();
         };
-        if settings.page == Page::Data {
-            return self.settings_data_page(cx);
+        match settings.page {
+            Page::About => return self.settings_about_page(cx),
+            Page::Data => return self.settings_data_page(cx),
+            Page::Terminal => (),
         }
         let active = TerminalPalette::current(cx);
         div()

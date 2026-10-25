@@ -105,7 +105,7 @@ fn sidebar_toggle_resizes_workspace_preserves_search_and_keeps_settings_usable(
     assert_eq!(fixture.visual.debug_bounds("sidebar").unwrap(), sidebar);
     assert_eq!(fixture.visual.debug_bounds("workspace").unwrap(), workspace);
     fixture.click("settings-open");
-    assert!(fixture.visual.debug_bounds("settings-page").is_some());
+    assert!(fixture.visual.debug_bounds("settings-about-page").is_some());
     fixture.click("settings-back");
     assert!(fixture.visual.debug_bounds("connections-sidebar").is_some());
     fixture

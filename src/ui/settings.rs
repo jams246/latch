@@ -1,3 +1,6 @@
+mod about;
+#[cfg(test)]
+mod about_tests;
 mod data;
 #[cfg(test)]
 mod data_tests;
@@ -25,6 +28,7 @@ pub(super) struct Settings {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Page {
+    About,
     Terminal,
     Data,
 }
@@ -34,13 +38,15 @@ impl Latch {
         if self.data_busy || self.shutting_down {
             return;
         }
+        self.dismiss_tab_menu(window, cx);
         let settings = self.settings.get_or_insert_with(|| Settings {
             focus: cx.focus_handle().tab_stop(false),
             preview: preview::new(cx),
             error: None,
-            page: Page::Terminal,
+            page: Page::About,
             message: None,
         });
+        settings.page = Page::About;
         window.focus(&settings.focus);
         cx.notify();
     }

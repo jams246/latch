@@ -61,6 +61,8 @@ fn settings_buttons_support_native_keyboard_activation_and_preview_escape(cx: &m
         .handle
         .read_with(&fixture.visual, |app, _| assert!(app.settings.is_some()))
         .unwrap();
+    focus_button(&mut fixture, "settings-terminal-theme");
+    release_key(&mut fixture, "enter");
     focus_button(&mut fixture, "settings-palette-Carbon");
     release_key(&mut fixture, "space");
     crate::ui::persistence::tests::settle(fixture.handle, &mut fixture.visual);
@@ -86,6 +88,7 @@ fn settings_buttons_support_native_keyboard_activation_and_preview_escape(cx: &m
         .read_with(&fixture.visual, |app, _| assert!(app.settings.is_none()))
         .unwrap();
     fixture.open_settings();
+    fixture.select_terminal_theme();
     fixture
         .handle
         .update(&mut fixture.visual, |app, window, cx| {

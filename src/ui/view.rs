@@ -60,6 +60,7 @@ impl Render for Latch {
                     .min_h_0()
                     .child(body),
             )
+            .child(self.tab_menu_view(cx))
             .when(self.editor.is_some(), |view| {
                 view.child(self.editor_view(cx))
             })
