@@ -14,7 +14,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-fn populated(cx: &mut TestAppContext) -> (WindowHandle<Files>, VisualTestContext, [PathBuf; 2]) {
+pub(super) fn populated(
+    cx: &mut TestAppContext,
+) -> (WindowHandle<Files>, VisualTestContext, [PathBuf; 2]) {
     let (handle, mut visual) = fixture(cx);
     let paths = handle
         .update(&mut visual, |files, _, _| {
@@ -66,7 +68,7 @@ fn populated(cx: &mut TestAppContext) -> (WindowHandle<Files>, VisualTestContext
     (handle, visual, paths)
 }
 
-fn open_action(
+pub(super) fn open_action(
     handle: WindowHandle<Files>,
     visual: &mut VisualTestContext,
     side: Side,
@@ -83,7 +85,8 @@ fn open_action(
     let selector = match kind {
         ActionKind::Rename => "file-action-0",
         ActionKind::Delete => "file-action-1",
-        _ => panic!("This fixture opens rename or delete"),
+        ActionKind::NewFolder => "file-action-2",
+        _ => panic!("This fixture opens rename, delete or new folder"),
     };
     let position = visual.debug_bounds(selector).unwrap().center();
     visual.simulate_click(position, Default::default());

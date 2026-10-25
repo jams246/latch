@@ -18,6 +18,8 @@ mod tests;
 #[cfg(test)]
 mod tests_actions;
 #[cfg(test)]
+mod tests_dialog_input;
+#[cfg(test)]
 mod tests_feedback;
 #[cfg(test)]
 mod tests_interaction;

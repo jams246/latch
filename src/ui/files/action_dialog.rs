@@ -45,7 +45,8 @@ impl Files {
                                 window.focus(&focus);
                             }
                         },
-                        _ => (),
+                        "enter" => (),
+                        _ => return,
                     }
                     cx.stop_propagation();
                 }))
