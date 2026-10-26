@@ -6,9 +6,17 @@ use std::time::Duration;
 pub(in crate::ui) struct TabDrag {
     pub(in crate::ui) origin: Option<(Point<Pixels>, Pixels)>,
     pub(in crate::ui) did_drag: bool,
-    moving: Option<String>,
-    target: Option<WindowHandle<Latch>>,
+    pub(super) moving: Option<String>,
+    pub(super) target: Option<WindowHandle<Latch>>,
+    pub(super) preview: Option<super::preview::Preview>,
+    pub(super) preview_failed: bool,
     monitor: Option<Task<()>>,
+}
+
+impl TabDrag {
+    pub(in crate::ui) fn dragging(&self, id: &str) -> bool {
+        self.did_drag && self.moving.as_deref() == Some(id)
+    }
 }
 
 impl Latch {
@@ -37,6 +45,7 @@ impl Latch {
                             this.cancel_tab_drag(cx);
                             return false;
                         }
+                        this.update_drag_preview(window, cx);
                         true
                     })
                     .unwrap_or(false);
@@ -47,19 +56,27 @@ impl Latch {
         }));
     }
 
-    pub(in crate::ui) fn cancel_tab_drag(&mut self, cx: &mut App) {
+    pub(in crate::ui) fn cancel_tab_drag(&mut self, cx: &mut Context<Self>) {
         if let Some(target) = self.tab_drag.target.take() {
             let _ = target.update(cx, |target, _, cx| {
                 target.drop_highlight = false;
                 cx.notify();
             });
         }
+        self.tab_drag.preview = None;
+        self.tab_drag.preview_failed = false;
         self.tab_drag.origin = None;
         self.tab_drag.moving = None;
         self.tab_drag.monitor = None;
+        cx.notify();
     }
 
-    pub(in crate::ui) fn drag_tabs(&mut self, event: &MouseMoveEvent, cx: &mut Context<Self>) {
+    pub(in crate::ui) fn drag_tabs(
+        &mut self,
+        event: &MouseMoveEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if !event.dragging() {
             self.cancel_tab_drag(cx);
             return;
@@ -123,6 +140,7 @@ impl Latch {
             }
             self.tab_drag.target = hovered;
         }
+        self.update_drag_preview(window, cx);
         cx.stop_propagation();
         cx.notify();
     }

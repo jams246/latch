@@ -6,8 +6,10 @@ pub(super) mod menu;
 mod scroll_tests;
 
 mod drag;
+mod drag_visuals;
 mod movement;
 pub(super) mod native;
+mod preview;
 pub(super) use drag::TabDrag;
 
 impl Latch {
@@ -76,6 +78,11 @@ impl Latch {
                     ))
                     .flex()
                     .flex_shrink_0()
+                    .opacity(if self.tab_drag.dragging(&tab.id) {
+                        0.45
+                    } else {
+                        1.
+                    })
                     .items_center()
                     .rounded_md()
                     .border_1()
@@ -152,9 +159,9 @@ impl Latch {
                     move |bounds, _, window, cx| {
                         entity.update(cx, |this, _| this.tab_bounds = Some(bounds));
                         let moves = entity.clone();
-                        window.on_mouse_event(move |event: &MouseMoveEvent, phase, _, cx| {
+                        window.on_mouse_event(move |event: &MouseMoveEvent, phase, window, cx| {
                             if phase == DispatchPhase::Capture {
-                                moves.update(cx, |this, cx| this.drag_tabs(event, cx));
+                                moves.update(cx, |this, cx| this.drag_tabs(event, window, cx));
                             }
                         });
                         let releases = entity.clone();
