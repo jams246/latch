@@ -105,6 +105,7 @@ fn sftp_menu_only_closes_clicked_tab_and_keyboard_stays_inside_menu(cx: &mut Tes
     let (handle, mut visual) = fixture(cx);
     open(&mut visual, 2);
     assert!(visual.debug_bounds("tab-menu-duplicate").is_none());
+    assert!(visual.debug_bounds("tab-menu-duplicate-window").is_none());
     for stroke in ["up", "down", "tab", "shift-tab", "a"] {
         key(&mut visual, stroke);
         handle

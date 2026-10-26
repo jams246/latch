@@ -77,6 +77,14 @@ impl TerminalView {
         }
     }
 
+    /// Clears window-bound interaction state before moving this view to another window.
+    pub fn prepare_window_move(&mut self) {
+        self.selection_position = None;
+        self.selection_task = None;
+        self.bounds = None;
+        self.composition.clear();
+    }
+
     pub(super) fn send(&self, bytes: Vec<u8>) {
         self.state.scroll_bottom();
         (self.sink)(TerminalInput::Data(bytes));

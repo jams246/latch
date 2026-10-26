@@ -129,10 +129,23 @@ impl Latch {
         connection.port = port;
         connection.username.clone_from(&values[3]);
         connection.auth = auth;
+        let editing = editor.original.is_some();
         window.focus(&editor.focus);
         self.data_busy = true;
         self.save(
-            move |store| store.upsert(connection),
+            move |store| {
+                if editing
+                    && !store
+                        .connections()
+                        .iter()
+                        .any(|item| item.id == connection.id)
+                {
+                    return Err(std::io::Error::other(
+                        "This connection was deleted in another window",
+                    ));
+                }
+                store.upsert(connection)
+            },
             |this, result, window, cx| {
                 this.data_busy = false;
                 match result {
@@ -174,13 +187,15 @@ impl Latch {
         else {
             return;
         };
-        for tab in &mut self.tabs {
-            if tab.connection.id == connection.id {
-                tab.save_password = false;
-                tab.password_attempt = None;
-                if let Some(dialog) = tab.dialog {
-                    let _ = dialog.update(cx, |dialog, _, _| dialog.take_password());
-                }
+        self.forget_password_attempts(&connection.id, cx);
+        for handle in self.profile.read(cx).windows.clone() {
+            if handle == self.owner {
+                continue;
+            }
+            if let Some(handle) = handle.downcast::<Latch>() {
+                let _ = handle.update(cx, |other, _, cx| {
+                    other.forget_password_attempts(&connection.id, cx)
+                });
             }
         }
         self.data_busy = true;
@@ -198,5 +213,16 @@ impl Latch {
             cx,
         );
         cx.notify();
+    }
+    fn forget_password_attempts(&mut self, id: &str, cx: &mut App) {
+        for tab in &mut self.tabs {
+            if tab.connection.id == id {
+                tab.save_password = false;
+                tab.password_attempt = None;
+                if let Some(dialog) = tab.dialog {
+                    let _ = dialog.update(cx, |dialog, _, _| dialog.take_password());
+                }
+            }
+        }
     }
 }

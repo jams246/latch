@@ -4,8 +4,9 @@ fn submitted(cx: &mut TestAppContext, kind: SecretKind) -> Fixture {
     let mut fixture = pending_dialog(cx, kind, SessionKind::Terminal);
     fixture
         .owner
-        .update(cx, |app, _, _| {
-            app.store.upsert(app.tabs[0].connection.clone()).unwrap();
+        .update(cx, |app, _, cx| {
+            app.update_store(cx, |store| store.upsert(app.tabs[0].connection.clone()))
+                .unwrap();
         })
         .unwrap();
     fixture
@@ -35,16 +36,22 @@ fn password_is_saved_only_after_connected_and_failure_discards_candidate(cx: &mu
         let fixture = submitted(cx, SecretKind::Password);
         fixture
             .owner
-            .read_with(cx, |app, _| {
-                assert!(app.store.saved_password(&app.tabs[0].connection).is_none());
+            .read_with(cx, |app, cx| {
+                assert!(
+                    app.store(cx)
+                        .saved_password(&app.tabs[0].connection)
+                        .is_none()
+                );
             })
             .unwrap();
         status(&fixture, state, cx);
         fixture
             .owner
-            .read_with(cx, |app, _| {
+            .read_with(cx, |app, cx| {
                 assert_eq!(
-                    app.store.saved_password(&app.tabs[0].connection).is_some(),
+                    app.store(cx)
+                        .saved_password(&app.tabs[0].connection)
+                        .is_some(),
                     state == ssh::State::Connected
                 );
             })
@@ -70,8 +77,12 @@ fn key_passphrases_never_become_saved_passwords(cx: &mut TestAppContext) {
     status(&fixture, ssh::State::Connected, cx);
     fixture
         .owner
-        .read_with(cx, |app, _| {
-            assert!(app.store.saved_password(&app.tabs[0].connection).is_none());
+        .read_with(cx, |app, cx| {
+            assert!(
+                app.store(cx)
+                    .saved_password(&app.tabs[0].connection)
+                    .is_none()
+            );
         })
         .unwrap();
 }
@@ -83,12 +94,13 @@ fn cleared_password_cannot_be_restored_by_in_flight_authentication(cx: &mut Test
         .owner
         .update(cx, |app, window, cx| {
             let connection = app.tabs[0].connection.clone();
-            app.store
-                .save_password(
+            app.update_store(cx, |store| {
+                store.save_password(
                     &connection,
                     ssh::Secret::new("old-synthetic-password".into()),
                 )
-                .unwrap();
+            })
+            .unwrap();
             app.edit(Some(connection), window, cx);
             app.clear_saved_password(cx);
             assert!(!app.tabs[0].save_password);
@@ -97,8 +109,12 @@ fn cleared_password_cannot_be_restored_by_in_flight_authentication(cx: &mut Test
     status(&fixture, ssh::State::Connected, cx);
     fixture
         .owner
-        .read_with(cx, |app, _| {
-            assert!(app.store.saved_password(&app.tabs[0].connection).is_none());
+        .read_with(cx, |app, cx| {
+            assert!(
+                app.store(cx)
+                    .saved_password(&app.tabs[0].connection)
+                    .is_none()
+            );
             assert!(
                 Store::load(app.directory.join("latch.db"))
                     .unwrap()
@@ -115,14 +131,15 @@ fn stored_password_answers_initial_prompt_but_retry_requires_fresh_input(cx: &mu
     let (prompts, receiver) = mpsc::channel(2);
     fixture
         .owner
-        .update(cx, |app, _, _| {
+        .update(cx, |app, _, cx| {
             let connection = &app.tabs[0].connection;
-            app.store
-                .save_password(
+            app.update_store(cx, |store| {
+                store.save_password(
                     connection,
                     ssh::Secret::new("stored-synthetic-password".into()),
                 )
-                .unwrap();
+            })
+            .unwrap();
             app.tabs[0].prompts = receiver;
         })
         .unwrap();
@@ -163,8 +180,44 @@ fn stored_password_answers_initial_prompt_but_retry_requires_fresh_input(cx: &mu
     });
     fixture
         .owner
-        .read_with(cx, |app, _| {
-            assert!(app.store.saved_password(&app.tabs[0].connection).is_none());
+        .read_with(cx, |app, cx| {
+            assert!(
+                app.store(cx)
+                    .saved_password(&app.tabs[0].connection)
+                    .is_none()
+            );
         })
         .unwrap();
+}
+
+#[gpui::test]
+fn clearing_password_cancels_attempts_in_other_windows(cx: &mut TestAppContext) {
+    let fixture = submitted(cx, SecretKind::Password);
+    let other = crate::ui::windows_tests::second(fixture.owner, cx);
+    let connection = fixture
+        .owner
+        .read_with(cx, |app, _| app.tabs[0].connection.clone())
+        .unwrap();
+    other
+        .update(cx, |app, _, cx| {
+            let (mut tab, _) =
+                crate::ui::sessions::tests::synthetic_tab(connection, SessionKind::Terminal, cx);
+            tab.password_attempt = Some(ssh::Secret::new("synthetic-attempt".into()));
+            app.tabs.push(tab);
+        })
+        .unwrap();
+    fixture
+        .owner
+        .update(cx, |app, window, cx| {
+            app.edit(Some(app.tabs[0].connection.clone()), window, cx);
+            app.clear_saved_password(cx);
+        })
+        .unwrap();
+    other
+        .read_with(cx, |app, _| {
+            assert!(!app.tabs[0].save_password);
+            assert!(app.tabs[0].password_attempt.is_none());
+        })
+        .unwrap();
+    crate::ui::persistence::tests::settle(fixture.owner, cx);
 }

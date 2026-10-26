@@ -1,3 +1,5 @@
+mod window_close;
+
 use gpui::*;
 use latch::{sftp::Transfer, ssh};
 
@@ -60,26 +62,6 @@ impl Tab {
 }
 
 impl Latch {
-    pub(crate) fn save_window_size(
-        &mut self,
-        size: latch::storage::WindowSize,
-        cx: &mut Context<Self>,
-    ) {
-        if self.preserve_imported_window
-            || self.data_busy
-            || self.shutting_down
-            || self.window_save_failed
-        {
-            return;
-        }
-        self.save(move |store| store.set_window_size(size), |this, result, _, _| {
-            if let Err(error) = result {
-                this.window_save_failed = true;
-                this.save_error(format!("Cannot save window size: {error}. Close again to exit without saving the window size."));
-            }
-        }, cx);
-    }
-
     fn schedule_cleanup(
         &mut self,
         id: String,
@@ -148,6 +130,7 @@ impl Latch {
         if self.data_busy {
             return false;
         }
+        self.cancel_tab_drag(cx);
         self.poll_local_preferences(cx);
         self.tab_menu = None;
         if self.tabs.is_empty() && self.pending_cleanup == 0 && !self.saves_pending() {
@@ -184,7 +167,7 @@ impl Latch {
             cx.notify();
         }
         if self.shutting_down && self.pending_cleanup == 0 && !self.saves_pending() {
-            cx.quit();
+            self.finish_window_close(cx);
         }
     }
 }

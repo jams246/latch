@@ -62,11 +62,11 @@ fn delete_click_requires_confirmation_and_enter_defaults_to_cancel(cx: &mut Test
     let original = fs::read(&path).unwrap();
     open_delete(handle, &mut visual);
     handle
-        .update(&mut visual, |app, window, _| {
+        .update(&mut visual, |app, window, cx| {
             let dialog = app.connection_delete.as_ref().unwrap();
             assert_eq!(dialog.connection.id, connections[0].id);
             assert!(dialog.cancel.is_focused(window));
-            assert_eq!(app.store.connections(), connections);
+            assert_eq!(app.store(cx).connections(), connections);
         })
         .unwrap();
     assert_eq!(fs::read(&path).unwrap(), original);
@@ -76,9 +76,9 @@ fn delete_click_requires_confirmation_and_enter_defaults_to_cancel(cx: &mut Test
     });
     crate::ui::persistence::tests::settle(handle, &mut visual);
     handle
-        .read_with(&visual, |app, _| {
+        .read_with(&visual, |app, cx| {
             assert!(app.connection_delete.is_none());
-            assert_eq!(app.store.connections(), connections);
+            assert_eq!(app.store(cx).connections(), connections);
         })
         .unwrap();
     assert_eq!(fs::read(&path).unwrap(), original);
@@ -102,9 +102,9 @@ fn escape_and_cancel_button_leave_persisted_connections_intact(cx: &mut TestAppC
     visual.simulate_click(position, Default::default());
     crate::ui::persistence::tests::settle(handle, &mut visual);
     handle
-        .read_with(&visual, |app, _| {
+        .read_with(&visual, |app, cx| {
             assert!(app.connection_delete.is_none());
-            assert_eq!(app.store.connections(), connections);
+            assert_eq!(app.store(cx).connections(), connections);
         })
         .unwrap();
     assert_eq!(fs::read(&path).unwrap(), original);
@@ -115,8 +115,9 @@ fn focused_confirm_deletes_only_captured_connection_and_persists(cx: &mut TestAp
     let (handle, mut visual, connections, path) = fixture(cx);
     open_delete(handle, &mut visual);
     handle
-        .update(&mut visual, |app, _, _| {
-            app.store.set_sort_mode(SortMode::MostUsed).unwrap();
+        .update(&mut visual, |app, _, cx| {
+            app.update_store(cx, |store| store.set_sort_mode(SortMode::MostUsed))
+                .unwrap();
         })
         .unwrap();
     draw(handle, &mut visual);
@@ -138,9 +139,9 @@ fn focused_confirm_deletes_only_captured_connection_and_persists(cx: &mut TestAp
     });
     crate::ui::persistence::tests::settle(handle, &mut visual);
     handle
-        .read_with(&visual, |app, _| {
+        .read_with(&visual, |app, cx| {
             assert!(app.connection_delete.is_none());
-            assert_eq!(app.store.connections(), &connections[1..]);
+            assert_eq!(app.store(cx).connections(), &connections[1..]);
         })
         .unwrap();
     assert_eq!(Store::load(&path).unwrap().connections(), &connections[1..]);
@@ -187,7 +188,7 @@ fn failed_persistence_keeps_confirmation_open_and_connection_intact(cx: &mut Tes
     visual.simulate_click(position, Default::default());
     crate::ui::persistence::tests::settle(handle, &mut visual);
     handle
-        .read_with(&visual, |app, _| {
+        .read_with(&visual, |app, cx| {
             let dialog = app.connection_delete.as_ref().unwrap();
             assert_eq!(dialog.connection.id, connections[0].id);
             assert!(
@@ -197,7 +198,7 @@ fn failed_persistence_keeps_confirmation_open_and_connection_intact(cx: &mut Tes
                     .unwrap()
                     .starts_with("Cannot delete connection:")
             );
-            assert_eq!(app.store.connections(), connections);
+            assert_eq!(app.store(cx).connections(), connections);
         })
         .unwrap();
     drop(lock);

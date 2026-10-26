@@ -37,14 +37,14 @@ impl Latch {
             .child(
                 button("settings-import", "Import data")
                     .debug_selector(|| "settings-import".into())
-                    .when(!self.can_import(), |button| button.opacity(0.5))
+                    .when(!self.can_import(cx), |button| button.opacity(0.5))
                     .on_click(cx.listener(|this, _, window, cx| {
                         this.import_data(window, cx);
                     })),
             )
-            .children((!self.can_import() && !self.data_busy).then(|| {
+            .children((!self.can_import(cx) && !self.data_busy).then(|| {
                 div().text_color(rgb(CARBON.muted)).child(
-                    "Close all terminal and SFTP tabs, then wait for saves and connections to finish before importing.",
+                    "Close other Latch windows and all terminal and SFTP tabs, then wait for saves and connections to finish before importing.",
                 )
             }))
             .children(self.data_busy.then(|| div().child("Working...")))

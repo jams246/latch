@@ -5,33 +5,12 @@ pub(super) mod menu;
 #[cfg(test)]
 mod scroll_tests;
 
-#[derive(Default)]
-pub(super) struct TabDrag {
-    origin: Option<(Point<Pixels>, Pixels)>,
-    did_drag: bool,
-}
+mod drag;
+mod movement;
+pub(super) mod native;
+pub(super) use drag::TabDrag;
 
 impl Latch {
-    fn drag_tabs(&mut self, event: &MouseMoveEvent, cx: &mut Context<Self>) {
-        if !event.dragging() {
-            self.tab_drag.origin = None;
-            return;
-        }
-        let Some((origin, offset)) = self.tab_drag.origin else {
-            return;
-        };
-        let delta = event.position - origin;
-        if delta.magnitude() > 4. {
-            self.tab_drag.did_drag = true;
-        }
-        if self.tab_drag.did_drag {
-            let x = (offset + delta.x).clamp(-self.tab_scroll.max_offset().width, px(0.));
-            self.tab_scroll.set_offset(point(x, px(0.)));
-            cx.stop_propagation();
-            cx.notify();
-        }
-    }
-
     pub(super) fn tab_bar(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let colors = super::theme::CARBON;
         let reveal_key = self.active.and_then(|index| {
@@ -57,7 +36,7 @@ impl Latch {
             self.tab_reveal_key = reveal_key;
         }
         let entity = cx.entity();
-        div()
+        let strip = div()
             .id("tabs")
             .debug_selector(|| "tabs".into())
             .relative()
@@ -66,6 +45,13 @@ impl Latch {
             .min_w_0()
             .gap_1()
             .p_2()
+            .min_h(px(50.))
+            .border_b_2()
+            .border_color(rgb(if self.drop_highlight {
+                colors.accent
+            } else {
+                colors.border
+            }))
             .overflow_x_scroll()
             .track_scroll(&self.tab_scroll)
             .capture_any_mouse_down(cx.listener(|this, event: &MouseDownEvent, _, _| {
@@ -76,6 +62,7 @@ impl Latch {
             }))
             .children(self.tabs.iter().enumerate().map(|(index, tab)| {
                 let tab_id = tab.id.clone();
+                let drag_id = tab.id.clone();
                 div()
                     .id(SharedString::from(format!("tab-header-{}", tab.id)))
                     .capture_any_mouse_down(cx.listener(
@@ -130,6 +117,14 @@ impl Latch {
                         .px(px(10.))
                         .bg(rgba(0))
                         .border_color(rgba(0))
+                        .on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(move |this, _, window, cx| {
+                                if this.active == Some(index) {
+                                    this.begin_tab_move(drag_id.clone(), window, cx);
+                                }
+                            }),
+                        )
                         .on_click(cx.listener(
                             move |this, event, window, cx| {
                                 if this.tab_drag.did_drag && matches!(event, ClickEvent::Mouse(_)) {
@@ -143,12 +138,19 @@ impl Latch {
                             },
                         )),
                     )
-            }))
+            }));
+        div()
+            .relative()
+            .w_full()
+            .min_w_0()
+            .flex_shrink_0()
+            .child(strip)
             .child(
                 // Keep tracking a tab drag when the pointer leaves the strip.
                 canvas(
                     |_, _, _| (),
-                    move |_, _, window, _| {
+                    move |bounds, _, window, cx| {
+                        entity.update(cx, |this, _| this.tab_bounds = Some(bounds));
                         let moves = entity.clone();
                         window.on_mouse_event(move |event: &MouseMoveEvent, phase, _, cx| {
                             if phase == DispatchPhase::Capture {
@@ -156,16 +158,17 @@ impl Latch {
                             }
                         });
                         let releases = entity.clone();
-                        window.on_mouse_event(move |event: &MouseUpEvent, phase, _, cx| {
+                        window.on_mouse_event(move |event: &MouseUpEvent, phase, window, cx| {
                             if phase == DispatchPhase::Capture && event.button == MouseButton::Left
                             {
-                                releases.update(cx, |this, _| this.tab_drag.origin = None);
+                                releases.update(cx, |this, cx| this.finish_tab_drag(window, cx));
                             }
                         });
                     },
                 )
                 .absolute()
-                .size(px(0.)),
+                .inset_0()
+                .size_full(),
             )
             .into_any_element()
     }

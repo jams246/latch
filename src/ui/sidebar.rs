@@ -16,10 +16,17 @@ impl Latch {
                 .child(self.sidebar_toggle(cx));
         }
         let colors = super::theme::CARBON;
-        let sort = self.store.sort_mode();
+        let sort = self.store(cx).sort_mode();
         let search = self.connection_search.read(cx).value.to_string();
-        let connections = filter_connections(self.store.sorted(), &search);
-        let no_matches = connections.is_empty() && !self.store.connections().is_empty();
+        let connections = filter_connections(self.store(cx).sorted(), &search)
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let no_matches = connections.is_empty() && !self.store(cx).connections().is_empty();
+        let frequent = filter_connections(self.store(cx).frequent(), &search)
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
         let mut rows = Vec::new();
         if sort == SortMode::FrequentAndName {
             rows.push(
@@ -29,11 +36,7 @@ impl Latch {
                     .child("TOP 3 FREQUENTLY USED")
                     .into_any_element(),
             );
-            rows.extend(
-                filter_connections(self.store.frequent(), &search)
-                    .iter()
-                    .map(|c| self.row(c, "frequent", cx)),
-            );
+            rows.extend(frequent.iter().map(|c| self.row(c, "frequent", cx)));
             rows.push(
                 div()
                     .mt_3()
@@ -117,7 +120,7 @@ impl Latch {
                     .overflow_y_scroll()
                     .children(rows),
             )
-            .children(self.store.connections().is_empty().then(|| {
+            .children(self.store(cx).connections().is_empty().then(|| {
                 div()
                     .text_color(rgb(colors.muted))
                     .child("No saved connections")

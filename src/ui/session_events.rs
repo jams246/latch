@@ -80,7 +80,9 @@ impl Latch {
                                                 &tab.connection,
                                                 commands,
                                                 runtime,
-                                                self.store
+                                                self.profile
+                                                    .read(cx)
+                                                    .store
                                                     .local_directory(&tab.connection.id)
                                                     .map(std::path::Path::to_path_buf),
                                                 tab.id.clone(),
@@ -144,7 +146,13 @@ impl Latch {
                     continue;
                 }
                 changed = true;
-                tab.handle_prompt(prompt, &self.store, self.owner, &mut passwords, cx);
+                let password = self
+                    .profile
+                    .read(cx)
+                    .store
+                    .saved_password(&tab.connection)
+                    .cloned();
+                tab.handle_prompt(prompt, password, self.owner, &mut passwords, cx);
             }
         }
         for password in passwords {

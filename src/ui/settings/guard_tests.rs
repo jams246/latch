@@ -12,10 +12,10 @@ fn import_should_wait_until_session_cleanup_finishes(cx: &mut TestAppContext) {
             app.tabs.clear();
             app.active = None;
             app.pending_cleanup = 1;
-            assert!(!app.can_import());
-            assert!(app.apply_import(app.store.snapshot(), cx).is_err());
+            assert!(!app.can_import(cx));
+            assert!(app.apply_import(app.store(cx).snapshot(), cx).is_err());
             app.pending_cleanup = 0;
-            assert!(app.can_import());
+            assert!(app.can_import(cx));
             assert!(!app.preserve_imported_window);
         })
         .unwrap();

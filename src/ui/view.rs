@@ -30,6 +30,12 @@ impl Render for Latch {
         };
         div()
             .id("latch")
+            .capture_key_down(cx.listener(|this, event: &KeyDownEvent, _, cx| {
+                if event.keystroke.key == "escape" && this.tab_drag.origin.is_some() {
+                    this.cancel_tab_drag(cx);
+                    cx.stop_propagation();
+                }
+            }))
             .relative()
             .size_full()
             .flex()

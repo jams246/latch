@@ -1,4 +1,4 @@
-use super::Latch;
+use super::{Latch, profile::Profile};
 use gpui::*;
 use latch::storage::Store;
 use std::{collections::VecDeque, io};
@@ -7,7 +7,7 @@ use std::{collections::VecDeque, io};
 pub(super) mod tests;
 
 type Change = Box<dyn FnOnce(&mut Store) -> io::Result<()> + Send>;
-type Finish = Box<dyn FnOnce(&mut Latch, io::Result<()>, &mut Window, &mut Context<Latch>)>;
+type Finish = Box<dyn FnOnce(io::Result<()>, &mut App)>;
 
 #[derive(Default)]
 pub(super) struct Saves {
@@ -24,7 +24,7 @@ impl Latch {
     }
 
     pub(super) fn saves_pending(&self) -> bool {
-        self.saves.active || !self.saves.pending.is_empty()
+        self.pending_saves != 0
     }
 
     pub(super) fn save(
@@ -33,10 +33,27 @@ impl Latch {
         finish: impl FnOnce(&mut Self, io::Result<()>, &mut Window, &mut Context<Self>) + 'static,
         cx: &mut Context<Self>,
     ) {
-        self.saves
-            .pending
-            .push_back((Box::new(change), Box::new(finish)));
-        self.start_next_save(cx);
+        self.pending_saves += 1;
+        let this = cx.weak_entity();
+        let owner = self.owner;
+        self.profile.update(cx, |profile, cx| {
+            profile.saves.pending.push_back((
+                Box::new(change),
+                Box::new(move |result, cx| {
+                    let _ = owner.update(cx, |_, window, cx| {
+                        let _ = this.update(cx, |this, cx| {
+                            this.pending_saves = this.pending_saves.saturating_sub(1);
+                            if result.is_err() {
+                                this.shutting_down = false;
+                            }
+                            finish(this, result, window, cx);
+                            cx.notify();
+                        });
+                    });
+                }),
+            ));
+            profile.start_next_save(cx);
+        });
     }
 
     pub(super) fn save_preference(
@@ -55,6 +72,12 @@ impl Latch {
             cx,
         );
     }
+}
+
+impl Profile {
+    pub(super) fn saves_pending(&self) -> bool {
+        self.saves.active || !self.saves.pending.is_empty()
+    }
 
     fn start_next_save(&mut self, cx: &mut Context<Self>) {
         if self.saves.active {
@@ -70,29 +93,27 @@ impl Latch {
             change(&mut store)?;
             Ok::<_, io::Error>(store)
         });
-        let owner = self.owner;
         cx.spawn(async move |this, cx| {
             let result = task
                 .await
                 .map_err(io::Error::other)
                 .and_then(|result| result);
-            let _ = owner.update(cx, |_, window, cx| {
-                this.update(cx, |this, cx| {
-                    this.saves.active = false;
-                    let result = match result {
-                        Ok(store) => {
-                            this.store = store;
-                            Ok(())
-                        }
-                        Err(error) => {
-                            this.shutting_down = false;
-                            Err(error)
-                        }
-                    };
-                    finish(this, result, window, cx);
-                    this.start_next_save(cx);
-                    cx.notify();
-                })
+            let _ = this.update(cx, |this, cx| {
+                this.saves.active = false;
+                let result = match result {
+                    Ok(store) => {
+                        let theme = store.terminal_theme();
+                        this.store = store;
+                        cx.set_global(theme);
+                        cx.refresh_windows();
+                        Ok(())
+                    }
+                    Err(error) => Err(error),
+                };
+                // Finish outside this entity's update so callbacks can read the committed profile.
+                cx.defer(move |cx| finish(result, cx));
+                this.start_next_save(cx);
+                cx.notify();
             });
         })
         .detach();

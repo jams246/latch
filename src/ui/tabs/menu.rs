@@ -5,9 +5,18 @@ mod flow_tests;
 #[cfg(test)]
 mod tests;
 mod view;
+#[cfg(test)]
+mod window_tests;
 
 use crate::ui::{Latch, SessionKind, TabContent};
 use gpui::*;
+
+#[derive(Clone, Copy, PartialEq)]
+pub(in crate::ui) enum Action {
+    Duplicate,
+    DuplicateWindow,
+    Close,
+}
 
 pub(in crate::ui) struct TabMenu {
     pub(in crate::ui) tab_id: String,
@@ -15,6 +24,7 @@ pub(in crate::ui) struct TabMenu {
     focus: FocusHandle,
     previous: Option<FocusHandle>,
     duplicate: FocusHandle,
+    duplicate_window: FocusHandle,
     close: FocusHandle,
 }
 
@@ -39,6 +49,7 @@ impl Latch {
             focus: cx.focus_handle().tab_stop(false),
             previous: window.focused(cx),
             duplicate: cx.focus_handle().tab_stop(true),
+            duplicate_window: cx.focus_handle().tab_stop(true),
             close: cx.focus_handle().tab_stop(true),
         };
         window.focus(if can_duplicate {
@@ -46,6 +57,7 @@ impl Latch {
         } else {
             &menu.close
         });
+        self.cancel_tab_drag(cx);
         self.tab_drag = super::TabDrag::default();
         self.tab_menu = Some(menu);
         cx.notify();
@@ -62,7 +74,7 @@ impl Latch {
         }
     }
 
-    fn choose_tab_action(&mut self, duplicate: bool, window: &mut Window, cx: &mut Context<Self>) {
+    fn choose_tab_action(&mut self, action: Action, window: &mut Window, cx: &mut Context<Self>) {
         let Some(id) = self.tab_menu.as_ref().map(|menu| menu.tab_id.clone()) else {
             return;
         };
@@ -70,10 +82,10 @@ impl Latch {
         let Some(index) = self.tabs.iter().position(|tab| tab.id == id) else {
             return;
         };
-        if duplicate {
-            self.duplicate_tab(index, window, cx);
-        } else {
-            self.close_tab(index, window, cx);
+        match action {
+            Action::Duplicate => self.duplicate_tab(index, window, cx),
+            Action::DuplicateWindow => self.duplicate_to_window(index, window, cx),
+            Action::Close => self.close_tab(index, window, cx),
         }
     }
 
@@ -110,11 +122,22 @@ impl Latch {
                         && !tab.closing
                 }) && !self.data_busy
                     && !self.shutting_down;
-                window.focus(if enabled && menu.close.is_focused(window) {
-                    &menu.duplicate
+                let choices = if enabled {
+                    vec![&menu.duplicate, &menu.duplicate_window, &menu.close]
                 } else {
-                    &menu.close
-                });
+                    vec![&menu.close]
+                };
+                let current = choices
+                    .iter()
+                    .position(|focus| focus.is_focused(window))
+                    .unwrap_or(0);
+                let backward = event.keystroke.key == "up" || event.keystroke.modifiers.shift;
+                let next = if backward {
+                    (current + choices.len() - 1) % choices.len()
+                } else {
+                    (current + 1) % choices.len()
+                };
+                window.focus(choices[next]);
             }
             _ => (),
         }
@@ -126,7 +149,14 @@ impl Latch {
         if matches!(event.keystroke.key.as_str(), "enter" | "space")
             && let Some(menu) = &self.tab_menu
         {
-            self.choose_tab_action(menu.duplicate.is_focused(window), window, cx);
+            let action = if menu.duplicate.is_focused(window) {
+                Action::Duplicate
+            } else if menu.duplicate_window.is_focused(window) {
+                Action::DuplicateWindow
+            } else {
+                Action::Close
+            };
+            self.choose_tab_action(action, window, cx);
         }
         window.prevent_default();
         cx.stop_propagation();

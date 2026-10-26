@@ -9,10 +9,9 @@ fn duplicate_uses_source_snapshot_and_inserts_independent_terminal_next_to_sourc
 ) {
     let (handle, mut visual) = fixture(cx);
     let (source, other, terminal) = handle
-        .update(&mut visual, |app, _, _| {
+        .update(&mut visual, |app, _, cx| {
             app.tabs[1].connection.name = "Unsaved snapshot".into();
-            app.store
-                .delete(&app.tabs[1].connection.id.clone())
+            app.update_store(cx, |store| store.delete(&app.tabs[1].connection.id.clone()))
                 .unwrap();
             let TabContent::Terminal(terminal) = &app.tabs[1].content else {
                 panic!()
@@ -100,6 +99,7 @@ fn close_resolves_stable_id_after_index_shift_and_last_tab_restores_sidebar_focu
         .unwrap();
     draw(&mut visual);
     key(&mut visual, "down");
+    key(&mut visual, "down");
     key(&mut visual, "enter");
     handle
         .update(&mut visual, |app, window, cx| {
@@ -109,7 +109,7 @@ fn close_resolves_stable_id_after_index_shift_and_last_tab_restores_sidebar_focu
             app.close_tab(0, window, cx);
             assert!(app.connection_search.read(cx).focus.is_focused(window));
             let (tab, _) = synthetic_tab(
-                app.store.connections()[0].clone(),
+                app.store(cx).connections()[0].clone(),
                 SessionKind::Terminal,
                 cx,
             );
@@ -129,7 +129,7 @@ fn removed_target_dismisses_without_acting_on_another_tab(cx: &mut TestAppContex
     handle
         .update(&mut visual, |app, window, cx| {
             app.tabs.remove(1);
-            app.choose_tab_action(false, window, cx);
+            app.choose_tab_action(super::Action::Close, window, cx);
             assert_eq!(app.tabs.len(), 2);
             assert!(app.tab_menu.is_none());
         })

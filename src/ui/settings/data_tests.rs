@@ -35,10 +35,10 @@ fn import_should_reject_active_tabs_without_changing_theme(cx: &mut TestAppConte
         .handle
         .update(&mut fixture.visual, |app, _, cx| {
             let snapshot =
-                Store::parse_import(&app.store.snapshot().export_json().unwrap()).unwrap();
+                Store::parse_import(&app.store(cx).snapshot().export_json().unwrap()).unwrap();
             assert!(app.apply_import(snapshot, cx).is_err());
             assert!(!app.preserve_imported_window);
-            assert_eq!(app.store.terminal_theme(), TerminalPalette::Classic);
+            assert_eq!(app.store(cx).terminal_theme(), TerminalPalette::Classic);
         })
         .unwrap();
 }
@@ -52,14 +52,16 @@ fn import_should_apply_theme_clear_search_and_preserve_imported_window(cx: &mut 
         .update(&mut fixture.visual, |app, _, cx| {
             app.tabs.clear();
             app.active = None;
-            app.store
-                .set_terminal_theme(TerminalPalette::Carbon)
-                .unwrap();
+            app.update_store(cx, |store| {
+                store.set_terminal_theme(TerminalPalette::Carbon)
+            })
+            .unwrap();
             let snapshot =
-                Store::parse_import(&app.store.snapshot().export_json().unwrap()).unwrap();
-            app.store
-                .set_terminal_theme(TerminalPalette::Classic)
-                .unwrap();
+                Store::parse_import(&app.store(cx).snapshot().export_json().unwrap()).unwrap();
+            app.update_store(cx, |store| {
+                store.set_terminal_theme(TerminalPalette::Classic)
+            })
+            .unwrap();
             app.apply_import(snapshot, cx).unwrap();
         })
         .unwrap();
@@ -85,7 +87,7 @@ fn data_operation_should_block_theme_changes_and_settings_close(cx: &mut TestApp
             app.choose_terminal_theme(TerminalPalette::Carbon, cx);
             app.close_settings(window, cx);
             assert!(app.settings.is_some());
-            assert_eq!(app.store.terminal_theme(), TerminalPalette::Classic);
+            assert_eq!(app.store(cx).terminal_theme(), TerminalPalette::Classic);
         })
         .unwrap();
 }

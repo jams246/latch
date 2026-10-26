@@ -45,7 +45,7 @@ fn successful_duplicate_counts_once_and_completion_does_not_steal_menu_focus(
             let (sender, events) = std::sync::mpsc::channel();
             app.tabs[1].events = events;
             assert!(!app.tabs[1].counted);
-            assert_eq!(app.store.connections()[0].successful_shells, 0);
+            assert_eq!(app.store(cx).connections()[0].successful_shells, 0);
             sender
         })
         .unwrap();
@@ -66,8 +66,8 @@ fn successful_duplicate_counts_once_and_completion_does_not_steal_menu_focus(
         .unwrap();
     crate::ui::persistence::tests::settle(handle, &mut visual);
     handle
-        .read_with(&visual, |app, _| {
-            assert_eq!(app.store.connections()[0].successful_shells, 1);
+        .read_with(&visual, |app, cx| {
+            assert_eq!(app.store(cx).connections()[0].successful_shells, 1);
         })
         .unwrap();
     key(&mut visual, "escape");

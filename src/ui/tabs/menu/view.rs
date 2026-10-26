@@ -1,3 +1,4 @@
+use super::Action;
 use crate::ui::{Latch, TabContent, button, theme::CARBON};
 use gpui::{prelude::*, *};
 
@@ -42,7 +43,7 @@ impl Latch {
                             .track_focus(&menu.focus)
                             .tab_group()
                             .occlude()
-                            .w(px(180.))
+                            .w(px(240.))
                             .p_1()
                             .flex()
                             .flex_col()
@@ -56,24 +57,35 @@ impl Latch {
                             .capture_key_up(cx.listener(Self::tab_menu_key_up))
                             .children(
                                 [
-                                    (true, "Duplicate", "tab-menu-duplicate", &menu.duplicate),
-                                    (false, "Close", "tab-menu-close", &menu.close),
+                                    (
+                                        Action::Duplicate,
+                                        "Duplicate",
+                                        "tab-menu-duplicate",
+                                        &menu.duplicate,
+                                    ),
+                                    (
+                                        Action::DuplicateWindow,
+                                        "Duplicate to New Window",
+                                        "tab-menu-duplicate-window",
+                                        &menu.duplicate_window,
+                                    ),
+                                    (Action::Close, "Close", "tab-menu-close", &menu.close),
                                 ]
                                 .into_iter()
-                                .filter(|(duplicate, ..)| !duplicate || terminal)
+                                .filter(|(action, ..)| *action == Action::Close || terminal)
                                 .map(
-                                    |(duplicate, label, id, focus)| {
+                                    |(action, label, id, focus)| {
                                         button(id, label)
                                             .debug_selector(move || id.into())
                                             .track_focus(focus)
                                             .rounded_none()
                                             .bg(rgb(CARBON.panel))
                                             .py_2()
-                                            .when(duplicate && !enabled, |row| {
+                                            .when(action != Action::Close && !enabled, |row| {
                                                 row.opacity(0.35).tab_index(-1)
                                             })
                                             .on_click(cx.listener(move |this, _, window, cx| {
-                                                this.choose_tab_action(duplicate, window, cx);
+                                                this.choose_tab_action(action, window, cx);
                                                 cx.stop_propagation();
                                             }))
                                     },

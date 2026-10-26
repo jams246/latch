@@ -70,7 +70,7 @@ fn settings_buttons_support_native_keyboard_activation_and_preview_escape(cx: &m
         .handle
         .read_with(&fixture.visual, |app, cx| {
             assert_eq!(TerminalPalette::current(cx), TerminalPalette::Carbon);
-            assert_eq!(app.store.terminal_theme(), TerminalPalette::Carbon);
+            assert_eq!(app.store(cx).terminal_theme(), TerminalPalette::Carbon);
         })
         .unwrap();
     focus_button(&mut fixture, "settings-terminal-theme");

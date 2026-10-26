@@ -32,8 +32,8 @@ fn recovery_preserves_terminal_and_counts_only_original_shell(cx: &mut TestAppCo
         .unwrap();
     crate::ui::persistence::tests::settle(handle, cx);
     handle
-        .read_with(cx, |app, _| {
-            assert_eq!(app.store.connections()[0].successful_shells, 1);
+        .read_with(cx, |app, cx| {
+            assert_eq!(app.store(cx).connections()[0].successful_shells, 1);
         })
         .unwrap();
 }

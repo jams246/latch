@@ -50,7 +50,7 @@ impl Latch {
                 let Some(path) = prompt.await?? else {
                     return Ok(None);
                 };
-                let snapshot = this.update(cx, |this, _| this.store.snapshot())?;
+                let snapshot = this.update(cx, |this, cx| this.store(cx).snapshot())?;
                 runtime
                     .spawn_blocking(move || {
                         let bytes = snapshot.export_json()?;
@@ -68,7 +68,7 @@ impl Latch {
     }
 
     pub(super) fn import_data(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.can_import() || !self.begin_data(cx) {
+        if !self.can_import(cx) || !self.begin_data(cx) {
             return;
         }
         let prompt = cx.prompt_for_paths(PathPromptOptions {
@@ -114,7 +114,9 @@ impl Latch {
         cx: &mut Context<Self>,
     ) -> anyhow::Result<tokio::sync::oneshot::Receiver<std::io::Result<()>>> {
         anyhow::ensure!(
-            self.tabs.is_empty()
+            self.profile.read(cx).window_count(cx) == 1
+                && !self.profile.read(cx).saves_pending()
+                && self.tabs.is_empty()
                 && self.pending_cleanup == 0
                 && !self.shutting_down
                 && !self.saves_pending()
@@ -132,7 +134,7 @@ impl Latch {
                     });
                     this.preserve_imported_window = true;
                     this.error = None;
-                    cx.set_global(this.store.terminal_theme());
+                    cx.set_global(this.store(cx).terminal_theme());
                     cx.refresh_windows();
                 }
                 let _ = sender.send(result);

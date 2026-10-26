@@ -163,7 +163,7 @@ fn settings_save_every_palette_with_live_preview_and_preserve_hidden_session(
             .handle
             .update(&mut fixture.visual, |app, window, cx| {
                 assert_eq!(TerminalPalette::current(cx), palette);
-                assert_eq!(app.store.terminal_theme(), palette);
+                assert_eq!(app.store(cx).terminal_theme(), palette);
                 let settings = app.settings.as_ref().unwrap();
                 assert!(settings.error.is_none());
                 assert_eq!(app.tabs.len(), 1);
@@ -235,7 +235,7 @@ fn settings_save_failure_retains_previous_palette_and_reports_error(cx: &mut Tes
         .handle
         .read_with(&fixture.visual, |app, cx| {
             assert_eq!(TerminalPalette::current(cx), TerminalPalette::Classic);
-            assert_eq!(app.store.terminal_theme(), TerminalPalette::Classic);
+            assert_eq!(app.store(cx).terminal_theme(), TerminalPalette::Classic);
             assert!(
                 app.settings
                     .as_ref()

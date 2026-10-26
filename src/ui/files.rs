@@ -93,7 +93,7 @@ pub(super) struct Files {
     commands: tokio::sync::mpsc::Sender<ssh::Command>,
     initial_directory: Option<PathBuf>,
     tab_id: String,
-    preference_sender: mpsc::Sender<LocalPreference>,
+    pub(in crate::ui) preference_sender: mpsc::Sender<LocalPreference>,
     pending_local_history: Option<usize>,
     pending_remote_history: Option<usize>,
     closing: bool,

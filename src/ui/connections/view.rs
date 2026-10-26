@@ -145,7 +145,7 @@ impl Latch {
                             )
                             .when(editor.auth == 0, |view| {
                                 let saved = editor.original.as_ref().is_some_and(|connection| {
-                                    self.store.saved_password(connection).is_some()
+                                    self.store(cx).saved_password(connection).is_some()
                                 });
                                 view.child(div().mt_2().text_color(rgb(palette.muted)).child(
                                     if saved {

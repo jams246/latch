@@ -65,7 +65,7 @@ fn saves_leave_ui_available_and_serialize_preferences_edits_and_usage(cx: &mut T
                 |store| store.set_terminal_theme(TerminalTheme::Carbon),
                 cx,
             );
-            assert_eq!(app.store.sort_mode(), SortMode::Name);
+            assert_eq!(app.store(cx).sort_mode(), SortMode::Name);
             assert!(app.saves_pending());
             app.connection_search
                 .update(cx, |input, cx| input.replace(0..0, "Responsive", cx));
@@ -105,9 +105,9 @@ fn shutdown_waits_for_save_and_failure_keeps_window_open_with_previous_state(
     release.send(()).unwrap();
     settle(handle, cx);
     handle
-        .read_with(cx, |app, _| {
+        .read_with(cx, |app, cx| {
             assert!(!app.shutting_down);
-            assert_eq!(app.store.sort_mode(), SortMode::Name);
+            assert_eq!(app.store(cx).sort_mode(), SortMode::Name);
             assert!(
                 app.error
                     .as_ref()
@@ -130,7 +130,8 @@ fn failed_window_save_is_visible_in_settings_and_second_close_can_exit(cx: &mut 
     handle
         .update(cx, |app, window, cx| {
             app.open_settings(window, cx);
-            app.save_window_size(app.store.window_size(), cx);
+            app.closing_size = Some(app.store(cx).window_size());
+            app.finish_window_close(cx);
             assert!(!app.request_shutdown(cx));
         })
         .unwrap();
@@ -147,7 +148,7 @@ fn failed_window_save_is_visible_in_settings_and_second_close_can_exit(cx: &mut 
                     .unwrap()
                     .contains("Close again")
             );
-            app.save_window_size(app.store.window_size(), cx);
+
             assert!(!app.saves_pending());
             assert!(app.request_shutdown(cx));
         })

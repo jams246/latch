@@ -7,7 +7,10 @@ fn open_editor(cx: &mut TestAppContext, connection: Option<Connection>) -> Windo
     let directory = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join(".verification/app-updates/editor")
         .join(uuid::Uuid::new_v4().to_string());
-    let store = Store::load(directory.join("latch.db")).unwrap();
+    let mut store = Store::load(directory.join("latch.db")).unwrap();
+    if let Some(connection) = &connection {
+        store.upsert(connection.clone()).unwrap();
+    }
     let runtime = Arc::new(tokio::runtime::Runtime::new().unwrap());
     let handle = cx
         .add_window(|window, cx| Latch::new(store, directory, runtime, window.window_handle(), cx));
@@ -39,9 +42,9 @@ fn editor_should_accept_typing_and_save_after_keyboard_navigation(cx: &mut TestA
     cx.simulate_input(*handle, "tester");
     cx.simulate_keystrokes(*handle, "enter");
     handle
-        .read_with(cx, |app, _| {
+        .read_with(cx, |app, cx| {
             assert!(app.editor.is_some());
-            assert!(app.store.connections().is_empty());
+            assert!(app.store(cx).connections().is_empty());
         })
         .unwrap();
     let cx = VisualTestContext::from_window(*handle, cx).into_mut();
@@ -50,9 +53,9 @@ fn editor_should_accept_typing_and_save_after_keyboard_navigation(cx: &mut TestA
     });
     crate::ui::persistence::tests::settle(handle, cx);
     handle
-        .read_with(cx, |app, _| {
+        .read_with(cx, |app, cx| {
             assert!(app.editor.is_none());
-            let connection = &app.store.connections()[0];
+            let connection = &app.store(cx).connections()[0];
             assert_eq!(connection.name, "Synthetic");
             assert_eq!(connection.host, "example.invalid");
             assert_eq!(connection.port, 22);
@@ -77,9 +80,9 @@ fn chosen_private_key_should_replace_displayed_path_and_save(cx: &mut TestAppCon
         .unwrap();
     crate::ui::persistence::tests::settle(handle, cx);
     handle
-        .read_with(cx, |app, _| {
+        .read_with(cx, |app, cx| {
             assert_eq!(
-                app.store.connections()[0].auth,
+                app.store(cx).connections()[0].auth,
                 AuthMethod::KeyFile { path: selected }
             );
         })
@@ -184,9 +187,39 @@ fn pending_save_blocks_typing_focus_changes_and_late_key_picker(cx: &mut TestApp
     release.send(()).unwrap();
     crate::ui::persistence::tests::settle(handle, cx);
     handle
-        .read_with(cx, |app, _| {
+        .read_with(cx, |app, cx| {
             assert!(app.editor.is_none());
-            assert_eq!(app.store.connections()[0].name, "Synthetic");
+            assert_eq!(app.store(cx).connections()[0].name, "Synthetic");
+        })
+        .unwrap();
+}
+
+#[gpui::test]
+fn deleted_connection_cannot_be_restored_by_stale_editor(cx: &mut TestAppContext) {
+    let connection = key_connection();
+    let id = connection.id.clone();
+    let handle = open_editor(cx, Some(connection));
+    let other = crate::ui::windows_tests::second(handle, cx);
+    other
+        .update(cx, |app, _, cx| {
+            app.save_preference("connection", move |store| store.delete(&id), cx);
+        })
+        .unwrap();
+    crate::ui::persistence::tests::settle(other, cx);
+    handle
+        .update(cx, |app, window, cx| app.save_connection(window, cx))
+        .unwrap();
+    crate::ui::persistence::tests::settle(handle, cx);
+    handle
+        .read_with(cx, |app, cx| {
+            assert!(app.store(cx).connections().is_empty());
+            assert!(app.editor.is_some());
+            assert!(
+                app.error
+                    .as_ref()
+                    .unwrap()
+                    .contains("deleted in another window")
+            );
         })
         .unwrap();
 }

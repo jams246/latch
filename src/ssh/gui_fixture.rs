@@ -46,8 +46,11 @@ async fn scrollback_fixture_streams_more_than_one_screen() {
 async fn gui_server() {
     let fixture = Fixture::start_shell_with("/bin/bash", Some(subsystem)).await;
     *fixture.counts.directory.lock().unwrap() = Some("/srv/latch project".into());
-    let root =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".verification/latch-plan/gui-fixture");
+    let root = std::env::var_os("LATCH_GUI_FIXTURE_ROOT")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".verification/latch-plan/gui-fixture")
+        });
     let directory = root.join(uuid::Uuid::new_v4().to_string());
     std::fs::create_dir_all(&directory).unwrap();
     let plain_path = directory.join("synthetic_ed25519");

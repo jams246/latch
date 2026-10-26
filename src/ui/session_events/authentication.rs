@@ -31,7 +31,7 @@ impl Tab {
     pub(super) fn handle_prompt(
         &mut self,
         prompt: ssh::Prompt,
-        store: &Store,
+        saved_password: Option<ssh::Secret>,
         owner: AnyWindowHandle,
         passwords: &mut Vec<PasswordUpdate>,
         cx: &mut Context<Latch>,
@@ -46,7 +46,7 @@ impl Tab {
                 if let Some(password) = self.password_attempt.take() {
                     passwords.push(PasswordUpdate::Rejected(self.connection.clone(), password));
                 }
-            } else if let Some(password) = store.saved_password(&self.connection) {
+            } else if let Some(password) = saved_password {
                 self.password_attempt = Some(password.clone());
                 if let ssh::Prompt::Secret { reply, .. } = prompt {
                     let _ = reply.send(Some(password.clone()));

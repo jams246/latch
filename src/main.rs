@@ -3,7 +3,7 @@
 mod ui;
 
 use gpui::*;
-use latch::storage::{Store, WindowSize};
+use latch::storage::Store;
 use std::{io, path::PathBuf, sync::Arc};
 
 fn main() {
@@ -40,48 +40,7 @@ pub(crate) fn open_latch(
     runtime: Arc<tokio::runtime::Runtime>,
     cx: &mut App,
 ) -> anyhow::Result<()> {
-    cx.set_global(store.terminal_theme());
-    let window_size = store.window_size();
-    let mut options = ui::options(
-        "Latch - Lightweight Access Terminal & Connection Handler",
-        window_size.width,
-        window_size.height,
-        cx,
-    );
-    options.window_min_size = Some(size(px(WindowSize::MIN_WIDTH), px(WindowSize::MIN_HEIGHT)));
-    if window_size.maximized
-        && let Some(bounds) = options.window_bounds
-    {
-        options.window_bounds = Some(WindowBounds::Maximized(bounds.get_bounds()));
-    }
-    cx.open_window(options, |window, cx| {
-        let owner = window.window_handle();
-        let root = cx.new(|cx| ui::Latch::new(store, directory, runtime, owner, cx));
-        let weak = root.downgrade();
-        window.on_window_should_close(cx, move |window, cx| {
-            let bounds = window.window_bounds();
-            let size = bounds.get_bounds().size;
-            let ready = weak
-                .update(cx, |app, cx| {
-                    app.save_window_size(
-                        WindowSize {
-                            width: f32::from(size.width).max(WindowSize::MIN_WIDTH),
-                            height: f32::from(size.height).max(WindowSize::MIN_HEIGHT),
-                            maximized: matches!(bounds, WindowBounds::Maximized(_)),
-                        },
-                        cx,
-                    );
-                    app.request_shutdown(cx)
-                })
-                .unwrap_or(true);
-            if ready {
-                cx.quit();
-            }
-            ready
-        });
-        root
-    })?;
-    Ok(())
+    ui::windows::start(store, directory, runtime, cx)
 }
 
 fn executable_directory() -> io::Result<PathBuf> {

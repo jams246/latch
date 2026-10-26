@@ -84,7 +84,7 @@ fn only_matching_live_sftp_tabs_can_persist_local_preferences(cx: &mut TestAppCo
                     .unwrap();
                 app.poll(cx);
                 assert_eq!(
-                    app.store.local_directory(&connection.id),
+                    app.store(cx).local_directory(&connection.id),
                     Some(directory.as_path())
                 );
             }
@@ -113,9 +113,9 @@ fn only_matching_live_sftp_tabs_can_persist_local_preferences(cx: &mut TestAppCo
         .unwrap();
     crate::ui::persistence::tests::settle(handle, cx);
     handle
-        .read_with(cx, |app, _| {
+        .read_with(cx, |app, cx| {
             assert_eq!(
-                app.store.local_directory(&connection.id),
+                app.store(cx).local_directory(&connection.id),
                 Some(directory.join("accepted").as_path())
             );
         })
