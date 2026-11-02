@@ -95,6 +95,7 @@ pub(super) fn fixture(cx: &mut TestAppContext) -> Fixture {
             let (_, events) = std::sync::mpsc::channel();
             let (_, prompts) = tokio::sync::mpsc::channel(1);
             app.tabs.push(Tab {
+                header_focus: cx.focus_handle().tab_stop(false),
                 id: "settings-test-terminal".into(),
                 name: connection.name.clone(),
                 destination: "tester@example.invalid:22".into(),
@@ -139,19 +140,14 @@ fn settings_save_every_palette_with_live_preview_and_preserve_hidden_session(
     assert!(fixture.visual.debug_bounds("settings-page").is_none());
     fixture.open_settings();
     fixture.select_terminal_theme();
-    assert!(
-        fixture
-            .visual
-            .debug_bounds("settings-terminal-theme")
-            .is_some()
-    );
     assert!(fixture.visual.debug_bounds("settings-page").is_some());
     fixture.visual.simulate_keystrokes("a b c");
 
     for (palette, selector) in TerminalPalette::ALL.into_iter().zip(SELECTORS) {
+        fixture.click("terminal-preset");
         let bounds = fixture.visual.debug_bounds(selector).unwrap();
         assert!(
-            bounds.left() >= px(310.) && bounds.right() <= px(720.) && bounds.bottom() <= px(480.)
+            bounds.left() >= px(0.) && bounds.right() <= px(720.) && bounds.bottom() <= px(480.)
         );
         fixture
             .visual
@@ -224,6 +220,7 @@ fn settings_save_failure_retains_previous_palette_and_reports_error(cx: &mut Tes
     fixture.select_terminal_theme();
     std::fs::remove_file(&fixture.path).unwrap();
     std::fs::create_dir(&fixture.path).unwrap();
+    fixture.click("terminal-preset");
     let position = fixture
         .visual
         .debug_bounds("settings-palette-Carbon")

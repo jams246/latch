@@ -22,7 +22,8 @@ fn duplicate_is_revealed_and_ordinary_connections_still_append(cx: &mut TestAppC
     visual.run_until_parked();
     draw(&mut visual);
     let bounds = visual.debug_bounds("tab-name-18").unwrap();
-    assert!(bounds.left() >= px(310.) && bounds.right() <= px(900.));
+    let strip = visual.debug_bounds("tabs").unwrap();
+    assert!(bounds.left() >= strip.left() && bounds.right() <= strip.right());
     handle
         .update(&mut visual, |app, window, cx| {
             let connection = app.tabs[0].connection.clone();

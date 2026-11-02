@@ -1,5 +1,5 @@
 use super::{Files, actions::ActionKind};
-use crate::ui::{button, theme::CARBON};
+use crate::ui::{button, theme::current};
 use gpui::{prelude::*, *};
 
 impl Files {
@@ -39,9 +39,9 @@ impl Files {
                         .flex_col()
                         .rounded_md()
                         .border_1()
-                        .border_color(rgb(CARBON.border))
-                        .bg(rgb(CARBON.panel))
-                        .text_color(rgb(CARBON.text))
+                        .border_color(rgb(current().border))
+                        .bg(rgb(current().panel))
+                        .text_color(rgb(current().text))
                         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                         .on_mouse_down(MouseButton::Right, |_, _, cx| cx.stop_propagation())
                         .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
@@ -64,10 +64,10 @@ impl Files {
                                 button(("file-action", index), label)
                                     .debug_selector(move || format!("file-action-{index}"))
                                     .rounded_none()
-                                    .bg(rgb(CARBON.panel))
+                                    .bg(rgb(current().panel))
                                     .py_2()
                                     .when(kind == ActionKind::Delete, |row| {
-                                        row.border_color(rgb(CARBON.danger))
+                                        row.border_color(rgb(current().danger))
                                     })
                                     .when(!enabled, |row| row.opacity(0.35).tab_index(-1))
                                     .on_click(cx.listener(move |this, _, window, cx| {

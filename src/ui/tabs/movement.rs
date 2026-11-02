@@ -81,7 +81,7 @@ impl Latch {
             if let Some(tab) = self.active.and_then(|index| self.tabs.get(index)) {
                 window.focus(&tab.visible_focus(cx));
             } else {
-                window.focus(&self.sidebar_toggle_focus);
+                window.focus(&self.connection_search.read(cx).focus);
             }
             cx.notify();
         }

@@ -1,4 +1,4 @@
-use crate::ui::theme::CARBON;
+use crate::ui::theme::current;
 use gpui::{prelude::*, *};
 
 pub(super) fn generic_icon(is_dir: bool, is_link: bool) -> Div {
@@ -42,10 +42,22 @@ pub(super) fn generic_icon(is_dir: bool, is_link: bool) -> Div {
                     .h_4()
                     .rounded_sm()
                     .border_1()
-                    .border_color(rgb(CARBON.muted))
-                    .bg(rgb(CARBON.control))
-                    .child(div().mx(px(2.)).mt(px(4.)).h(px(1.)).bg(rgb(CARBON.muted)))
-                    .child(div().mx(px(2.)).mt(px(3.)).h(px(1.)).bg(rgb(CARBON.muted))),
+                    .border_color(rgb(current().muted))
+                    .bg(rgb(current().control))
+                    .child(
+                        div()
+                            .mx(px(2.))
+                            .mt(px(4.))
+                            .h(px(1.))
+                            .bg(rgb(current().muted)),
+                    )
+                    .child(
+                        div()
+                            .mx(px(2.))
+                            .mt(px(3.))
+                            .h(px(1.))
+                            .bg(rgb(current().muted)),
+                    ),
             )
         })
         .when(is_link, |icon| {
@@ -55,10 +67,10 @@ pub(super) fn generic_icon(is_dir: bool, is_link: bool) -> Div {
                     .left_0()
                     .bottom_0()
                     .size(px(10.))
-                    .bg(rgb(CARBON.surface))
+                    .bg(rgb(current().surface))
                     .text_xs()
                     .line_height(px(10.))
-                    .text_color(rgb(CARBON.accent))
+                    .text_color(rgb(current().accent))
                     .child("↗"),
             )
         })

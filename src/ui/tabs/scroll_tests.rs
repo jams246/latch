@@ -35,6 +35,7 @@ fn fixture(cx: &mut TestAppContext) -> (WindowHandle<Latch>, VisualTestContext) 
                 let (_, events) = std::sync::mpsc::channel();
                 let (_, prompts) = tokio::sync::mpsc::channel(1);
                 app.tabs.push(Tab {
+                    header_focus: cx.focus_handle().tab_stop(false),
                     id: uuid::Uuid::new_v4().to_string(),
                     name: connection.name.clone(),
                     destination: "tester@example.invalid:22".into(),
@@ -194,6 +195,8 @@ fn dragging_name_does_not_select_and_release_outside_clears_gesture(cx: &mut Tes
     wheel(&mut cx, 1000.);
     draw(handle, &mut cx);
     let name = cx.debug_bounds("tab-name-1").unwrap().center();
+    let strip = cx.debug_bounds("tabs").unwrap();
+    assert!(strip.contains(&name), "name {name:?} outside {strip:?}");
     cx.simulate_click(name, Default::default());
     handle
         .read_with(&cx, |app, _| assert_eq!(app.active, Some(1)))

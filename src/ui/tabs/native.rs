@@ -97,3 +97,10 @@ pub(in crate::ui) fn placement(
         size(px(saved.width), px(saved.height)),
     ))
 }
+
+pub(super) fn touch_only() -> bool {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetSystemMetrics, SM_MAXIMUMTOUCHES, SM_MOUSEPRESENT,
+    };
+    unsafe { GetSystemMetrics(SM_MOUSEPRESENT) == 0 && GetSystemMetrics(SM_MAXIMUMTOUCHES) > 0 }
+}

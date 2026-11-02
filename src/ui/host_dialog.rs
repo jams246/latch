@@ -96,7 +96,7 @@ impl Latch {
             }
             window.focus(&dialog.cancel);
         }
-        let palette = super::theme::CARBON;
+        let palette = super::theme::current();
         div()
             .id("host-key-overlay")
             .absolute()

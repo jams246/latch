@@ -1,180 +1,112 @@
 use super::Page;
-use crate::ui::{Latch, button, theme::CARBON};
+use crate::ui::{
+    Latch,
+    controls::{icon, quiet},
+    theme::current,
+};
 use gpui::{prelude::*, *};
-use latch::terminal::TerminalPalette;
 
 impl Latch {
-    pub(in crate::ui) fn settings_sidebar(&self, cx: &mut Context<Self>) -> Div {
-        let page = self.settings.as_ref().map(|settings| settings.page);
-        div()
-            .flex()
-            .flex_col()
-            .size_full()
-            .min_h_0()
-            .gap_3()
-            .on_key_down(cx.listener(Self::settings_key_down))
-            .child(div().text_lg().child("Settings"))
-            .child(
-                button("settings-about", "About")
-                    .debug_selector(|| "settings-about".into())
-                    .w_full()
-                    .when(page == Some(Page::About), |button| {
-                        button
-                            .bg(rgb(CARBON.selected))
-                            .border_color(rgb(CARBON.accent))
-                    })
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        if !this.data_busy
-                            && !this.shutting_down
-                            && let Some(settings) = &mut this.settings
-                        {
-                            settings.page = Page::About;
-                            window.focus(&settings.focus);
-                            cx.notify();
-                        }
-                    })),
-            )
-            .child(
-                button("settings-terminal-theme", "Terminal theme")
-                    .debug_selector(|| "settings-terminal-theme".into())
-                    .w_full()
-                    .when(page == Some(Page::Terminal), |button| {
-                        button
-                            .bg(rgb(CARBON.selected))
-                            .border_color(rgb(CARBON.accent))
-                    })
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        if !this.data_busy
-                            && !this.shutting_down
-                            && let Some(settings) = &mut this.settings
-                        {
-                            settings.page = Page::Terminal;
-                            window.focus(&settings.focus);
-                            cx.notify();
-                        }
-                    })),
-            )
-            .child(
-                button("settings-data", "Data")
-                    .debug_selector(|| "settings-data".into())
-                    .w_full()
-                    .when(page == Some(Page::Data), |button| {
-                        button
-                            .bg(rgb(CARBON.selected))
-                            .border_color(rgb(CARBON.accent))
-                    })
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        if !this.data_busy
-                            && !this.shutting_down
-                            && let Some(settings) = &mut this.settings
-                        {
-                            settings.page = Page::Data;
-                            window.focus(&settings.focus);
-                            cx.notify();
-                        }
-                    })),
-            )
-            .child(div().flex_1())
-            .child(
-                button("settings-back", "Back to connections")
-                    .debug_selector(|| "settings-back".into())
-                    .w_full()
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        this.close_settings(window, cx);
-                    })),
-            )
-    }
-
-    pub(in crate::ui) fn settings_page(&self, cx: &mut Context<Self>) -> Div {
-        let Some(settings) = &self.settings else {
+    pub(in crate::ui) fn settings_workspace(&self, window: &Window, cx: &mut Context<Self>) -> Div {
+        let colors = current();
+        let Some(settings) = self.settings.as_ref() else {
             return div();
         };
-        match settings.page {
-            Page::About => return self.settings_about_page(cx),
-            Page::Data => return self.settings_data_page(cx),
-            Page::Terminal => (),
-        }
-        let active = TerminalPalette::current(cx);
+        let page = settings.page;
+        let narrow = window.viewport_size().width < px(560.);
+        let nav = div()
+            .flex()
+            .flex_shrink_0()
+            .p_2()
+            .gap_1()
+            .bg(rgb(colors.panel))
+            .when(!narrow, |d| {
+                d.flex_col()
+                    .w(px(178.))
+                    .border_r_1()
+                    .border_color(rgb(colors.border))
+            })
+            .children(
+                [
+                    (
+                        Page::Appearance,
+                        "Appearance",
+                        "settings-terminal-theme",
+                        "\u{e790}",
+                    ),
+                    (Page::Data, "Data", "settings-data", "\u{ed41}"),
+                    (Page::About, "About", "settings-about", "\u{e946}"),
+                ]
+                .into_iter()
+                .map(|(target, label, id, glyph)| {
+                    quiet(id, "")
+                        .debug_selector(move || id.into())
+                        .flex()
+                        .items_center()
+                        .gap_2()
+                        .px_2()
+                        .py_2()
+                        .child(icon(glyph))
+                        .child(label)
+                        .when(page == target, |b| {
+                            b.bg(rgb(colors.selected)).text_color(rgb(colors.accent))
+                        })
+                        .on_click(cx.listener(move |this, _, window, cx| {
+                            if this.data_busy || this.shutting_down {
+                                return;
+                            }
+                            if let Some(s) = &mut this.settings {
+                                s.page = target;
+                                window.focus(&s.focus);
+                                cx.notify()
+                            }
+                        }))
+                }),
+            );
+        let content = match page {
+            Page::Appearance => self.appearance_page(cx).into_any_element(),
+            Page::Data => self.settings_data_page(cx).into_any_element(),
+            Page::About => self.settings_about_page(cx).into_any_element(),
+        };
         div()
             .size_full()
-            .min_w_0()
-            .min_h_0()
             .flex()
             .flex_col()
+            .min_h_0()
             .track_focus(&settings.focus)
             .capture_key_down(cx.listener(Self::settings_key_down))
             .child(
                 div()
-                    .id("settings-scroll")
-                    .debug_selector(|| "settings-page".into())
-                    .flex_1()
-                    .min_h_0()
-                    .p_4()
-                    .overflow_y_scroll()
+                    .h(px(60.))
+                    .flex_shrink_0()
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .px_4()
+                    .border_b_1()
+                    .border_color(rgb(colors.border))
                     .child(
                         div()
-                            .flex()
-                            .flex_col()
-                            .gap_3()
-                            .child(div().text_2xl().child("Terminal theme"))
-                            .child(
-                                div()
-                                    .text_color(rgb(CARBON.muted))
-                                    .child("Applies to every terminal tab. Your choice is saved."),
-                            )
-                            .child(div().flex().flex_wrap().gap_2().children(
-                                TerminalPalette::ALL.into_iter().map(|palette| {
-                                    let colors = palette.colors();
-                                    button(
-                                        SharedString::from(format!(
-                                            "settings-palette-{}",
-                                            palette.name()
-                                        )),
-                                        palette.name(),
-                                    )
-                                    .debug_selector(move || {
-                                        format!("settings-palette-{}", palette.name())
-                                    })
-                                    .w(px(164.))
-                                    .p_2()
-                                    .flex()
-                                    .flex_col()
-                                    .gap_2()
-                                    .when(active == palette, |card| {
-                                        card.bg(rgb(CARBON.selected))
-                                            .border_color(rgb(CARBON.accent))
-                                    })
-                                    .child(div().flex().gap_1().children(
-                                        colors.ansi[..8].iter().map(|color| {
-                                            div().size(px(12.)).rounded_sm().bg(rgb(*color))
-                                        }),
-                                    ))
-                                    .on_click(cx.listener(
-                                        move |this, _, _, cx| {
-                                            this.choose_terminal_theme(palette, cx);
-                                        },
-                                    ))
-                                }),
-                            ))
-                            .children(settings.error.iter().map(|error| {
-                                div().text_color(rgb(CARBON.danger)).child(error.clone())
-                            }))
-                            .child(
-                                div()
-                                    .font_weight(FontWeight::SEMIBOLD)
-                                    .child("Live preview"),
-                            )
-                            .child(
-                                div()
-                                    .id("settings-preview")
-                                    .debug_selector(|| "settings-preview".into())
-                                    .h(px(180.))
-                                    .flex_shrink_0()
-                                    .border_1()
-                                    .border_color(rgb(CARBON.border))
-                                    .child(settings.preview.clone()),
+                            .text_2xl()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .child("Settings"),
+                    )
+                    .child(
+                        quiet("settings-back", "‹  Back to workspace")
+                            .debug_selector(|| "settings-back".into())
+                            .on_click(
+                                cx.listener(|this, _, window, cx| this.close_settings(window, cx)),
                             ),
                     ),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_1()
+                    .min_h_0()
+                    .when(narrow, |d| d.flex_col())
+                    .child(nav)
+                    .child(div().flex_1().min_h_0().min_w_0().child(content)),
             )
     }
 }

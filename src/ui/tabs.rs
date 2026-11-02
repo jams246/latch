@@ -1,4 +1,4 @@
-use super::{Latch, button};
+use super::Latch;
 use gpui::{prelude::*, *};
 
 pub(super) mod menu;
@@ -7,6 +7,7 @@ mod scroll_tests;
 
 mod drag;
 mod drag_visuals;
+mod header;
 mod movement;
 pub(super) mod native;
 mod preview;
@@ -14,7 +15,7 @@ pub(super) use drag::TabDrag;
 
 impl Latch {
     pub(super) fn tab_bar(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
-        let colors = super::theme::CARBON;
+        let colors = super::theme::current();
         let reveal_key = self.active.and_then(|index| {
             self.tabs
                 .get(index)
@@ -46,14 +47,10 @@ impl Latch {
             .flex_shrink_0()
             .min_w_0()
             .gap_1()
-            .p_2()
-            .min_h(px(50.))
-            .border_b_2()
-            .border_color(rgb(if self.drop_highlight {
-                colors.accent
-            } else {
-                colors.border
-            }))
+            .h(px(44.))
+            .when(self.drop_highlight, |strip| {
+                strip.border_b_2().border_color(rgb(colors.accent))
+            })
             .overflow_x_scroll()
             .track_scroll(&self.tab_scroll)
             .capture_any_mouse_down(cx.listener(|this, event: &MouseDownEvent, _, _| {
@@ -62,90 +59,7 @@ impl Latch {
                     this.tab_drag.did_drag = false;
                 }
             }))
-            .children(self.tabs.iter().enumerate().map(|(index, tab)| {
-                let tab_id = tab.id.clone();
-                let drag_id = tab.id.clone();
-                div()
-                    .id(SharedString::from(format!("tab-header-{}", tab.id)))
-                    .capture_any_mouse_down(cx.listener(
-                        move |this, event: &MouseDownEvent, window, cx| {
-                            if event.button == MouseButton::Right {
-                                this.open_tab_menu(&tab_id, event.position, window, cx);
-                                window.prevent_default();
-                                cx.stop_propagation();
-                            }
-                        },
-                    ))
-                    .flex()
-                    .flex_shrink_0()
-                    .opacity(if self.tab_drag.dragging(&tab.id) {
-                        0.45
-                    } else {
-                        1.
-                    })
-                    .items_center()
-                    .rounded_md()
-                    .border_1()
-                    .border_color(rgb(if self.active == Some(index) {
-                        colors.accent
-                    } else {
-                        colors.border
-                    }))
-                    .bg(rgb(if self.active == Some(index) {
-                        colors.selected
-                    } else {
-                        colors.control
-                    }))
-                    .child(
-                        button(SharedString::from(format!("close-{}", tab.id)), "×")
-                            .debug_selector(|| format!("tab-close-{index}"))
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .size(px(32.))
-                            .p_0()
-                            .bg(rgba(0))
-                            .border_color(rgba(0))
-                            .text_size(px(22.))
-                            .text_color(rgb(colors.danger))
-                            .on_click(cx.listener(move |this, event, window, cx| {
-                                if this.tab_drag.did_drag && matches!(event, ClickEvent::Mouse(_)) {
-                                    return;
-                                }
-                                this.close_tab(index, window, cx);
-                            })),
-                    )
-                    .child(
-                        button(
-                            SharedString::from(format!("tab-{}", tab.id)),
-                            tab.name.clone(),
-                        )
-                        .debug_selector(|| format!("tab-name-{index}"))
-                        .px(px(10.))
-                        .bg(rgba(0))
-                        .border_color(rgba(0))
-                        .on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(move |this, _, window, cx| {
-                                if this.active == Some(index) {
-                                    this.begin_tab_move(drag_id.clone(), window, cx);
-                                }
-                            }),
-                        )
-                        .on_click(cx.listener(
-                            move |this, event, window, cx| {
-                                if this.tab_drag.did_drag && matches!(event, ClickEvent::Mouse(_)) {
-                                    return;
-                                }
-                                this.active = Some(index);
-                                if let Some(tab) = this.tabs.get(index) {
-                                    window.focus(&tab.visible_focus(cx));
-                                }
-                                cx.notify();
-                            },
-                        )),
-                    )
-            }));
+            .children((0..self.tabs.len()).map(|index| self.tab_header(index, window, cx)));
         div()
             .relative()
             .w_full()

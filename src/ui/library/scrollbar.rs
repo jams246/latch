@@ -30,11 +30,11 @@ impl Latch {
                     point(bounds.left() + px(2.), bounds.top() + top),
                     size(bounds.size.width - px(4.), height),
                 );
-                window.paint_quad(fill(bounds, rgb(super::super::theme::CARBON.control)));
+                window.paint_quad(fill(bounds, rgb(super::super::theme::current().control)));
                 window.paint_quad(quad(
                     thumb,
                     px(3.),
-                    rgb(super::super::theme::CARBON.muted),
+                    rgb(super::super::theme::current().muted),
                     px(0.),
                     transparent_black(),
                     BorderStyle::default(),
@@ -141,6 +141,20 @@ fn track_click_and_thumb_drag_scroll_connections(cx: &mut TestAppContext) {
                 app.connection_scroll.offset().y,
                 -app.connection_scroll.max_offset().height
             );
+        })
+        .unwrap();
+    let gear = visual.debug_bounds("settings-open").unwrap().center();
+    visual.simulate_click(gear, Default::default());
+    visual.update(|window, cx| window.draw(cx)).clear();
+    let back = visual.debug_bounds("settings-back").unwrap().center();
+    visual.simulate_click(back, Default::default());
+    visual.update(|window, cx| window.draw(cx)).clear();
+    handle
+        .read_with(&visual, |app, _| {
+            assert_eq!(
+                app.connection_scroll.offset().y,
+                -app.connection_scroll.max_offset().height
+            )
         })
         .unwrap();
     visual.simulate_mouse_down(bottom, MouseButton::Left, Default::default());

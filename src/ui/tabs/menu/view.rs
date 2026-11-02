@@ -1,5 +1,5 @@
 use super::Action;
-use crate::ui::{Latch, TabContent, button, theme::CARBON};
+use crate::ui::{Latch, TabContent, button, theme::current};
 use gpui::{prelude::*, *};
 
 impl Latch {
@@ -49,8 +49,8 @@ impl Latch {
                             .flex_col()
                             .rounded_md()
                             .border_1()
-                            .border_color(rgb(CARBON.border))
-                            .bg(rgb(CARBON.panel))
+                            .border_color(rgb(current().border))
+                            .bg(rgb(current().panel))
                             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                             .on_mouse_down(MouseButton::Right, |_, _, cx| cx.stop_propagation())
                             .capture_key_down(cx.listener(Self::tab_menu_key_down))
@@ -79,7 +79,7 @@ impl Latch {
                                             .debug_selector(move || id.into())
                                             .track_focus(focus)
                                             .rounded_none()
-                                            .bg(rgb(CARBON.panel))
+                                            .bg(rgb(current().panel))
                                             .py_2()
                                             .when(action != Action::Close && !enabled, |row| {
                                                 row.opacity(0.35).tab_index(-1)

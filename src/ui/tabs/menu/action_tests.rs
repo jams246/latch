@@ -89,7 +89,7 @@ fn duplicate_guards_and_source_states_use_existing_connection_flow(cx: &mut Test
 }
 
 #[gpui::test]
-fn close_resolves_stable_id_after_index_shift_and_last_tab_restores_sidebar_focus(
+fn close_resolves_stable_id_after_index_shift_and_last_tab_restores_search_focus(
     cx: &mut TestAppContext,
 ) {
     let (handle, mut visual) = fixture(cx);
@@ -115,9 +115,9 @@ fn close_resolves_stable_id_after_index_shift_and_last_tab_restores_sidebar_focu
             );
             app.tabs.push(tab);
             app.active = Some(0);
-            app.sidebar_collapsed = true;
+
             app.close_tab(0, window, cx);
-            assert!(app.sidebar_toggle_focus.is_focused(window));
+            assert!(app.connection_search.read(cx).focus.is_focused(window));
         })
         .unwrap();
 }

@@ -47,6 +47,7 @@ fn only_matching_live_sftp_tabs_can_persist_local_preferences(cx: &mut TestAppCo
             let (_, events) = std::sync::mpsc::channel();
             let (_, prompts) = tokio::sync::mpsc::channel(1);
             app.tabs.push(Tab {
+                header_focus: cx.focus_handle().tab_stop(false),
                 id: "live-tab".into(),
                 connection: connection.clone(),
                 name: connection.name.clone(),

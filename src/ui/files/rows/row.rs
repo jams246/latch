@@ -4,7 +4,7 @@ use super::{
     values::{cell, display_size, modified},
 };
 use crate::ui::files::pane::{Side, entry_type, file_size};
-use crate::ui::theme::CARBON;
+use crate::ui::theme::current;
 use gpui::{prelude::*, *};
 use latch::sftp::Entry;
 use std::sync::Arc;
@@ -32,23 +32,23 @@ impl Files {
             .focusable()
             .tab_index(0)
             .when(selected, |row| {
-                row.bg(rgb(CARBON.selected))
-                    .border_color(rgb(CARBON.accent))
+                row.bg(rgb(current().selected))
+                    .border_color(rgb(current().accent))
             })
             .hover(move |row| {
                 row.bg(rgb(if selected {
-                    CARBON.selected
+                    current().selected
                 } else {
-                    CARBON.hover
+                    current().hover
                 }))
             })
             .focus(move |row| {
                 row.bg(rgb(if selected {
-                    CARBON.selected
+                    current().selected
                 } else {
-                    CARBON.hover
+                    current().hover
                 }))
-                .border_color(rgb(CARBON.accent))
+                .border_color(rgb(current().accent))
             })
             .when(navigable, |row| row.cursor_pointer())
             .on_mouse_down(
@@ -95,8 +95,11 @@ impl Files {
             .cursor_pointer()
             .focusable()
             .tab_index(0)
-            .hover(move |row| row.bg(rgb(CARBON.hover)))
-            .focus(move |row| row.bg(rgb(CARBON.hover)).border_color(rgb(CARBON.accent)))
+            .hover(move |row| row.bg(rgb(current().hover)))
+            .focus(move |row| {
+                row.bg(rgb(current().hover))
+                    .border_color(rgb(current().accent))
+            })
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, event: &MouseDownEvent, _, cx| {
@@ -141,8 +144,8 @@ fn row(id: impl Into<ElementId>) -> Stateful<Div> {
         .flex_shrink_0()
         .text_sm()
         .border_b_1()
-        .border_color(rgb(CARBON.border))
-        .text_color(rgb(CARBON.text))
+        .border_color(rgb(current().border))
+        .text_color(rgb(current().text))
 }
 
 fn name(value: String, icon: AnyElement) -> Div {

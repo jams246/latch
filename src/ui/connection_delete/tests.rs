@@ -51,6 +51,9 @@ fn draw(handle: WindowHandle<Latch>, cx: &mut VisualTestContext) {
 }
 
 fn open_delete(handle: WindowHandle<Latch>, cx: &mut VisualTestContext) {
+    let manage = cx.debug_bounds("manage-all-first").unwrap().center();
+    cx.simulate_click(manage, Default::default());
+    draw(handle, cx);
     let position = cx.debug_bounds("delete-all-first").unwrap().center();
     cx.simulate_click(position, Default::default());
     draw(handle, cx);

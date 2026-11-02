@@ -5,7 +5,7 @@ const LINE_HEIGHT: Pixels = px(20.);
 
 impl Input {
     fn layout_text(&mut self, bounds: Bounds<Pixels>, window: &mut Window) {
-        let palette = crate::ui::theme::CARBON;
+        let palette = crate::ui::theme::current();
         let text = if self.masked {
             "•".repeat(self.value.chars().count())
         } else {
@@ -51,7 +51,7 @@ impl Input {
             return;
         };
         let focused = self.focus.is_focused(window) && !self.disabled;
-        let palette = crate::ui::theme::CARBON;
+        let palette = crate::ui::theme::current();
         let origin = point(bounds.left() - self.scroll, bounds.top());
         window.with_content_mask(Some(ContentMask { bounds }), |window| {
             if focused && !self.selection.is_empty() {
@@ -82,7 +82,7 @@ impl Input {
 
 impl Render for Input {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let palette = crate::ui::theme::CARBON;
+        let palette = crate::ui::theme::current();
         let entity = cx.entity();
         let painted = entity.clone();
         let focus = self.focus.clone().tab_index(0).tab_stop(!self.disabled);

@@ -1,6 +1,9 @@
 mod about;
 #[cfg(test)]
 mod about_tests;
+mod appearance;
+#[cfg(test)]
+mod appearance_tests;
 mod data;
 #[cfg(test)]
 mod data_tests;
@@ -29,7 +32,7 @@ pub(super) struct Settings {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Page {
     About,
-    Terminal,
+    Appearance,
     Data,
 }
 
@@ -43,10 +46,10 @@ impl Latch {
             focus: cx.focus_handle().tab_stop(false),
             preview: preview::new(cx),
             error: None,
-            page: Page::About,
+            page: Page::Appearance,
             message: None,
         });
-        settings.page = Page::About;
+        settings.page = Page::Appearance;
         window.focus(&settings.focus);
         cx.notify();
     }
@@ -60,18 +63,16 @@ impl Latch {
             .active
             .and_then(|index| self.tabs.get(index))
             .map(|tab| tab.visible_focus(cx))
-            .unwrap_or_else(|| {
-                if self.sidebar_collapsed {
-                    self.sidebar_toggle_focus.clone()
-                } else {
-                    self.connection_search.read(cx).focus.clone()
-                }
-            });
+            .unwrap_or_else(|| self.connection_search.read(cx).focus.clone());
         window.focus(&focus);
         cx.notify();
     }
 
-    fn choose_terminal_theme(&mut self, palette: TerminalPalette, cx: &mut Context<Self>) {
+    pub(super) fn choose_terminal_theme(
+        &mut self,
+        palette: TerminalPalette,
+        cx: &mut Context<Self>,
+    ) {
         if self.data_busy || self.shutting_down {
             return;
         }

@@ -68,6 +68,7 @@ impl Latch {
         };
         let (transport, events) = Transport::new(session, event_rx, input_rx, state, &self.runtime);
         let tab = Tab {
+            header_focus: cx.focus_handle().tab_stop(false),
             id: uuid::Uuid::new_v4().to_string(),
             name: match kind {
                 SessionKind::Terminal => connection.name.clone(),

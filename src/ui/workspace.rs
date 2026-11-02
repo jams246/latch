@@ -4,7 +4,7 @@ use latch::ssh::State;
 
 impl Latch {
     pub(super) fn workspace(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
-        let colors = super::theme::CARBON;
+        let colors = super::theme::current();
         let reconnect = self.reconnect_view(window, cx);
         if let Some(index) = self.active.filter(|i| *i < self.tabs.len()) {
             let tab = &self.tabs[index];
@@ -28,15 +28,31 @@ impl Latch {
                         .justify_between()
                         .p_2()
                         .bg(rgb(colors.panel))
-                        .child(format!(
-                            "{} · {}",
-                            tab.name,
-                            if tab.closing {
-                                "Disconnecting…"
-                            } else {
-                                state_label(tab.state)
-                            }
-                        ))
+                        .child(
+                            div()
+                                .min_w_0()
+                                .flex()
+                                .items_center()
+                                .gap_2()
+                                .child(
+                                    div()
+                                        .truncate()
+                                        .font_family("Cascadia Mono")
+                                        .text_sm()
+                                        .child(tab.destination.clone()),
+                                )
+                                .child(
+                                    div()
+                                        .flex_shrink_0()
+                                        .text_xs()
+                                        .text_color(rgb(colors.muted))
+                                        .child(if tab.closing {
+                                            "Disconnecting…"
+                                        } else {
+                                            state_label(tab.state)
+                                        }),
+                                ),
+                        )
                         .child(
                             div()
                                 .flex()
@@ -92,21 +108,7 @@ impl Latch {
                 .child(reconnect)
                 .into_any_element()
         } else {
-            div()
-                .flex()
-                .flex_col()
-                .flex_1()
-                .items_center()
-                .justify_center()
-                .gap_3()
-                .child(div().text_3xl().child("Latch"))
-                .child("Save a connection. Open a terminal or SFTP tab.")
-                .child(
-                    div()
-                        .text_color(rgb(colors.muted))
-                        .child("Independent tabs · Native terminal · SFTP"),
-                )
-                .into_any_element()
+            self.connection_library(window, cx).into_any_element()
         }
     }
 }

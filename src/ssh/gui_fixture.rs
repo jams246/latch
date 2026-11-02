@@ -85,6 +85,9 @@ async fn gui_server() {
         ),
     )
     .unwrap();
+    let local = directory.join("local");
+    std::fs::create_dir(&local).unwrap();
+    std::fs::write(local.join("sample.txt"), "Synthetic transfer sample").unwrap();
     for (name, auth) in [
         ("Alpha Password", AuthMethod::Password),
         (
@@ -105,7 +108,9 @@ async fn gui_server() {
         let mut connection =
             Connection::new(name.into(), "127.0.0.1".into(), "synthetic".into(), auth);
         connection.port = fixture.port;
+        let id = connection.id.clone();
         store.upsert(connection).unwrap();
+        store.set_local_directory(&id, &local).unwrap();
     }
     let ready = serde_json::json!({
         "port": fixture.port,

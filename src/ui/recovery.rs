@@ -1,4 +1,4 @@
-use super::{button, options, theme::CARBON};
+use super::{button, options, theme::current};
 use gpui::{prelude::*, *};
 use latch::storage::Store;
 use std::{io, path::PathBuf, sync::Arc};
@@ -130,8 +130,8 @@ impl Render for Recovery {
             .flex_col()
             .gap_3()
             .p_4()
-            .bg(rgb(CARBON.background))
-            .text_color(rgb(CARBON.text))
+            .bg(rgb(current().background))
+            .text_color(rgb(current().text))
             .track_focus(&self.focus)
             .on_key_down(cx.listener(|_, event: &KeyDownEvent, window, cx| {
                 if event.keystroke.key == "tab" {
@@ -145,19 +145,19 @@ impl Render for Recovery {
                 }
             }))
             .child(div().text_2xl().child("Cannot open saved data"))
-            .child(div().text_color(rgb(CARBON.danger)).child(self.cause.clone()))
+            .child(div().text_color(rgb(current().danger)).child(self.cause.clone()))
             .child(
-                div().text_color(rgb(CARBON.muted)).child(
+                div().text_color(rgb(current().muted)).child(
                     "Latch has not reset your data. Storage files may be damaged, unavailable or protected for a different Windows account or computer.",
                 ),
             )
-            .child(div().text_color(rgb(CARBON.muted)).child(if self.allow_import {
+            .child(div().text_color(rgb(current().muted)).child(if self.allow_import {
                 "Import a previously exported JSON backup to recover, or exit and investigate the existing files."
             } else {
                 "Another Latch process is using this profile. Close it before opening Latch again."
             }))
             .children(self.error.iter().map(|error| {
-                div().text_color(rgb(CARBON.danger)).child(error.clone())
+                div().text_color(rgb(current().danger)).child(error.clone())
             }))
             .children(self.busy.then(|| div().child("Working...")))
             .child(div().flex_1())

@@ -2,7 +2,7 @@ use super::{Page, tests::fixture};
 use gpui::TestAppContext;
 
 #[gpui::test]
-fn about_is_first_and_selected_each_time_settings_opens(cx: &mut TestAppContext) {
+fn appearance_is_first_and_about_remains_available(cx: &mut TestAppContext) {
     let mut fixture = fixture(cx);
     fixture.open_settings();
     let about = fixture.visual.debug_bounds("settings-about").unwrap();
@@ -11,19 +11,13 @@ fn about_is_first_and_selected_each_time_settings_opens(cx: &mut TestAppContext)
         .debug_bounds("settings-terminal-theme")
         .unwrap();
     let data = fixture.visual.debug_bounds("settings-data").unwrap();
-    assert!(about.bottom() < terminal.top() && terminal.bottom() < data.top());
-    assert!(
-        fixture
-            .visual
-            .debug_bounds("settings-about-version")
-            .is_some()
-    );
-    assert!(fixture.visual.debug_bounds("settings-page").is_none());
+    assert!(terminal.bottom() < data.top() && data.bottom() < about.top());
+    assert!(fixture.visual.debug_bounds("settings-page").is_some());
     fixture.select_terminal_theme();
     fixture
         .handle
         .read_with(&fixture.visual, |app, _| {
-            assert!(app.settings.as_ref().unwrap().page == Page::Terminal);
+            assert!(app.settings.as_ref().unwrap().page == Page::Appearance);
         })
         .unwrap();
     assert!(fixture.visual.debug_bounds("settings-page").is_some());
@@ -31,13 +25,13 @@ fn about_is_first_and_selected_each_time_settings_opens(cx: &mut TestAppContext)
         .handle
         .update(&mut fixture.visual, |app, window, cx| {
             app.open_settings(window, cx);
-            assert!(app.settings.as_ref().unwrap().page == Page::About);
+            assert!(app.settings.as_ref().unwrap().page == Page::Appearance);
             app.close_settings(window, cx);
         })
         .unwrap();
     fixture.draw();
     fixture.open_settings();
-    assert!(fixture.visual.debug_bounds("settings-about-page").is_some());
+    assert!(fixture.visual.debug_bounds("settings-page").is_some());
     fixture
         .visual
         .simulate_click(data.center(), Default::default());
@@ -66,7 +60,7 @@ fn about_navigation_respects_operation_guards_and_preserves_errors(cx: &mut Test
             app.settings.as_mut().unwrap().error = Some("Synthetic save error".into());
             app.data_busy = true;
             app.open_settings(window, cx);
-            assert!(app.settings.as_ref().unwrap().page == Page::Terminal);
+            assert!(app.settings.as_ref().unwrap().page == Page::Appearance);
         })
         .unwrap();
     let about = fixture
@@ -78,14 +72,14 @@ fn about_navigation_respects_operation_guards_and_preserves_errors(cx: &mut Test
     fixture
         .handle
         .update(&mut fixture.visual, |app, window, cx| {
-            assert!(app.settings.as_ref().unwrap().page == Page::Terminal);
+            assert!(app.settings.as_ref().unwrap().page == Page::Appearance);
             app.data_busy = false;
             app.shutting_down = true;
             app.open_settings(window, cx);
-            assert!(app.settings.as_ref().unwrap().page == Page::Terminal);
+            assert!(app.settings.as_ref().unwrap().page == Page::Appearance);
             app.shutting_down = false;
             app.open_settings(window, cx);
-            assert!(app.settings.as_ref().unwrap().page == Page::About);
+            assert!(app.settings.as_ref().unwrap().page == Page::Appearance);
             assert_eq!(
                 app.settings.as_ref().unwrap().error.as_deref(),
                 Some("Synthetic save error")
@@ -93,5 +87,5 @@ fn about_navigation_respects_operation_guards_and_preserves_errors(cx: &mut Test
         })
         .unwrap();
     fixture.draw();
-    assert!(fixture.visual.debug_bounds("settings-about-page").is_some());
+    assert!(fixture.visual.debug_bounds("settings-page").is_some());
 }

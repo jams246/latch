@@ -1,5 +1,5 @@
 use super::*;
-use crate::ui::{button, theme::CARBON};
+use crate::ui::{button, theme::current};
 use gpui::prelude::*;
 
 impl Latch {
@@ -17,13 +17,9 @@ impl Latch {
             .flex_col()
             .gap_3()
             .overflow_y_scroll()
-            .track_focus(&settings.focus)
-            .capture_key_down(cx.listener(Self::settings_key_down))
             .child(div().text_2xl().child("Data"))
-            .child(div().text_color(rgb(CARBON.muted)).child(
-                "Export a portable backup or replace your saved data with an existing export.",
-            ))
-            .child(div().text_color(rgb(CARBON.muted)).child(
+            .child(div().font_weight(FontWeight::SEMIBOLD).child("Portable backup"))
+            .child(div().text_color(rgb(current().muted)).child(
                 "Exports are unencrypted JSON. They contain connection details, settings and key-file paths, but no passwords or private keys. Keep them somewhere safe.",
             ))
             .child(
@@ -34,6 +30,8 @@ impl Latch {
                         this.export_data(window, cx);
                     })),
             )
+            .child(div().mt_2().font_weight(FontWeight::SEMIBOLD).child("Restore from backup"))
+            .child(div().text_color(rgb(current().muted)).child("Import replaces your saved connections and settings."))
             .child(
                 button("settings-import", "Import data")
                     .debug_selector(|| "settings-import".into())
@@ -43,16 +41,16 @@ impl Latch {
                     })),
             )
             .children((!self.can_import(cx) && !self.data_busy).then(|| {
-                div().text_color(rgb(CARBON.muted)).child(
+                div().text_color(rgb(current().muted)).child(
                     "Close other Latch windows and all terminal and SFTP tabs, then wait for saves and connections to finish before importing.",
                 )
             }))
             .children(self.data_busy.then(|| div().child("Working...")))
             .children(settings.message.iter().map(|message| {
-                div().text_color(rgb(CARBON.accent)).child(message.clone())
+                div().text_color(rgb(current().accent)).child(message.clone())
             }))
             .children(settings.error.iter().map(|error| {
-                div().text_color(rgb(CARBON.danger)).child(error.clone())
+                div().text_color(rgb(current().danger)).child(error.clone())
             })))
     }
 }

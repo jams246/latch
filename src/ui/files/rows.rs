@@ -6,7 +6,7 @@ mod row;
 pub(super) mod values;
 
 use super::{Files, pane::Side};
-use crate::ui::theme::CARBON;
+use crate::ui::theme::current;
 use gpui::{prelude::*, *};
 
 const TABLE_WIDTH: f32 = 374.;
@@ -47,7 +47,7 @@ impl Files {
             .min_w(px(TABLE_WIDTH))
             .w_full()
             .overflow_y_scroll()
-            .bg(rgb(CARBON.surface))
+            .bg(rgb(current().surface))
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, _, _, cx| {

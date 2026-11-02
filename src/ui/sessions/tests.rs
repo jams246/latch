@@ -1,7 +1,7 @@
 use crate::ui::{Latch, SessionKind, Tab, TabContent, files::Files};
 use gpui::{
-    AppContext, Context, Focusable, IntoElement, MouseButton, MouseDownEvent, MouseUpEvent,
-    TestAppContext, VisualTestContext, WindowHandle, point, px, size,
+    AppContext, Context, Focusable, IntoElement, TestAppContext, VisualTestContext, WindowHandle,
+    point, px, size,
 };
 use latch::{
     ssh,
@@ -49,6 +49,7 @@ pub(in crate::ui) fn synthetic_tab(
     let (_, prompts) = tokio::sync::mpsc::channel(1);
     (
         Tab {
+            header_focus: cx.focus_handle().tab_stop(false),
             id: uuid::Uuid::new_v4().to_string(),
             name: connection.name.clone(),
             destination: format!(
@@ -178,7 +179,7 @@ fn closing_sftp_keeps_terminal_tab_and_focuses_terminal(cx: &mut TestAppContext)
 }
 
 #[gpui::test]
-fn connection_row_opens_one_terminal_only_on_double_click(cx: &mut TestAppContext) {
+fn connection_row_opens_one_terminal_on_single_click(cx: &mut TestAppContext) {
     let (handle, connection) = fixture(cx);
     let root = handle.root(cx).unwrap();
     let cx = VisualTestContext::from_window(*handle, cx).into_mut();
@@ -187,23 +188,6 @@ fn connection_row_opens_one_terminal_only_on_double_click(cx: &mut TestAppContex
     });
     let position = cx.debug_bounds("all-connection").unwrap().origin + point(px(10.), px(10.));
     cx.simulate_click(position, Default::default());
-    handle
-        .read_with(cx, |app, _| assert!(app.tabs.is_empty()))
-        .unwrap();
-
-    cx.simulate_event(MouseDownEvent {
-        position,
-        button: MouseButton::Left,
-        click_count: 2,
-        modifiers: Default::default(),
-        first_mouse: false,
-    });
-    cx.simulate_event(MouseUpEvent {
-        position,
-        button: MouseButton::Left,
-        click_count: 2,
-        modifiers: Default::default(),
-    });
     handle
         .read_with(cx, |app, _| {
             assert_eq!(app.tabs.len(), 1);

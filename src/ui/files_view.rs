@@ -1,5 +1,5 @@
 use super::files::{Files, pane::Side};
-use crate::ui::theme::CARBON;
+use crate::ui::theme::current;
 use gpui::{prelude::*, *};
 
 impl Render for Files {
@@ -31,8 +31,8 @@ impl Render for Files {
             .size_full()
             .p_3()
             .gap_3()
-            .bg(rgb(CARBON.background))
-            .text_color(rgb(CARBON.text))
+            .bg(rgb(current().background))
+            .text_color(rgb(current().text))
             .children((!errors.is_empty()).then(|| {
                 div()
                     .id("file-error")
@@ -43,8 +43,8 @@ impl Render for Files {
                     .flex_shrink_0()
                     .max_h(px(140.))
                     .overflow_y_scroll()
-                    .bg(rgb(CARBON.surface))
-                    .text_color(rgb(CARBON.danger))
+                    .bg(rgb(current().surface))
+                    .text_color(rgb(current().danger))
                     .child(div().flex_1().min_w_0().child(errors))
                     .child(
                         super::button("dismiss-file-error", "Dismiss")

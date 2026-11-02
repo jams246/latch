@@ -56,6 +56,7 @@ fn pending_host(
                     }
                 };
             app.tabs.push(Tab {
+                header_focus: cx.focus_handle().tab_stop(false),
                 id: host.into(),
                 connection: Connection::new(
                     host.into(),

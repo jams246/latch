@@ -1,4 +1,4 @@
-use crate::ui::theme::CARBON;
+use crate::ui::theme::current;
 use windows::{
     Win32::{
         Foundation::{COLORREF, HWND, RECT},
@@ -40,9 +40,14 @@ pub(super) fn draw(hwnd: HWND, state: &mut Paint) {
             let _ = windows::Win32::UI::WindowsAndMessaging::GetClientRect(hwnd, &mut bounds);
             let clear = Object(CreateSolidBrush(COLORREF(0xff00ff)).into());
             FillRect(dc, &bounds, HBRUSH(clear.0.0));
-            let background = Object(CreateSolidBrush(color(CARBON.selected)).into());
+            let background = Object(CreateSolidBrush(color(current().selected)).into());
             let accent = Object(
-                CreatePen(PS_SOLID, pixels(1, state.dpi).max(1), color(CARBON.accent)).into(),
+                CreatePen(
+                    PS_SOLID,
+                    pixels(1, state.dpi).max(1),
+                    color(current().accent),
+                )
+                .into(),
             );
             SelectObject(dc, background.0);
             SelectObject(dc, accent.0);
@@ -78,7 +83,7 @@ pub(super) fn draw(hwnd: HWND, state: &mut Paint) {
                 SelectObject(dc, font.0);
             }
             SetBkMode(dc, TRANSPARENT);
-            SetTextColor(dc, color(CARBON.text));
+            SetTextColor(dc, color(current().text));
             let mut text = RECT {
                 left: pixels(12, state.dpi),
                 top: 0,
@@ -93,7 +98,12 @@ pub(super) fn draw(hwnd: HWND, state: &mut Paint) {
             );
             if !state.allowed {
                 let danger = Object(
-                    CreatePen(PS_SOLID, pixels(2, state.dpi).max(1), color(CARBON.danger)).into(),
+                    CreatePen(
+                        PS_SOLID,
+                        pixels(2, state.dpi).max(1),
+                        color(current().danger),
+                    )
+                    .into(),
                 );
                 SelectObject(dc, danger.0);
                 let left = bounds.right - pixels(28, state.dpi);

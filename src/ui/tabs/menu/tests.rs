@@ -43,6 +43,11 @@ pub(super) fn open(visual: &mut VisualTestContext, index: usize) {
         .debug_bounds(["tab-name-0", "tab-name-1", "tab-name-2"][index])
         .unwrap()
         .center();
+    let strip = visual.debug_bounds("tabs").unwrap();
+    assert!(
+        strip.contains(&position),
+        "tab {index} center {position:?} outside {strip:?}"
+    );
     visual.simulate_mouse_down(position, MouseButton::Right, Default::default());
     visual.simulate_mouse_up(position, MouseButton::Right, Default::default());
     draw(visual);

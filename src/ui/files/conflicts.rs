@@ -1,5 +1,5 @@
 use super::Files;
-use crate::ui::{button, theme::CARBON};
+use crate::ui::{button, theme::current};
 use gpui::{prelude::*, *};
 use latch::sftp::{Conflict, ConflictChoice};
 use std::cell::Cell;
@@ -123,7 +123,7 @@ impl Files {
             .flex()
             .items_center()
             .justify_center()
-            .bg(rgba(CARBON.overlay))
+            .bg(rgba(current().overlay))
             .child(
                 div()
                     .id("transfer-conflict-dialog")
@@ -137,8 +137,8 @@ impl Files {
                     .flex_col()
                     .rounded_lg()
                     .overflow_hidden()
-                    .bg(rgb(CARBON.panel))
-                    .text_color(rgb(CARBON.text))
+                    .bg(rgb(current().panel))
+                    .text_color(rgb(current().text))
                     .on_key_down(cx.listener(move |this, event: &KeyDownEvent, window, cx| {
                         match event.keystroke.key.as_str() {
                             "escape" => this.cancel_conflict(id, window, cx),
@@ -187,12 +187,12 @@ impl Files {
                                     .text_sm()
                                     .child(format!("Destination: {}", dialog.request.destination)),
                             )
-                            .child(div().text_sm().text_color(rgb(CARBON.muted)).child(
+                            .child(div().text_sm().text_color(rgb(current().muted)).child(
                                 "Replace overwrites the destination. Duplicate adds a number to the name.",
                             ))
                             .when(dialog.request.can_merge, |view| {
                                 view.child(
-                                    div().text_sm().text_color(rgb(CARBON.muted)).child(
+                                    div().text_sm().text_color(rgb(current().muted)).child(
                                         "Merge combines folders and numbers files that already exist.",
                                     ),
                                 )
@@ -212,7 +212,7 @@ impl Files {
                                                 .flex_1()
                                                 .text_center()
                                                 .when(choice == ConflictChoice::Replace, |button| {
-                                                    button.border_color(rgb(CARBON.danger))
+                                                    button.border_color(rgb(current().danger))
                                                 })
                                                 .when(!enabled, |button| button.opacity(0.35).tab_index(-1))
                                                 .on_click(cx.listener(move |this, _, window, cx| {

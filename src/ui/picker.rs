@@ -1,4 +1,4 @@
-use super::{Latch, SessionKind, button};
+use super::{Latch, SessionKind};
 use gpui::{prelude::*, *};
 use latch::storage::Connection;
 
@@ -22,45 +22,50 @@ impl Latch {
         &self,
         connection: &Connection,
         section: &'static str,
-        cx: &mut Context<Self>,
+        initial: Option<String>,
+        cx: &Context<Self>,
     ) -> AnyElement {
-        let colors = super::theme::CARBON;
-        let connect = connection.clone();
-        let double_click = connection.clone();
+        use super::{
+            choices::Choice,
+            controls::{Hint, icon, quiet},
+        };
+        let colors = super::theme::current();
+        let shell = connection.clone();
         let sftp = connection.clone();
-        let edit = connection.clone();
-        let delete = connection.clone();
         let id = connection.id.clone();
         let name = connection.name.clone();
         let address = format!(
             "{}@{}:{}",
             connection.username, connection.host, connection.port
         );
+        let menu_id = id.clone();
         div()
-            .id(SharedString::from(format!("{section}-{id}")))
-            .debug_selector(|| format!("{section}-connection"))
             .flex()
-            .flex_col()
+            .items_center()
+            .h(px(39.))
             .flex_shrink_0()
-            .gap_1()
-            .p_2()
-            .rounded_md()
-            .bg(rgb(colors.surface))
-            .on_click(cx.listener(move |this, event: &ClickEvent, window, cx| {
-                if event.click_count() == 2 {
-                    this.connect(double_click.clone(), SessionKind::Terminal, window, cx);
-                }
-            }))
+            .border_b_1()
+            .border_color(rgb(colors.surface))
             .child(
                 div()
-                    .id(SharedString::from(format!("details-{section}-{id}")))
+                    .w(px(42.))
+                    .flex_shrink_0()
+                    .text_lg()
+                    .text_color(rgb(colors.accent))
+                    .child(initial.unwrap_or_default()),
+            )
+            .child(
+                quiet(SharedString::from(format!("open-{section}-{id}")), "")
+                    .debug_selector(move || format!("{section}-connection"))
                     .flex()
-                    .items_baseline()
-                    .gap_2()
+                    .items_center()
+                    .h_full()
+                    .px_1()
+                    .flex_1()
                     .min_w_0()
                     .child(
                         div()
-                            .max_w(relative(0.5))
+                            .flex_1()
                             .min_w_0()
                             .truncate()
                             .font_weight(FontWeight::SEMIBOLD)
@@ -68,82 +73,56 @@ impl Latch {
                     )
                     .child(
                         div()
-                            .flex_1()
-                            .min_w_0()
+                            .w(relative(0.22))
+                            .min_w(px(44.))
                             .truncate()
+                            .font_family("Cascadia Mono")
                             .text_xs()
                             .text_color(rgb(colors.muted))
-                            .child(address.clone()),
+                            .child(connection.username.clone()),
                     )
-                    .tooltip(move |_, cx| {
-                        cx.new(|_| ConnectionTooltip(name.clone(), address.clone()))
-                            .into()
-                    }),
+                    .tooltip(move |_, cx| cx.new(|_| Hint(name.clone(), address.clone())).into())
+                    .on_click(cx.listener(move |this, e: &ClickEvent, window, cx| {
+                        if e.click_count() == 1 {
+                            this.connect(shell.clone(), SessionKind::Terminal, window, cx)
+                        }
+                    })),
             )
             .child(
-                div()
-                    .id(SharedString::from(format!("actions-{section}-{id}")))
+                quiet(SharedString::from(format!("sftp-{section}-{id}")), "")
+                    .w(px(72.))
+                    .h_full()
                     .flex()
                     .gap_1()
-                    .on_click(|_, _, cx| cx.stop_propagation())
-                    .child(
-                        button(
-                            SharedString::from(format!("connect-{section}-{id}")),
-                            "Terminal",
+                    .items_center()
+                    .justify_center()
+                    .px_1()
+                    .text_color(rgb(colors.accent))
+                    .child(icon("\u{ed41}"))
+                    .child("SFTP")
+                    .debug_selector(move || format!("sftp-{section}"))
+                    .on_click(cx.listener(move |this, e: &ClickEvent, window, cx| {
+                        if e.click_count() == 1 {
+                            this.connect(sftp.clone(), SessionKind::Sftp, window, cx)
+                        }
+                    })),
+            )
+            .child(
+                quiet(SharedString::from(format!("manage-{section}-{id}")), "⋯")
+                    .w(px(32.))
+                    .px_1()
+                    .text_center()
+                    .debug_selector(move || format!("manage-{section}-{menu_id}"))
+                    .on_click(cx.listener(move |this, e: &ClickEvent, window, cx| {
+                        this.show_choices(
+                            [Choice::Edit(id.clone()), Choice::Delete(id.clone())],
+                            e.position(),
+                            window,
+                            cx,
                         )
-                        .on_click(cx.listener(
-                            move |this, _, window, cx| {
-                                this.connect(connect.clone(), SessionKind::Terminal, window, cx)
-                            },
-                        )),
-                    )
-                    .child(
-                        button(SharedString::from(format!("sftp-{section}-{id}")), "SFTP")
-                            .on_click(cx.listener(move |this, _, window, cx| {
-                                this.connect(sftp.clone(), SessionKind::Sftp, window, cx)
-                            })),
-                    )
-                    .child(
-                        button(SharedString::from(format!("edit-{section}-{id}")), "Edit")
-                            .on_click(cx.listener(move |this, _, window, cx| {
-                                this.edit(Some(edit.clone()), window, cx)
-                            })),
-                    )
-                    .child(
-                        button(
-                            SharedString::from(format!("delete-{section}-{id}")),
-                            "Delete",
-                        )
-                        .text_color(rgb(colors.danger))
-                        .debug_selector(move || format!("delete-{section}-{id}"))
-                        .on_click(cx.listener(
-                            move |this, _, window, cx| {
-                                this.request_connection_delete(delete.clone(), window, cx);
-                            },
-                        )),
-                    ),
+                    })),
             )
             .into_any_element()
-    }
-}
-
-struct ConnectionTooltip(String, String);
-
-impl Render for ConnectionTooltip {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        let colors = super::theme::CARBON;
-        div()
-            .max_w(px(600.))
-            .px_2()
-            .py_1()
-            .rounded_md()
-            .bg(rgb(colors.control))
-            .border_1()
-            .border_color(rgb(colors.border))
-            .text_color(rgb(colors.text))
-            .text_sm()
-            .child(div().child(self.0.clone()))
-            .child(div().text_color(rgb(colors.muted)).child(self.1.clone()))
     }
 }
 

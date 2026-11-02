@@ -1,6 +1,10 @@
 mod auth_dialog;
+mod choices;
 mod connection_delete;
 mod connections;
+mod controls;
+pub use controls::button;
+use controls::dialog_header;
 mod files;
 mod files_view;
 mod host_dialog;
@@ -9,6 +13,7 @@ mod input_handler;
 mod input_paint;
 #[cfg(test)]
 mod input_tests;
+mod library;
 mod lifecycle;
 mod modal;
 mod persistence;
@@ -19,7 +24,6 @@ pub(crate) mod recovery;
 mod session_events;
 mod sessions;
 mod settings;
-mod sidebar;
 mod tabs;
 mod theme;
 mod transport;
@@ -53,8 +57,7 @@ pub struct Latch {
     editor: Option<connections::Editor>,
     connection_delete: Option<connection_delete::DeleteDialog>,
     settings: Option<settings::Settings>,
-    sidebar_collapsed: bool,
-    sidebar_toggle_focus: FocusHandle,
+    popup: Option<choices::Popup>,
     owner: AnyWindowHandle,
     cleanup_sender: std::sync::mpsc::Sender<lifecycle::Completion>,
     cleanup_events: std::sync::mpsc::Receiver<lifecycle::Completion>,
@@ -75,6 +78,7 @@ struct LocalPreference {
 }
 
 struct Tab {
+    header_focus: FocusHandle,
     id: String,
     connection: Connection,
     name: String,
@@ -126,6 +130,7 @@ impl Latch {
         owner: AnyWindowHandle,
         cx: &mut Context<Self>,
     ) -> Self {
+        theme::apply(profile.read(cx).store.app_theme(), cx.window_appearance());
         let directory = profile.read(cx).directory.clone();
         let runtime = profile.read(cx).runtime.clone();
         profile.update(cx, |profile, cx| {
@@ -145,8 +150,17 @@ impl Latch {
         let (cleanup_sender, cleanup_events) = std::sync::mpsc::channel();
         let (preference_sender, preference_events) = std::sync::mpsc::channel();
         let connection_search = cx.new(|cx| input::Input::new("", false, cx));
-        cx.observe(&connection_search, |_, _, cx| cx.notify())
-            .detach();
+        let mut last_query = String::new();
+        cx.observe(&connection_search, move |this, input, cx| {
+            let query = input.read(cx).value.as_str();
+            if last_query != query {
+                last_query.clear();
+                last_query.push_str(query);
+                this.connection_scroll.set_offset(Point::default());
+            }
+            cx.notify();
+        })
+        .detach();
         Self {
             profile,
             pending_saves: 0,
@@ -167,8 +181,7 @@ impl Latch {
             editor: None,
             connection_delete: None,
             settings: None,
-            sidebar_collapsed: false,
-            sidebar_toggle_focus: cx.focus_handle(),
+            popup: None,
             owner,
             cleanup_sender,
             cleanup_events,
@@ -194,41 +207,6 @@ impl Latch {
             && self.editor.is_none()
             && self.connection_delete.is_none()
     }
-}
-
-pub fn button(id: impl Into<ElementId>, text: impl Into<SharedString>) -> Stateful<Div> {
-    let colors = theme::CARBON;
-    div()
-        .id(id)
-        .px_3()
-        .py_1()
-        .rounded_md()
-        .bg(rgb(colors.control))
-        .border_1()
-        .border_color(rgb(colors.border))
-        .text_color(rgb(colors.text))
-        .cursor_pointer()
-        .focusable()
-        .tab_index(0)
-        .focus(move |style| style.border_color(rgb(colors.accent)))
-        .hover(move |style| style.bg(rgb(colors.hover)))
-        .child(text.into())
-}
-
-pub(super) fn dialog_header(title: impl Into<SharedString>) -> Div {
-    let colors = theme::CARBON;
-    div()
-        .w_full()
-        .flex_shrink_0()
-        .px_4()
-        .py_3()
-        .rounded_t_lg()
-        .bg(rgb(colors.control))
-        .border_b_1()
-        .border_color(rgb(colors.border))
-        .text_lg()
-        .font_weight(FontWeight::SEMIBOLD)
-        .child(title.into())
 }
 
 pub fn options(title: &str, width: f32, height: f32, cx: &App) -> WindowOptions {

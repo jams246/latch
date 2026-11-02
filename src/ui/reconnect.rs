@@ -41,7 +41,7 @@ impl Latch {
         }
         let tab_id = tab.id.clone();
         let close_id = tab_id.clone();
-        let colors = super::theme::CARBON;
+        let colors = super::theme::current();
         div()
             .id("reconnect-overlay")
             .absolute()

@@ -85,7 +85,7 @@ impl Latch {
         let Some(dialog) = &self.connection_delete else {
             return div().absolute().into_any_element();
         };
-        let palette = crate::ui::theme::CARBON;
+        let palette = crate::ui::theme::current();
         div()
             .id("connection-delete-overlay")
             .absolute()

@@ -12,6 +12,7 @@ pub(crate) fn start(
     runtime: Arc<tokio::runtime::Runtime>,
     cx: &mut App,
 ) -> anyhow::Result<()> {
+    super::theme::apply(store.app_theme(), cx.window_appearance());
     cx.set_global(store.terminal_theme());
     let profile = cx.new(|_| Profile::new(store, directory, runtime));
     cx.set_global(ActiveProfile(profile.clone()));
@@ -56,7 +57,14 @@ fn open(
     }
     let handle = cx.open_window(options, |window, cx| {
         let owner = window.window_handle();
-        let root = cx.new(|cx| Latch::from_profile(profile, owner, cx));
+        let root = cx.new(|cx| {
+            cx.observe_window_appearance(window, |this: &mut Latch, window, cx| {
+                super::theme::apply(this.store(cx).app_theme(), window.appearance());
+                cx.refresh_windows();
+            })
+            .detach();
+            Latch::from_profile(profile, owner, cx)
+        });
         let weak = root.downgrade();
         window.on_window_should_close(cx, move |window, cx| {
             let bounds = window.window_bounds();

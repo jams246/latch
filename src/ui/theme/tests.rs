@@ -1,4 +1,4 @@
-use super::CARBON;
+use super::{CITRON, CITRON_LIGHT, GRAPHITE, PAPER};
 
 fn luminance(color: u32) -> f64 {
     let [red, green, blue] = [16, 8, 0].map(|shift| {
@@ -19,26 +19,28 @@ fn contrast(foreground: u32, background: u32) -> f64 {
 }
 
 #[test]
-fn carbon_text_meets_normal_text_contrast_on_every_surface() {
-    for (role, foreground) in [
-        ("text", CARBON.text),
-        ("muted", CARBON.muted),
-        ("accent", CARBON.accent),
-        ("danger", CARBON.danger),
-    ] {
-        for background in [
-            CARBON.background,
-            CARBON.panel,
-            CARBON.surface,
-            CARBON.control,
-            CARBON.hover,
-            CARBON.selected,
+fn theme_text_meets_normal_text_contrast_on_every_surface() {
+    for palette in [GRAPHITE, PAPER, CITRON, CITRON_LIGHT] {
+        for (role, foreground) in [
+            ("text", palette.text),
+            ("muted", palette.muted),
+            ("accent", palette.accent),
+            ("danger", palette.danger),
         ] {
-            let ratio = contrast(foreground, background);
-            assert!(
-                ratio >= 4.5,
-                "Carbon {role} on #{background:06x}: {ratio:.2}:1"
-            );
+            for background in [
+                palette.background,
+                palette.panel,
+                palette.surface,
+                palette.control,
+                palette.hover,
+                palette.selected,
+            ] {
+                let ratio = contrast(foreground, background);
+                assert!(
+                    ratio >= 4.5,
+                    "Theme {role} on #{background:06x}: {ratio:.2}:1"
+                );
+            }
         }
     }
 }

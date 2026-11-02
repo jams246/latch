@@ -1,8 +1,8 @@
-use crate::ui::{Latch, theme::CARBON};
+use crate::ui::{Latch, theme::current};
 use gpui::{prelude::*, *};
 
 impl Latch {
-    pub(super) fn settings_about_page(&self, cx: &mut Context<Self>) -> Div {
+    pub(super) fn settings_about_page(&self, _: &mut Context<Self>) -> Div {
         let Some(settings) = &self.settings else {
             return div();
         };
@@ -17,8 +17,6 @@ impl Latch {
                 .flex_col()
                 .gap_3()
                 .overflow_y_scroll()
-                .track_focus(&settings.focus)
-                .capture_key_down(cx.listener(Self::settings_key_down))
                 .child(div().text_2xl().child("About"))
                 .child(
                     div()
@@ -31,7 +29,7 @@ impl Latch {
                     settings
                         .error
                         .iter()
-                        .map(|error| div().text_color(rgb(CARBON.danger)).child(error.clone())),
+                        .map(|error| div().text_color(rgb(current().danger)).child(error.clone())),
                 ),
         )
     }

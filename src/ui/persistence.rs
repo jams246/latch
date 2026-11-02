@@ -102,6 +102,7 @@ impl Profile {
                 this.saves.active = false;
                 let result = match result {
                     Ok(store) => {
+                        super::theme::apply(store.app_theme(), cx.window_appearance());
                         let theme = store.terminal_theme();
                         this.store = store;
                         cx.set_global(theme);

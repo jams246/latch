@@ -5,7 +5,7 @@ impl Latch {
         let Some(editor) = &self.editor else {
             return div().into_any_element();
         };
-        let palette = crate::ui::theme::CARBON;
+        let palette = crate::ui::theme::current();
         let labels = [
             "Display name",
             "Hostname or IP address",

@@ -84,6 +84,7 @@ fn pending_dialog(cx: &mut TestAppContext, kind: SecretKind, session_kind: Sessi
             let (_, events) = std::sync::mpsc::channel();
             let (_, prompts) = mpsc::channel(1);
             app.tabs.push(Tab {
+                header_focus: cx.focus_handle().tab_stop(false),
                 id: "pending-fixture-tab".into(),
                 connection: Connection::new(
                     "Synthetic".into(),
