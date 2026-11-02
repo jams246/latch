@@ -1,6 +1,6 @@
 use crate::ui::{
     Latch, TabContent,
-    controls::{Hint, app_icon, icon, quiet},
+    controls::{Hint, icon, quiet},
     theme::current,
 };
 use gpui::{prelude::*, *};
@@ -74,7 +74,11 @@ impl Latch {
                             .opacity(if focused { 0. } else { 1. })
                             .group_hover(group.clone(), |s| s.opacity(0.))
                             .child(if matches!(tab.content, TabContent::Terminal(_)) {
-                                app_icon().size(px(16.)).into_any_element()
+                                div()
+                                    .font_family("Cascadia Mono")
+                                    .text_sm()
+                                    .child(">_")
+                                    .into_any_element()
                             } else {
                                 icon("\u{ed41}").into_any_element()
                             }),
