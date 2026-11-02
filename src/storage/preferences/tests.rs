@@ -98,3 +98,30 @@ fn invalid_imported_terminal_theme_is_rejected_without_changing_settings() {
     assert_eq!(store.terminal_theme(), TerminalTheme::Carbon);
     assert_eq!(fs::read(&store.path).unwrap(), original);
 }
+
+#[test]
+fn workspace_theme_round_trips_independently_of_terminal_colors() {
+    use crate::storage::AppTheme;
+    let profile = crate::storage::tests_persistence::path("app-colors");
+    let mut store = Store::load(&profile).unwrap();
+    store.set_app_theme(AppTheme::Citron).unwrap();
+    let store = Store::load(&profile).unwrap();
+    assert_eq!(store.app_theme(), AppTheme::Citron);
+    assert_eq!(store.terminal_theme(), TerminalTheme::Classic);
+    let snapshot = store.snapshot().export_json().unwrap();
+    let mut restored =
+        Store::load(crate::storage::tests_persistence::path("import-colors")).unwrap();
+    restored
+        .replace_import(Store::parse_import(&snapshot).unwrap())
+        .unwrap();
+    assert_eq!(restored.app_theme(), AppTheme::Citron);
+    let mut old: serde_json::Value = serde_json::from_slice(&snapshot).unwrap();
+    old["configuration"]
+        .as_object_mut()
+        .unwrap()
+        .remove("app_theme");
+    restored
+        .replace_import(Store::parse_import(&serde_json::to_vec(&old).unwrap()).unwrap())
+        .unwrap();
+    assert_eq!(restored.app_theme(), AppTheme::Graphite);
+}

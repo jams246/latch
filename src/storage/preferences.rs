@@ -24,7 +24,34 @@ pub enum TerminalTheme {
     Midnight,
 }
 
+/// Color scheme for the workspace and dialogs.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AppTheme {
+    /// Neutral charcoal chrome.
+    #[default]
+    Graphite,
+    /// Olive charcoal with a citron accent.
+    Citron,
+}
+
 impl Store {
+    /// Returns the saved workspace color scheme.
+    pub fn app_theme(&self) -> AppTheme {
+        self.configuration.app_theme
+    }
+
+    /// Persists the workspace colors independently of terminal colors.
+    ///
+    /// # Errors
+    /// Returns storage failures without changing the selected colors.
+    pub fn set_app_theme(&mut self, theme: AppTheme) -> io::Result<()> {
+        self.update(|configuration| {
+            configuration.app_theme = theme;
+            Ok(())
+        })
+    }
+
     /// Returns the saved terminal theme.
     pub fn terminal_theme(&self) -> TerminalTheme {
         self.configuration.terminal_theme

@@ -10,8 +10,8 @@ use serde::{
 };
 
 use super::{
-    Configuration, Connection, SortMode, Store, TerminalTheme, WindowSize, files, locking,
-    persistence, portable, recovery, validate,
+    AppTheme, Configuration, Connection, SortMode, Store, TerminalTheme, WindowSize, files,
+    locking, persistence, portable, recovery, validate,
 };
 
 /// A validated, complete settings backup ready to replace a profile.
@@ -33,6 +33,8 @@ struct SnapshotConfiguration {
     connections: Vec<Connection>,
     sort_mode: SortMode,
     terminal_theme: TerminalTheme,
+    #[serde(default)]
+    app_theme: AppTheme,
     window_size: Option<WindowSize>,
 }
 
@@ -56,6 +58,7 @@ impl Store {
             connections: snapshot.configuration.connections,
             sort_mode: snapshot.configuration.sort_mode,
             terminal_theme: snapshot.configuration.terminal_theme,
+            app_theme: snapshot.configuration.app_theme,
             window_size: snapshot.configuration.window_size,
             local_directories: snapshot.local_directories,
             passwords: BTreeMap::new(),
@@ -146,6 +149,7 @@ fn encode(configuration: &Configuration) -> io::Result<Vec<u8>> {
             connections: configuration.connections.clone(),
             sort_mode: configuration.sort_mode,
             terminal_theme: configuration.terminal_theme,
+            app_theme: configuration.app_theme,
             window_size: configuration.window_size,
         },
         local_directories: configuration.local_directories.clone(),

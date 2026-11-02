@@ -15,11 +15,12 @@ fn version_one_database_migrates_without_losing_metadata_or_changing_key() {
     let wrapped_key = std::fs::read(path.with_file_name("key.dpapi")).unwrap();
     let database = database::open(&path).unwrap();
     database
-        .execute_batch("DROP TABLE passwords; PRAGMA user_version=1;")
+        .execute_batch("DROP TABLE passwords; ALTER TABLE preferences DROP COLUMN app_theme; PRAGMA user_version=1;")
         .unwrap();
     drop(database);
     let mut restored = Store::load(&path).unwrap();
     assert_eq!(restored.connections(), store.connections());
+    assert_eq!(restored.app_theme(), crate::storage::AppTheme::Graphite);
     assert!(restored.saved_password(&connection).is_none());
     restored
         .save_password(

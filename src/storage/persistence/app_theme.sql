@@ -1,0 +1,4 @@
+BEGIN IMMEDIATE;
+ALTER TABLE preferences ADD COLUMN app_theme TEXT NOT NULL DEFAULT 'graphite';
+PRAGMA user_version=3;
+COMMIT;

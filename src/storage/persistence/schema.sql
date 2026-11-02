@@ -3,6 +3,7 @@ CREATE TABLE preferences (
     id INTEGER PRIMARY KEY CHECK (id=1),
     sort_mode TEXT NOT NULL,
     terminal_theme TEXT NOT NULL,
+    app_theme TEXT NOT NULL DEFAULT 'graphite',
     window_width REAL,
     window_height REAL,
     maximized INTEGER CHECK (maximized IN (0,1)),
@@ -30,5 +31,5 @@ CREATE TABLE passwords (
     connection_id TEXT PRIMARY KEY NOT NULL REFERENCES connections(id) ON DELETE CASCADE,
     password TEXT NOT NULL
 );
-PRAGMA user_version=2;
+PRAGMA user_version=3;
 COMMIT;

@@ -34,7 +34,7 @@ use std::{
 };
 
 pub use model::{AuthMethod, Connection, SortMode};
-pub use preferences::TerminalTheme;
+pub use preferences::{AppTheme, TerminalTheme};
 pub use snapshot::ImportSnapshot;
 pub use window::WindowSize;
 
@@ -43,6 +43,7 @@ struct Configuration {
     connections: Vec<Connection>,
     sort_mode: SortMode,
     terminal_theme: TerminalTheme,
+    app_theme: AppTheme,
     window_size: Option<WindowSize>,
     local_directories: BTreeMap<String, PathBuf>,
     passwords: BTreeMap<String, zeroize::Zeroizing<String>>,

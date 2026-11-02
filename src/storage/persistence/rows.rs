@@ -9,17 +9,17 @@ use super::{database::error, invalid};
 
 pub(super) fn read(database: &Database) -> io::Result<Configuration> {
     let mut configuration = database.query_row(
-        "SELECT sort_mode,terminal_theme,window_width,window_height,maximized FROM preferences WHERE id=1",
+        "SELECT sort_mode,terminal_theme,window_width,window_height,maximized,app_theme FROM preferences WHERE id=1",
         [],
         |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?,
-            row.get::<_, Option<f32>>(2)?, row.get::<_, Option<f32>>(3)?, row.get::<_, Option<i64>>(4)?)),
-    ).map_err(error).and_then(|(sort, theme, width, height, maximized)| {
+            row.get::<_, Option<f32>>(2)?, row.get::<_, Option<f32>>(3)?, row.get::<_, Option<i64>>(4)?, row.get::<_, String>(5)?)),
+    ).map_err(error).and_then(|(sort, theme, width, height, maximized, app)| {
         let window_size = match (width, height, maximized) {
             (None, None, None) => None,
             (Some(width), Some(height), Some(maximized @ (0 | 1))) => Some(WindowSize { width, height, maximized: maximized == 1 }),
             _ => return Err(invalid()),
         };
-        Ok(Configuration { sort_mode: decode(sort)?, terminal_theme: decode(theme)?, window_size, ..Configuration::default() })
+        Ok(Configuration { sort_mode: decode(sort)?, terminal_theme: decode(theme)?, app_theme: decode(app)?, window_size, ..Configuration::default() })
     })?;
     let mut statement = database.prepare("SELECT id,name,host,port,username,auth_method,key_path,successful_shells FROM connections ORDER BY position").map_err(error)?;
     let mut rows = statement.query([]).map_err(error)?;
@@ -83,13 +83,14 @@ pub(super) fn write(database: &mut Database, configuration: &Configuration) -> i
         .map_err(error)?;
     transaction
         .execute(
-            "INSERT INTO preferences VALUES(1,?1,?2,?3,?4,?5)",
+            "INSERT INTO preferences(id,sort_mode,terminal_theme,window_width,window_height,maximized,app_theme) VALUES(1,?1,?2,?3,?4,?5,?6)",
             params![
                 encode(&configuration.sort_mode)?,
                 encode(&configuration.terminal_theme)?,
                 configuration.window_size.map(|size| size.width),
                 configuration.window_size.map(|size| size.height),
                 configuration.window_size.map(|size| size.maximized),
+                encode(&configuration.app_theme)?,
             ],
         )
         .map_err(error)?;

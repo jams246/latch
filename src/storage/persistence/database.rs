@@ -67,7 +67,7 @@ pub(super) fn open_for_write(path: &Path, create: bool) -> io::Result<Connection
     let version: i64 = connection
         .query_row("PRAGMA user_version", [], |row| row.get(0))
         .map_err(error)?;
-    if !matches!(version, 1 | 2) {
+    if !matches!(version, 1..=3) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "Unsupported encrypted settings schema",
@@ -80,6 +80,11 @@ pub(super) fn open_for_write(path: &Path, create: bool) -> io::Result<Connection
     if version == 1 {
         connection
             .execute_batch(include_str!("passwords.sql"))
+            .map_err(error)?;
+    }
+    if version < 3 {
+        connection
+            .execute_batch(include_str!("app_theme.sql"))
             .map_err(error)?;
     }
     Ok(connection)
