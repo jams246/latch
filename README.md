@@ -17,6 +17,10 @@ That's it.
 
 ## Screenshots
 
+| Connections | Settings |
+| --- | --- |
+| ![Latch connection library grouped alphabetically](assets/screenshots/connections.jpg) | ![Latch Appearance settings with Citron app colors and a live terminal preview](assets/screenshots/settings.jpg) |
+
 | Terminal | SFTP |
 | --- | --- |
 | ![Latch connected to an SSH terminal](assets/screenshots/terminal.jpg) | ![Latch connected to an SFTP server with sample files](assets/screenshots/sftp.jpg) |
