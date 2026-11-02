@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.0 - 2026-11-02
+
+- Replace the connections sidebar with a full-width library grouped alphabetically by initial.
+- Open terminal and SFTP sessions directly from connection rows, with Edit and Delete in the overflow menu.
+- Keep Connections pinned beside session tabs and reveal each tab's close control in place of its icon.
+- Open Settings from the labeled gear in the top right, with Appearance, Data, and About sections.
+- Add persistent Graphite and Citron app colors independently of terminal themes.
+- Preserve existing profiles and backups while migrating saved app colors.
+
 ## 0.4.0 - 2026-10-26
 
 - Open additional native windows with Duplicate to New Window from a terminal tab's context menu.
