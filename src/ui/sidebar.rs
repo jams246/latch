@@ -2,6 +2,7 @@ use super::{Latch, button, picker::filter_connections};
 use gpui::{prelude::*, *};
 use latch::storage::SortMode;
 
+mod scrollbar;
 #[cfg(test)]
 mod tests;
 
@@ -111,14 +112,22 @@ impl Latch {
             )
             .child(
                 div()
-                    .id("connections")
-                    .flex()
-                    .flex_col()
-                    .gap_2()
+                    .relative()
                     .flex_1()
                     .min_h_0()
-                    .overflow_y_scroll()
-                    .children(rows),
+                    .child(
+                        div()
+                            .id("connections")
+                            .size_full()
+                            .flex()
+                            .flex_col()
+                            .gap_2()
+                            .pr(px(12.))
+                            .overflow_y_scroll()
+                            .track_scroll(&self.connection_scroll)
+                            .children(rows),
+                    )
+                    .child(self.connection_scrollbar(cx)),
             )
             .children(self.store(cx).connections().is_empty().then(|| {
                 div()
