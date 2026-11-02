@@ -1,6 +1,6 @@
 use super::{
     Latch,
-    controls::{icon, quiet},
+    controls::{app_icon, icon, quiet},
     theme::current,
 };
 use gpui::{prelude::*, *};
@@ -96,17 +96,7 @@ impl Render for Latch {
                             .items_center()
                             .gap_2()
                             .pr_2()
-                            .child(
-                                div()
-                                    .flex()
-                                    .items_center()
-                                    .justify_center()
-                                    .size(px(24.))
-                                    .rounded_md()
-                                    .bg(rgb(colors.accent))
-                                    .text_color(rgb(colors.background))
-                                    .child(icon("\u{e756}")),
-                            )
+                            .child(app_icon().size(px(24.)))
                             .child(div().font_weight(FontWeight::SEMIBOLD).child("Latch")),
                     )
                     .child(library)

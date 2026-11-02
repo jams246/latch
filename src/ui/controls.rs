@@ -1,5 +1,16 @@
 use super::theme::current;
 use gpui::{prelude::*, *};
+use std::sync::{Arc, LazyLock};
+
+pub(super) fn app_icon() -> Img {
+    static IMAGE: LazyLock<Arc<Image>> = LazyLock::new(|| {
+        Arc::new(Image::from_bytes(
+            ImageFormat::Png,
+            include_bytes!("../../assets/latch.png").to_vec(),
+        ))
+    });
+    img(IMAGE.clone()).flex_shrink_0()
+}
 
 pub(super) fn icon(glyph: &'static str) -> Div {
     div()
